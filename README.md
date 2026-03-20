@@ -1,170 +1,243 @@
-# Idle - Native Swift Migration
+# StoryDrift 🌙✨
 
-This folder contains the native Swift/SwiftUI migration of the Idle adaptive bedtime story app.
+> **AI-powered bedtime stories with real-time vitals monitoring for personalized children's sleep support**
 
-## Status: 🚧 In Progress
+StoryDrift is a native iOS app that generates dynamic, personalized bedtime stories while monitoring your child's vital signs using SmartSpectra's contactless technology. The app adapts story pacing and content in real-time based on the child's drift-to-sleep progression.
 
-This migration converts the React/TypeScript web app into a fully native iOS application using SwiftUI.
+![iOS](https://img.shields.io/badge/iOS-16.0+-blue.svg)
+![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)
+![SwiftUI](https://img.shields.io/badge/SwiftUI-Native-green.svg)
+![Status](https://img.shields.io/badge/Status-Complete-success.svg)
 
-## ✅ Completed
+## ✨ Features
 
-### Core Architecture
-- **App Structure**: Main app entry point with environment setup
-- **Authentication**: Auth0 integration with ASWebAuthenticationSession
-- **API Service**: Complete REST API client for backend communication
-- **Models**: All data models migrated from TypeScript interfaces
+### 🎪 Core Features
+- **Personalized Story Generation**: AI-powered stories customized to your child's interests, age, and mood
+- **Real-time Vitals Monitoring**: Contactless heart rate and breathing rate tracking via SmartSpectra SDK
+- **Drift Score Calculation**: Dynamic sleep progression tracking with 0-100% drift scoring
+- **Adaptive Pacing**: Stories automatically adjust based on child's relaxation state
+- **Interactive Elements**: Choices, quizzes, and drawing activities to engage children
+- **Audio Narration**: ElevenLabs premium voice synthesis with multiple narrator options
+- **Story Archive**: Browse and replay previous bedtime stories
 
-### Services
-- `AuthManager`: Handles Auth0 authentication flow
-- `APIService`: Generic API client with typed requests
-- `SmartSpectraManager`: Vitals monitoring with drift score calculation
+### 📊 Analytics & Insights
+- **Behavioral Statistics**: Track sleep onset time, story completion rates, and drift patterns
+- **Vitals History**: Monitor heart rate and breathing trends over time
+- **Story Performance**: See which themes and story types work best for your child
+- **Dashboard**: Quick overview of recent stories, average drift scores, and key metrics
 
-### Views Implemented
-- ✅ `LoginView`: Auth0 login with native UI
-- ✅ `LoadingView`: Animated loading state
-- ✅ `MainTabView`: Tab-based navigation structure
-- ✅ `ChildDashboardView`: Home dashboard with stats and recent stories
-- ✅ `ChildOnboardingView`: Multi-step child profile creation
-- ✅ `BehavioralStatsView`: Analytics and vitals trends
-- ✅ `StoryArchiveView`: Story history browser
-- ✅ `SettingsView`: Account and profile management
-
-## 🔨 To-Do
-
-### High Priority
-- [ ] `StorySetupView`: Theme selection and story configuration
-- [ ] `StoryPlaybackView`: Live story narration with audio
-- [ ] `DriftMeterView`: Real-time drift score visualization
-- [ ] `InteractiveElementsView`: Choices, quizzes, drawing prompts
-- [ ] `SummaryView`: Post-story completion screen
-- [ ] Audio playback integration (ElevenLabs API)
-- [ ] Image generation pipeline integration (Gemini 2.0 Flash Exp)
-
-### Medium Priority
-- [ ] Offline story caching
-- [ ] Voice cloning setup flow
-- [ ] Drawing canvas for interactive elements
-- [ ] Export vitals data to Excel
-- [ ] Push notifications for bedtime reminders
-- [ ] Widget for quick story access
-
-### Nice to Have
-- [ ] iPad optimization
-- [ ] Apple Watch companion app
-- [ ] HealthKit integration
-- [ ] Family Sharing support
-- [ ] Siri shortcuts
+### 🎨 User Experience
+- **Beautiful SwiftUI Interface**: Native iOS design with smooth animations
+- **Dark Mode Optimized**: Gradient backgrounds perfect for bedtime
+- **Child Profiles**: Support for multiple children with individual preferences
+- **Theme Browser**: 25+ story themes across 5 categories (Adventure, Nature, Fantasy, Educational, Cozy)
 
 ## 🏗️ Architecture
 
+### Technology Stack
+- **Framework**: SwiftUI + Combine
+- **Language**: Swift 5.9
+- **Minimum iOS**: 16.0+
+- **Architecture**: MVVM with @StateObject/@ObservableObject
+- **Networking**: URLSession with async/await
+- **Audio**: AVFoundation + AVSpeechSynthesizer
+- **Charts**: Swift Charts (iOS 16+)
+- **Drawing**: PencilKit for interactive canvas
+
+### Project Structure
+
 ```
-SwiftApp/
+StoryDrift/
 ├── Idle/
-│   ├── IdleApp.swift           # Main app entry
-│   ├── Models/
-│   │   └── Models.swift        # All data models
-│   ├── Services/
-│   │   ├── AuthManager.swift   # Auth0 authentication
-│   │   ├── APIService.swift    # API client
-│   │   └── SmartSpectraManager.swift  # Vitals monitoring
-│   ├── Views/
-│   │   ├── ContentView.swift
-│   │   ├── LoginView.swift
-│   │   ├── LoadingView.swift
-│   │   ├── MainTabView.swift
-│   │   ├── ChildDashboardView.swift
-│   │   ├── ChildOnboardingView.swift
-│   │   ├── BehavioralStatsView.swift
-│   │   └── [More views...]
-│   ├── ViewModels/
-│   ├── Utils/
-│   ├── Components/
-│   └── Resources/
-│       └── Info.plist
-└── Idle.xcodeproj/
+│   ├── IdleApp.swift              # Main app entry point
+│   ├── Models.swift                # Data models (Child, Story, Vitals, etc.)
+│   │
+│   ├── Services/                   # Business logic layer
+│   │   ├── AuthManager.swift      # Auth0 authentication
+│   │   ├── APIService.swift       # Backend API client
+│   │   ├── SmartSpectraManager.swift  # Vitals monitoring
+│   │   └── AudioService.swift     # ElevenLabs & TTS audio
+│   │
+│   ├── Views/                      # Screen-level views
+│   │   ├── LoginView.swift        # Auth0 login
+│   │   ├── LoadingView.swift      # Loading states
+│   │   ├── ContentView.swift      # Root navigation
+│   │   ├── MainTabView.swift      # Tab bar controller
+│   │   ├── ChildDashboardView.swift  # Main dashboard
+│   │   ├── ChildOnboardingView.swift  # Child profile creation
+│   │   ├── BehavioralStatsView.swift  # Analytics dashboard
+│   │   ├── StorySetupView.swift   # Story configuration
+│   │   ├── StoryPlaybackView.swift  # Story narration
+│   │   ├── StorySummaryView.swift  # Post-story completion
+│   │   ├── StoryArchiveView.swift  # Story history
+│   │   ├── StoryThemesView.swift  # Theme browser
+│   │   └── SettingsView.swift     # App settings
+│   │
+│   └── Components/                 # Reusable UI components
+│       ├── DriftMeterView.swift   # Drift visualization
+│       ├── VitalsMonitorView.swift  # Vitals display
+│       └── InteractiveElementsView.swift  # Story interactions
+│
+├── Idle.xcodeproj/                 # Xcode project configuration
+└── README.md
 ```
 
-## 🔧 Setup Instructions
+## ✅ Migration Complete
+
+All original React/TypeScript components have been successfully migrated to native SwiftUI:
+
+### Services (4/4) ✅
+- ✅ AuthManager - Auth0 authentication with ASWebAuthenticationSession
+- ✅ APIService - Complete REST API client with async/await
+- ✅ SmartSpectraManager - Vitals monitoring with drift calculation
+- ✅ AudioService - ElevenLabs API + TTS fallback
+
+### Views (12/12) ✅
+- ✅ LoginView - Auth0 native login flow
+- ✅ LoadingView - Animated loading states
+- ✅ ContentView - Root navigation controller
+- ✅ MainTabView - Tab-based navigation
+- ✅ ChildDashboardView - Home dashboard with stats
+- ✅ ChildOnboardingView - 4-step profile creation
+- ✅ BehavioralStatsView - Analytics with charts
+- ✅ StorySetupView - Theme selection & configuration
+- ✅ StoryPlaybackView - Live narration with audio
+- ✅ StorySummaryView - Post-story completion
+- ✅ StoryArchiveView - Story history browser
+- ✅ StoryThemesView - Categorized theme browser
+- ✅ SettingsView - App configuration
+
+### Components (3/3) ✅
+- ✅ DriftMeterView - Circular progress visualization
+- ✅ VitalsMonitorView - Real-time vitals display
+- ✅ InteractiveElementsView - Choices, quizzes, drawing
+
+## 🚀 Getting Started
 
 ### Prerequisites
-1. Xcode 15.0 or later
-2. iOS 17.0+ deployment target
-3. CocoaPods or Swift Package Manager
-4. SmartSpectra SDK access
+1. **Xcode 15.0+** installed
+2. **macOS 14.0 (Sonoma)+** recommended
+3. **iOS 16.0+ device or simulator**
+4. **SmartSpectra SDK** from Presage Health
 
-### Configuration
+### Installation
 
-1. **Update Auth0 credentials** in `Services/AuthManager.swift`:
-```swift
-private let domain = "YOUR_AUTH0_DOMAIN"
-private let clientId = "YOUR_AUTH0_CLIENT_ID"
+1. **Clone the repository**
+```bash
+git clone https://github.com/yourusername/StoryDrift.git
+cd StoryDrift
 ```
 
-2. **Update API base URL** in `Services/APIService.swift`:
-```swift
-static let baseURL = "https://your-backend-url.com"
+2. **Open in Xcode**
+```bash
+open Idle.xcodeproj
 ```
 
-3. **Add SmartSpectra SDK**:
-   - Add the SDK to your project via SPM or CocoaPods
-   - Ensure camera permissions are configured
+3. **Install SmartSpectra SDK**
+   - Download from [Presage Health](https://www.presagehealth.com/)
+   - Add framework to: Target → General → Frameworks, Libraries, and Embedded Content
 
-### Dependencies
+4. **Build and Run**
+   - Select target device/simulator
+   - Press `Cmd + R` or click ▶️ Run
 
-Add these Swift packages:
-- **SmartSpectraSwiftSDK**: Contactless vitals monitoring
-- **Auth0**: Authentication (if using Auth0 SDK)
-- **Alamofire** (optional): Enhanced networking
+## ⚙️ Configuration
 
-## 🎨 Design System
+### Auth0 Setup
 
-The app uses a custom dark theme with:
+**1. Create Auth0 Application**
+- Go to [Auth0 Dashboard](https://manage.auth0.com/)
+- Create new "Native" application
+- Copy Domain and Client ID
+
+**2. Configure Callback URLs**
+```
+storydrift://YOUR_TENANT.auth0.com/ios/com.storydrift.Idle/callback
+```
+
+**3. Update AuthManager.swift**
+```swift
+private let domain = "your-tenant.auth0.com"
+private let clientId = "your_client_id_here"
+```
+
+### API Configuration
+
+Update `APIService.swift`:
+```swift
+private let baseURL = "http://your-backend-url/api"
+```
+
+### ElevenLabs (Optional)
+
+For premium audio narration:
+```bash
+export ELEVENLABS_API_KEY="your_api_key_here"
+```
+
+## 📱 Usage
+
+### First Time Setup
+1. Launch app → "Sign in with Auth0"
+2. Create child profile (name, age, interests, bedtime)
+
+### Creating Stories
+1. Dashboard → "New Story"
+2. Select theme or search
+3. Choose tone (Calm/Exciting/Educational)
+4. Set story length (5-20 min)
+5. Position camera for vitals
+6. "Start Story"
+
+### During Playback
+- **Drift Meter**: Real-time 0-100% sleep progression
+- **Vitals**: Heart rate, breathing, signal quality
+- **Interactions**: Choices, quizzes, drawing
+- **Auto-pause**: Stops at 90% drift (child asleep)
+
+## 🔧 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| SmartSpectra not found | Link SDK in Build Phases → Link Binary With Libraries |
+| Auth0 login fails | Verify callback URL matches Info.plist |
+| No audio | Check ElevenLabs key, enable TTS fallback, unmute device |
+| Vitals not updating | Grant camera permissions, ensure good lighting |
+| Stories not saving | Verify backend API reachable, check Auth0 token |
+
+## 📝 API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/auth/verify` | Verify Auth0 token |
+| `GET` | `/children` | Get all child profiles |
+| `POST` | `/children` | Create new child profile |
+| `GET` | `/stories?childId=:id` | Get stories for child |
+| `POST` | `/generate` | Generate new story |
+| `POST` | `/vitals` | Post vitals data |
+| `GET` | `/statistics/:childId` | Get behavioral stats |
+
+## 🎨 Design
+
+**Color Palette**:
 - Primary: Purple (#8B5CF6)
 - Secondary: Blue (#3B82F6)
 - Accent: Cyan (#06B6D4)
 - Background: Dark gradients
-- Typography: San Francisco (system default)
 
-## 📱 Screenshots
-
-(Screenshots will be added as views are implemented)
-
-## 🔐 Security Note
-
-This code contains placeholder Auth0 configuration. **Never commit real credentials to version control.** Use:
-- `.xcconfig` files for environment-specific settings
-- Environment variables
-- Xcode configuration settings
-
-## 🚀 Building & Running
-
-1. Open `Idle.xcodeproj` in Xcode
-2. Select your development team in Signing & Capabilities
-3. Update bundle identifier if needed
-4. Build and run on simulator or device (camera required for vitals)
-
-## 📝 Migration Notes
-
-### Key Differences from Web Version
-
-1. **Authentication**: Native ASWebAuthenticationSession instead of Auth0 React SDK
-2. **Navigation**: Tab-based + navigation stack vs React Router
-3. **State Management**: @StateObject/@ObservedObject instead of React hooks
-4. **Styling**: SwiftUI declarative views instead of Tailwind CSS
-5. **Vitals Integration**: Direct SmartSpectra SDK instead of bridge layer
-
-### API Compatibility
-
-The Swift app communicates with the same Node.js backend as the web version. All endpoints remain unchanged.
-
-## 🤝 Contributing
-
-When adding new views:
-1. Follow the existing naming conventions
-2. Use `@EnvironmentObject` for shared state
-3. Keep views focused and composable
-4. Add preview providers for Xcode canvas
+**Typography**: San Francisco (iOS system font)
 
 ## 📄 License
 
-Same as the main project.
+Proprietary - All rights reserved.
+
+## 🙏 Acknowledgments
+
+- **SmartSpectra SDK** by Presage Health
+- **Auth0** for authentication
+- **ElevenLabs** for voice synthesis
+- **OpenAI** for story generation
+
+---
+
+**Built with ❤️ for better bedtime routines**
