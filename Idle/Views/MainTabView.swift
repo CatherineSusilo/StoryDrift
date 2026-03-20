@@ -45,7 +45,7 @@ struct MainTabView: View {
                         .tag(1)
                     
                     // Archive Tab
-                    StoryArchiveView(child: selectedChild ?? children[0])
+                    StoryArchiveView(childId: selectedChild?.id ?? children[0].id)
                         .tabItem {
                             Label("Stories", systemImage: "book.fill")
                         }
