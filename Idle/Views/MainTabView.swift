@@ -88,5 +88,5 @@ struct MainTabView: View {
 #Preview {
     MainTabView(currentView: .constant(.dashboard))
         .environmentObject(AuthManager())
-        .environmentObject(SmartSpectraManager())
+        .environmentObject(VitalsManager())
 }

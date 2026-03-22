@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 
 struct StoryPlaybackView: View {
-    @EnvironmentObject var spectraManager: SmartSpectraManager
+    @EnvironmentObject var vitalsManager: VitalsManager
     let story: Story
     let onComplete: () -> Void
     
@@ -20,11 +20,8 @@ struct StoryPlaybackView: View {
     }
     
     private var currentImage: String? {
-        if let imageIndex = currentParagraph?.imageIndex,
-           imageIndex < story.images.count {
-            return story.images[imageIndex]
-        }
-        return story.images.first
+        let index = min(currentParagraphIndex, story.images.count - 1)
+        return story.images.indices.contains(index) ? story.images[index] : story.images.first
     }
     
     private var progress: Double {
@@ -116,7 +113,7 @@ struct StoryPlaybackView: View {
                 
                 // Drift Meter
                 DriftMeterView(
-                    driftScore: spectraManager.driftScore,
+                    driftScore: vitalsManager.driftScore,
                     isCompact: true
                 )
                 .padding(.horizontal)
@@ -134,7 +131,7 @@ struct StoryPlaybackView: View {
                         
                         Spacer()
                         
-                        Text(spectraManager.getDriftStatus())
+                        Text(vitalsManager.getDriftStatus())
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.cyan)
                     }
@@ -164,15 +161,15 @@ struct StoryPlaybackView: View {
     }
     
     private func startStory() {
-        spectraManager.startMonitoring(childId: story.childId)
+        vitalsManager.startMonitoring(childId: story.childId)
         
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             if isPlaying {
                 elapsedTime += 1
-                driftHistory.append(spectraManager.driftScore)
+                driftHistory.append(vitalsManager.driftScore)
                 
                 // Check if child is asleep (drift > 90%)
-                if spectraManager.driftScore >= 90 {
+                if vitalsManager.driftScore >= 90 {
                     completeStory()
                 }
             }
@@ -185,7 +182,7 @@ struct StoryPlaybackView: View {
         timer?.invalidate()
         timer = nil
         audioPlayer?.stop()
-        spectraManager.stopMonitoring()
+        vitalsManager.stopMonitoring()
     }
     
     private func togglePlayback() {
@@ -291,19 +288,22 @@ class AudioPlayerDelegate: NSObject, AVAudioPlayerDelegate {
             childId: "child1",
             title: "The Magical Forest",
             themes: ["Adventure", "Nature"],
-            generatedAt: Date(),
-            completed: false,
-            sleepOnsetTime: nil,
             paragraphs: [
-                StoryParagraph(text: "Once upon a time, in a magical forest...", imageIndex: 0),
-                StoryParagraph(text: "There lived a friendly unicorn who loved bedtime stories.", imageIndex: 0)
+                StoryParagraph(text: "Once upon a time, in a magical forest..."),
+                StoryParagraph(text: "There lived a friendly unicorn who loved bedtime stories.")
             ],
             images: ["https://example.com/image1.jpg"],
-            initialState: .normal,
-            duration: nil,
-            driftScores: []
+            scenes: [],
+            interactiveElements: [],
+            metadata: StoryMetadata(targetDuration: 900, initialDriftScore: 0),
+            completed: false,
+            sleepOnsetTime: nil,
+            duration: 0,
+            driftScores: [],
+            generatedAt: Date(),
+            completedAt: nil
         ),
         onComplete: {}
     )
-    .environmentObject(SmartSpectraManager())
+    .environmentObject(VitalsManager())
 }

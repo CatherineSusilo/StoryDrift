@@ -38,7 +38,7 @@ struct ChoiceView: View {
                         )
                     )
                 
-                Text(element.prompt)
+                Text(element.content)
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
@@ -115,7 +115,7 @@ struct DrawingView: View {
                         )
                     )
                 
-                Text(element.prompt)
+                Text(element.content)
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
@@ -219,7 +219,7 @@ struct QuizView: View {
                         )
                     )
                 
-                Text(element.prompt)
+                Text(element.content)
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
@@ -318,8 +318,11 @@ struct QuizView: View {
             element: InteractiveElement(
                 id: "1",
                 type: .choice,
-                prompt: "Which path should we take?",
-                options: ["The forest trail", "The mountain path", "The river crossing"]
+                content: "Which path should we take?",
+                options: ["The forest trail", "The mountain path", "The river crossing"],
+                paragraphIndex: 0,
+                completed: false,
+                response: nil
             ),
             onComplete: { _ in }
         )
@@ -328,8 +331,11 @@ struct QuizView: View {
             element: InteractiveElement(
                 id: "2",
                 type: .quiz,
-                prompt: "What color is the sky?",
-                options: ["Blue", "Green", "Red"]
+                content: "What color is the sky?",
+                options: ["Blue", "Green", "Red"],
+                paragraphIndex: 1,
+                completed: false,
+                response: nil
             ),
             onComplete: { _ in }
         )

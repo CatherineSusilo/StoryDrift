@@ -330,8 +330,8 @@ struct StateButton: View {
             age: 5,
             storytellingTone: .calming,
             parentPrompt: "",
-            uploadedImages: [],
             customCharacters: [],
+            uploadedImages: [],
             createdAt: Date(),
             updatedAt: Date()
         )),

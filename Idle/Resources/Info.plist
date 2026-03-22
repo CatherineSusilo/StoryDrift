@@ -45,6 +45,12 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>AUTH0Domain</key>
+	<string>$(AUTH0_DOMAIN)</string>
+	<key>AUTH0ClientId</key>
+	<string>$(AUTH0_CLIENT_ID)</string>
+	<key>APIBaseURL</key>
+	<string>$(API_BASE_URL)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Idle uses your camera to monitor vital signs contactlessly during bedtime stories.</string>
 	<key>CFBundleURLTypes</key>

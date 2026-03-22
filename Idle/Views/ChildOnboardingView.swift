@@ -124,8 +124,8 @@ struct ChildOnboardingView: View {
             age: childAge,
             storytellingTone: selectedTone,
             parentPrompt: parentPrompt,
-            uploadedImages: [],
             customCharacters: [],
+            uploadedImages: [],
             createdAt: Date(),
             updatedAt: Date()
         )

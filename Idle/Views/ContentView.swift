@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var authManager: AuthManager
-    @EnvironmentObject var spectraManager: SmartSpectraManager
+    @EnvironmentObject var vitalsManager: VitalsManager
     @State private var currentView: AppView = .dashboard
     
     var body: some View {
@@ -31,5 +31,5 @@ enum AppView {
 #Preview {
     ContentView()
         .environmentObject(AuthManager())
-        .environmentObject(SmartSpectraManager())
+        .environmentObject(VitalsManager())
 }

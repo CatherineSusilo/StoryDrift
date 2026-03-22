@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct VitalsMonitorView: View {
-    @EnvironmentObject var spectraManager: SmartSpectraManager
+    @EnvironmentObject var vitalsManager: VitalsManager
     
     var body: some View {
         VStack(spacing: 20) {
@@ -16,7 +16,7 @@ struct VitalsMonitorView: View {
                 
                 Spacer()
                 
-                StatusIndicator(isActive: spectraManager.isMonitoring)
+                StatusIndicator(isActive: vitalsManager.isMonitoring)
             }
             
             // Vitals Grid
@@ -26,8 +26,8 @@ struct VitalsMonitorView: View {
             ], spacing: 16) {
                 VitalCard(
                     icon: "heart.fill",
-                    value: spectraManager.currentHeartRate > 0
-                        ? "\(Int(spectraManager.currentHeartRate))"
+                    value: vitalsManager.currentHeartRate > 0
+                        ? "\(Int(vitalsManager.currentHeartRate))"
                         : "--",
                     unit: "bpm",
                     label: "Heart Rate",
@@ -36,8 +36,8 @@ struct VitalsMonitorView: View {
                 
                 VitalCard(
                     icon: "wind",
-                    value: spectraManager.currentBreathingRate > 0
-                        ? String(format: "%.1f", spectraManager.currentBreathingRate)
+                    value: vitalsManager.currentBreathingRate > 0
+                        ? String(format: "%.1f", vitalsManager.currentBreathingRate)
                         : "--",
                     unit: "rpm",
                     label: "Breathing",
@@ -46,7 +46,7 @@ struct VitalsMonitorView: View {
                 
                 VitalCard(
                     icon: "waveform.path.ecg",
-                    value: "\(spectraManager.signalQuality)",
+                    value: "\(vitalsManager.signalQuality)",
                     unit: "%",
                     label: "Signal",
                     color: signalColor
@@ -54,7 +54,7 @@ struct VitalsMonitorView: View {
                 
                 VitalCard(
                     icon: "moon.zzz.fill",
-                    value: "\(Int(spectraManager.driftScore))",
+                    value: "\(Int(vitalsManager.driftScore))",
                     unit: "%",
                     label: "Drift",
                     color: .cyan
@@ -62,13 +62,13 @@ struct VitalsMonitorView: View {
             }
             
             // Signal Quality Bar
-            if spectraManager.isMonitoring {
+            if vitalsManager.isMonitoring {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Signal Quality")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.white.opacity(0.8))
                     
-                    ProgressView(value: Double(spectraManager.signalQuality) / 100)
+                    ProgressView(value: Double(vitalsManager.signalQuality) / 100)
                         .tint(signalColor)
                         .scaleEffect(y: 2)
                     
@@ -87,7 +87,7 @@ struct VitalsMonitorView: View {
     }
     
     private var signalColor: Color {
-        switch spectraManager.signalQuality {
+        switch vitalsManager.signalQuality {
         case 0..<30:
             return .red
         case 30..<60:
@@ -100,7 +100,7 @@ struct VitalsMonitorView: View {
     }
     
     private var signalQualityText: String {
-        switch spectraManager.signalQuality {
+        switch vitalsManager.signalQuality {
         case 0..<30:
             return "Poor - Adjust camera position"
         case 30..<60:
@@ -177,7 +177,7 @@ struct StatusIndicator: View {
 
 #Preview {
     VitalsMonitorView()
-        .environmentObject(SmartSpectraManager())
+        .environmentObject(VitalsManager())
         .background(
             LinearGradient(
                 gradient: Gradient(colors: [

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var authManager: AuthManager
-    @EnvironmentObject var spectraManager: SmartSpectraManager
+    @EnvironmentObject var vitalsManager: VitalsManager
     @Binding var children: [ChildProfile]
     @Binding var selectedChild: ChildProfile?
     
@@ -127,10 +127,10 @@ struct SettingsView: View {
                     
                     if debugMode {
                         VStack(alignment: .leading, spacing: 8) {
-                            DebugInfoRow(label: "Heart Rate", value: "\(Int(spectraManager.currentHeartRate)) bpm")
-                            DebugInfoRow(label: "Breathing Rate", value: String(format: "%.1f rpm", spectraManager.currentBreathingRate))
-                            DebugInfoRow(label: "Signal Quality", value: "\(spectraManager.signalQuality)%")
-                            DebugInfoRow(label: "Drift Score", value: "\(Int(spectraManager.driftScore))%")
+                            DebugInfoRow(label: "Heart Rate", value: "\(Int(vitalsManager.currentHeartRate)) bpm")
+                            DebugInfoRow(label: "Breathing Rate", value: String(format: "%.1f rpm", vitalsManager.currentBreathingRate))
+                            DebugInfoRow(label: "Signal Quality", value: "\(vitalsManager.signalQuality)%")
+                            DebugInfoRow(label: "Drift Score", value: "\(Int(vitalsManager.driftScore))%")
                         }
                         .padding()
                         .background(Color.black.opacity(0.3))
@@ -296,10 +296,15 @@ struct DebugInfoRow: View {
 #Preview {
     SettingsView(
         children: .constant([
-            ChildProfile(id: "1", name: "Emma", age: 5, interests: ["Adventure"], bedtime: Date())
+            ChildProfile(
+                id: "1", userId: "user1", name: "Emma", age: 5,
+                storytellingTone: .calming, parentPrompt: "Loves unicorns",
+                customCharacters: [], uploadedImages: [],
+                createdAt: Date(), updatedAt: Date()
+            )
         ]),
         selectedChild: .constant(nil)
     )
     .environmentObject(AuthManager())
-    .environmentObject(SmartSpectraManager())
+    .environmentObject(VitalsManager())
 }

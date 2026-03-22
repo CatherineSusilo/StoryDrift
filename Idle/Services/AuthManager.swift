@@ -10,9 +10,9 @@ class AuthManager: NSObject, ObservableObject {
     
     private var authSession: ASWebAuthenticationSession?
     
-    // Auth0 configuration
-    private let domain = "YOUR_AUTH0_DOMAIN" // TODO: Replace with your Auth0 domain
-    private let clientId = "YOUR_AUTH0_CLIENT_ID" // TODO: Replace with your Auth0 client ID
+    // Auth0 configuration — values come from Config.xcconfig (never commit that file)
+    private let domain    = Secrets.auth0Domain
+    private let clientId  = Secrets.auth0ClientId
     private let redirectUri = "idle://callback"
     
     override init() {

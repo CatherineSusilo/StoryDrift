@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ChildDashboardView: View {
     @Binding var child: ChildProfile
-    @EnvironmentObject var spectraManager: SmartSpectraManager
+    @EnvironmentObject var vitalsManager: VitalsManager
     @State private var recentStories: [Story] = []
     @State private var statistics: ChildStatistics?
     let onStartStory: () -> Void
@@ -74,7 +74,7 @@ struct ChildDashboardView: View {
                 .padding(.top)
                 
                 // Drift Meter Preview (if monitoring)
-                if spectraManager.isMonitoring {
+                if vitalsManager.isMonitoring {
                     DriftMeterPreview()
                         .padding(.horizontal)
                 }
@@ -259,7 +259,7 @@ struct StoryCardView: View {
 }
 
 struct DriftMeterPreview: View {
-    @EnvironmentObject var spectraManager: SmartSpectraManager
+    @EnvironmentObject var vitalsManager: VitalsManager
     
     var body: some View {
         VStack(spacing: 12) {
@@ -270,16 +270,16 @@ struct DriftMeterPreview: View {
                 
                 Spacer()
                 
-                Text("\(spectraManager.getDriftPercentage())%")
+                Text("\(vitalsManager.getDriftPercentage())%")
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(.cyan)
             }
             
-            ProgressView(value: spectraManager.driftScore / 100)
+            ProgressView(value: vitalsManager.driftScore / 100)
                 .tint(.cyan)
                 .scaleEffect(y: 2)
             
-            Text(spectraManager.getDriftStatus())
+            Text(vitalsManager.getDriftStatus())
                 .font(.system(size: 14))
                 .foregroundColor(.white.opacity(0.7))
         }
@@ -320,12 +320,12 @@ struct EmptyStateView: View {
             age: 5,
             storytellingTone: .calming,
             parentPrompt: "Loves unicorns",
-            uploadedImages: [],
             customCharacters: [],
+            uploadedImages: [],
             createdAt: Date(),
             updatedAt: Date()
         )),
         onStartStory: {}
     )
-    .environmentObject(SmartSpectraManager())
+    .environmentObject(VitalsManager())
 }
