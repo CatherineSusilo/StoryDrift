@@ -110,40 +110,38 @@ struct ChildOnboardingView: View {
     }
     
     private func createChild() {
-        guard let token = authManager.accessToken,
-              let userId = authManager.user?.id else {
-            return
-        }
-        
+        guard let token = authManager.accessToken else { return }
+
         isCreating = true
-        
-        let child = ChildProfile(
-            id: UUID().uuidString,
-            userId: userId,
+
+        let request = CreateChildRequest(
             name: childName,
             age: childAge,
-            storytellingTone: selectedTone,
-            parentPrompt: parentPrompt,
-            customCharacters: [],
-            uploadedImages: [],
-            createdAt: Date(),
-            updatedAt: Date()
+            dateOfBirth: nil,
+            avatar: nil,
+            preferences: ChildPrefsRequest(
+                storytellingTone: selectedTone.rawValue,
+                favoriteThemes: [],
+                defaultInitialState: "normal",
+                personality: parentPrompt.isEmpty ? nil : parentPrompt,
+                favoriteMedia: nil,
+                parentGoals: nil
+            )
         )
-        
+
         Task {
             do {
                 let createdChild = try await APIService.shared.createChild(
-                    profile: child,
+                    request: request,
                     token: token
                 )
-                
                 DispatchQueue.main.async {
                     onComplete(createdChild)
                     dismiss()
                 }
             } catch {
                 print("Error creating child: \(error)")
-                isCreating = false
+                DispatchQueue.main.async { self.isCreating = false }
             }
         }
     }

@@ -323,17 +323,10 @@ struct StateButton: View {
 
 #Preview {
     StorySetupView(
-        child: .constant(ChildProfile(
-            id: "1",
-            userId: "user1",
-            name: "Emma",
-            age: 5,
-            storytellingTone: .calming,
-            parentPrompt: "",
-            customCharacters: [],
-            uploadedImages: [],
-            createdAt: Date(),
-            updatedAt: Date()
+        child: .constant(Child(
+            id: "1", userId: "user1", name: "Emma", age: 5,
+            dateOfBirth: nil, avatar: nil,
+            createdAt: Date(), updatedAt: Date(), preferences: nil
         )),
         onStartStory: { _ in },
         onBack: {}

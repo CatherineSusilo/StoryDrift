@@ -127,14 +127,14 @@ struct QuickStatsCard: View {
         VStack(spacing: 16) {
             HStack(spacing: 16) {
                 StatItem(
-                    value: "\(stats.totalStories)",
+                    value: "\(stats.summary.totalSessions)",
                     label: "Stories",
                     icon: "book.fill",
                     color: .purple
                 )
                 
                 StatItem(
-                    value: formatDuration(stats.averageSleepOnset),
+                    value: formatDuration(TimeInterval(stats.summary.avgDuration)),
                     label: "Avg Sleep Time",
                     icon: "moon.zzz.fill",
                     color: .blue
@@ -143,14 +143,14 @@ struct QuickStatsCard: View {
             
             HStack(spacing: 16) {
                 StatItem(
-                    value: "\(Int(stats.completionRate * 100))%",
+                    value: "\(stats.summary.completedSessions)/\(stats.summary.totalSessions)",
                     label: "Completion",
                     icon: "checkmark.circle.fill",
                     color: .green
                 )
                 
                 StatItem(
-                    value: formatDuration(stats.averageDuration),
+                    value: formatDuration(TimeInterval(stats.summary.avgDuration)),
                     label: "Avg Duration",
                     icon: "timer.fill",
                     color: .orange
@@ -313,17 +313,10 @@ struct EmptyStateView: View {
 
 #Preview {
     ChildDashboardView(
-        child: .constant(ChildProfile(
-            id: "1",
-            userId: "user1",
-            name: "Emma",
-            age: 5,
-            storytellingTone: .calming,
-            parentPrompt: "Loves unicorns",
-            customCharacters: [],
-            uploadedImages: [],
-            createdAt: Date(),
-            updatedAt: Date()
+        child: .constant(Child(
+            id: "1", userId: "user1", name: "Emma", age: 5,
+            dateOfBirth: nil, avatar: nil,
+            createdAt: Date(), updatedAt: Date(), preferences: nil
         )),
         onStartStory: {}
     )

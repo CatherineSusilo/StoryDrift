@@ -296,12 +296,9 @@ struct DebugInfoRow: View {
 #Preview {
     SettingsView(
         children: .constant([
-            ChildProfile(
-                id: "1", userId: "user1", name: "Emma", age: 5,
-                storytellingTone: .calming, parentPrompt: "Loves unicorns",
-                customCharacters: [], uploadedImages: [],
-                createdAt: Date(), updatedAt: Date()
-            )
+            Child(id: "1", userId: "user1", name: "Emma", age: 5,
+                  dateOfBirth: nil, avatar: nil,
+                  createdAt: Date(), updatedAt: Date(), preferences: nil)
         ]),
         selectedChild: .constant(nil)
     )

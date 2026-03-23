@@ -1,45 +1,32 @@
 import Foundation
 
-// MARK: - Child Profile
-struct ChildProfile: Codable, Identifiable {
-    let id: String
-    let userId: String
-    var name: String
-    var age: Int
-    var storytellingTone: StorytellingTone
-    var parentPrompt: String
-    var customCharacters: [CustomCharacter]
-    var uploadedImages: [String]
-    let createdAt: Date
-    let updatedAt: Date
-
-    enum CodingKeys: String, CodingKey {
-        case id = "_id"
-        case userId, name, age, storytellingTone, parentPrompt
-        case customCharacters, uploadedImages, createdAt, updatedAt
-    }
-}
-
+// MARK: - Child (matches backend Prisma schema)
 struct Child: Codable, Identifiable {
     let id: String
     let userId: String
     var name: String
     var age: Int
-    var storytellingTone: StorytellingTone
-    var parentPrompt: String
-    var customCharacters: [CustomCharacter]
-    var favoriteThemes: [String]
-    var initialState: InitialState
+    var dateOfBirth: Date?
+    var avatar: String?
     let createdAt: Date
     let updatedAt: Date
-
-    enum CodingKeys: String, CodingKey {
-        case id = "_id"
-        case userId, name, age, storytellingTone, parentPrompt
-        case customCharacters, favoriteThemes, initialState
-        case createdAt, updatedAt
-    }
+    var preferences: ChildPreferencesModel?
 }
+
+struct ChildPreferencesModel: Codable {
+    let id: String
+    let childId: String
+    var storytellingTone: String
+    var favoriteThemes: [String]
+    var defaultInitialState: String
+    var personality: String?
+    var favoriteMedia: String?
+    var parentGoals: String?
+}
+
+// ChildProfile kept as a UI-only alias for backwards compatibility with views
+typealias ChildProfile = Child
+
 
 enum StorytellingTone: String, Codable, CaseIterable {
     case calming = "calming"
@@ -239,12 +226,61 @@ struct VitalsSnapshot: Codable, Identifiable {
 }
 
 // MARK: - Statistics
+// Matches GET /api/statistics/stories/:childId
 struct ChildStatistics: Codable {
-    let totalStories: Int
-    let averageDuration: TimeInterval
-    let averageSleepOnset: TimeInterval
-    let completionRate: Double
-    let vitalsHistory: [VitalsSnapshot]
+    let childId: String
+    let period: StatsPeriod
+    let summary: StoryStatsSummary
+    let toneDistribution: [String: Int]?
+    let stateDistribution: [String: Int]?
+    let storyTrend: [StoryTrendPoint]?
+}
+
+struct StatsPeriod: Codable {
+    let days: Int
+    let from: Date
+    let to: Date
+}
+
+struct StoryStatsSummary: Codable {
+    let totalSessions: Int
+    let completedSessions: Int
+    let avgDuration: Int
+    let avgInitialDriftScore: Int?
+    let avgFinalDriftScore: Int?
+    let avgDriftImprovement: Double?
+}
+
+struct StoryTrendPoint: Codable {
+    let date: String
+    let count: Int
+    let avgDuration: Int
+    let avgDriftImprovement: Double
+}
+
+// Matches GET /api/statistics/sleep/:childId
+struct SleepStatisticsResponse: Codable {
+    let childId: String
+    let period: StatsPeriod
+    let summary: SleepStatsSummary
+    let qualityDistribution: [String: Int]?
+    let sleepTrend: [SleepTrendPoint]?
+}
+
+struct SleepStatsSummary: Codable {
+    let totalSessions: Int
+    let completedSessions: Int
+    let avgDuration: Int
+    let avgTimeToSleep: Int
+    let avgNightWakings: Double
+    let avgSleepEfficiency: Double
+}
+
+struct SleepTrendPoint: Codable {
+    let date: String
+    let avgDuration: Int
+    let avgTimeToSleep: Int
+    let avgSleepEfficiency: Double
 }
 
 struct SleepStatistics: Codable {
@@ -291,14 +327,30 @@ struct User: Codable {
 }
 
 // MARK: - API Request/Response Models
+
 struct CreateChildRequest: Codable {
     var name: String
     var age: Int
-    var storytellingTone: StorytellingTone
-    var parentPrompt: String
-    var customCharacters: [CustomCharacter]
-    var favoriteThemes: [String]
-    var initialState: InitialState
+    var dateOfBirth: String?
+    var avatar: String?
+    var preferences: ChildPrefsRequest?
+}
+
+struct UpdateChildRequest: Codable {
+    var name: String?
+    var age: Int?
+    var dateOfBirth: String?
+    var avatar: String?
+    var preferences: ChildPrefsRequest?
+}
+
+struct ChildPrefsRequest: Codable {
+    var storytellingTone: String?
+    var favoriteThemes: [String]?
+    var defaultInitialState: String?
+    var personality: String?
+    var favoriteMedia: String?
+    var parentGoals: String?
 }
 
 struct GenerateStoryRequest: Codable {
@@ -314,3 +366,10 @@ struct PostVitalsRequest: Codable {
     var breathingRate: Double
     var signalQuality: Double
 }
+
+struct DeleteResponse: Codable {
+    let message: String
+}
+
+struct EmptyResponse: Codable {}
+
