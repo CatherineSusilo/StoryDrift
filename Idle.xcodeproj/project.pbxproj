@@ -30,6 +30,9 @@
 		BB0000112F6CD78F001DBFE5 /* InteractiveElementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000122F6CD78F001DBFE5 /* InteractiveElementsView.swift */; };
 		BB0000132F6CD78F001DBFE5 /* VitalsMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000142F6CD78F001DBFE5 /* VitalsMonitorView.swift */; };
 		BB1000002A2B3C4D001EEFF0 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000001A2B3C4D001EEFF0 /* Secrets.swift */; };
+		DD0000012F6CD78F001DBFE5 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000022F6CD78F001DBFE5 /* AISettingsView.swift */; };
+		DD0000032F6CD78F001DBFE5 /* DrawingsManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000042F6CD78F001DBFE5 /* DrawingsManagerView.swift */; };
+		DD0000052F6CD78F001DBFE5 /* StoryRoadmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000062F6CD78F001DBFE5 /* StoryRoadmapView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +62,9 @@
 		BB0000142F6CD78F001DBFE5 /* VitalsMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VitalsMonitorView.swift; sourceTree = "<group>"; };
 		BB1000001A2B3C4D001EEFF0 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		CC0000012F6CD78F001DBFE5 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		DD0000022F6CD78F001DBFE5 /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISettingsView.swift; sourceTree = "<group>"; };
+		DD0000042F6CD78F001DBFE5 /* DrawingsManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingsManagerView.swift; sourceTree = "<group>"; };
+		DD0000062F6CD78F001DBFE5 /* StoryRoadmapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryRoadmapView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,6 +143,9 @@
 				BB00000A2F6CD78F001DBFE5 /* StoryThemesView.swift */,
 				BB00000C2F6CD78F001DBFE5 /* StoryArchiveView.swift */,
 				BB00000E2F6CD78F001DBFE5 /* StoryPlaybackView.swift */,
+				DD0000022F6CD78F001DBFE5 /* AISettingsView.swift */,
+				DD0000042F6CD78F001DBFE5 /* DrawingsManagerView.swift */,
+				DD0000062F6CD78F001DBFE5 /* StoryRoadmapView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -251,6 +260,9 @@
 				BB0000112F6CD78F001DBFE5 /* InteractiveElementsView.swift in Sources */,
 				BB0000132F6CD78F001DBFE5 /* VitalsMonitorView.swift in Sources */,
 				BB1000002A2B3C4D001EEFF0 /* Secrets.swift in Sources */,
+		DD0000012F6CD78F001DBFE5 /* AISettingsView.swift in Sources */,
+		DD0000032F6CD78F001DBFE5 /* DrawingsManagerView.swift in Sources */,
+		DD0000052F6CD78F001DBFE5 /* StoryRoadmapView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

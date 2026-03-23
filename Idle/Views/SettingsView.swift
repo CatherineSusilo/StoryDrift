@@ -8,6 +8,8 @@ struct SettingsView: View {
     
     @State private var showingAddChild = false
     @State private var debugMode = false
+    @State private var showAISettings = false
+    @State private var showDrawingsManager = false
     
     var body: some View {
         ScrollView {
@@ -143,6 +145,50 @@ struct SettingsView: View {
                         .fill(Color.white.opacity(0.05))
                 )
                 
+                // AI & Drawings Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("AI & Drawings")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.white)
+                    
+                    Button(action: { showAISettings = true }) {
+                        HStack {
+                            Image(systemName: "paintpalette.fill")
+                                .foregroundColor(.purple)
+                                .frame(width: 32)
+                            Text("AI Customization")
+                                .foregroundColor(.white)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.white.opacity(0.4))
+                        }
+                        .padding()
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(12)
+                    }
+                    
+                    Button(action: { showDrawingsManager = true }) {
+                        HStack {
+                            Image(systemName: "photo.on.rectangle.angled")
+                                .foregroundColor(.purple)
+                                .frame(width: 32)
+                            Text("Drawings Collection")
+                                .foregroundColor(.white)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.white.opacity(0.4))
+                        }
+                        .padding()
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(12)
+                    }
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white.opacity(0.05))
+                )
+
                 // About Section
                 VStack(spacing: 12) {
                     Image(systemName: "moon.stars.fill")
@@ -200,6 +246,14 @@ struct SettingsView: View {
                 children.append(child)
                 showingAddChild = false
             }
+        }
+        .fullScreenCover(isPresented: $showAISettings) {
+            AISettingsView(onBack: { showAISettings = false })
+                .environmentObject(authManager)
+        }
+        .fullScreenCover(isPresented: $showDrawingsManager) {
+            DrawingsManagerView(onBack: { showDrawingsManager = false })
+                .environmentObject(authManager)
         }
     }
 }

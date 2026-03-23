@@ -31,17 +31,28 @@ struct MainTabView: View {
                     .tabItem { Label("Home", systemImage: "house.fill") }
                     .tag(0)
 
+                    StoryRoadmapView(
+                        child: child,
+                        onBack: { selectedTab = 0 },
+                        onStartStory: { config in
+                            selectedChild = child
+                            currentView = .setup
+                        }
+                    )
+                    .tabItem { Label("Journey", systemImage: "map.fill") }
+                    .tag(1)
+
                     BehavioralStatsView(child: child)
                         .tabItem { Label("Analytics", systemImage: "chart.bar.fill") }
-                        .tag(1)
+                        .tag(2)
 
                     StoryArchiveView(childId: child.id)
                         .tabItem { Label("Stories", systemImage: "book.fill") }
-                        .tag(2)
+                        .tag(3)
 
                     SettingsView(children: $children, selectedChild: $selectedChild)
                         .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-                        .tag(3)
+                        .tag(4)
                 }
                 .accentColor(.purple)
             }
