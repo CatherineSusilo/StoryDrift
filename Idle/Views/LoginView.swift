@@ -3,7 +3,6 @@ import AuthenticationServices
 
 struct LoginView: View {
     @EnvironmentObject var authManager: AuthManager
-    @State private var isLoading = false
     
     var body: some View {
         ZStack {
@@ -47,11 +46,10 @@ struct LoginView: View {
                 // Login button
                 VStack(spacing: 16) {
                     Button(action: {
-                        isLoading = true
                         authManager.login()
                     }) {
                         HStack {
-                            if isLoading {
+                            if authManager.isLoading {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             } else {
@@ -72,7 +70,7 @@ struct LoginView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .cornerRadius(16)
                     }
-                    .disabled(isLoading)
+                    .disabled(authManager.isLoading)
                     
                     Text("Stories that adapt to your child's sleep rhythm")
                         .font(.system(size: 14))

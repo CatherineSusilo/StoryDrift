@@ -287,11 +287,7 @@ struct User: Codable {
     let email: String
     let name: String?
     let picture: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id = "_id"
-        case email, name, picture
-    }
+    // Prisma serialises MongoDB's _id as "id" in JSON output — no custom CodingKeys needed
 }
 
 // MARK: - API Request/Response Models

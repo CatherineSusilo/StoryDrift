@@ -6,11 +6,17 @@ import Foundation
 enum Secrets {
 
     // MARK: - Auth0
-    static let auth0Domain: String   = value(for: "AUTH0Domain")
-    static let auth0ClientId: String = value(for: "AUTH0ClientId")
+    static let auth0Domain: String    = value(for: "AUTH0Domain")
+    static let auth0ClientId: String  = value(for: "AUTH0ClientId")
+    // auth0Audience is built from auth0Domain in AuthManager — xcconfig can't store URLs with :// safely
 
     // MARK: - Backend
-    static let apiBaseURL: String    = value(for: "APIBaseURL")
+    static let apiBaseURL: String     = value(for: "APIBaseURL")
+
+    // MARK: - AI Services
+    static let geminiAPIKey: String      = value(for: "GeminiAPIKey")
+    static let falAPIKey: String         = value(for: "FalAPIKey")
+    static let elevenLabsAPIKey: String  = value(for: "ElevenLabsAPIKey")
 
     // MARK: - Private helper
     private static func value(for key: String) -> String {
