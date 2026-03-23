@@ -1,0 +1,114 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  auth0Id   String   @unique
+  email     String   @unique
+  name      String?
+  picture   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  children Child[]
+}
+
+model Child {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  name        String
+  age         Int
+  dateOfBirth DateTime?
+  avatar      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sleepSessions SleepSession[]
+  storySessions StorySession[]
+  preferences   ChildPreferences?
+
+  @@index([userId])
+}
+
+model ChildPreferences {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  childId             String   @unique @db.ObjectId
+  storytellingTone    String   @default("calming")
+  favoriteThemes      String[]
+  defaultInitialState String   @default("normal")
+  personality         String?
+  favoriteMedia       String?
+  parentGoals         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+}
+
+model StorySession {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  childId           String   @db.ObjectId
+  storyTitle        String
+  storyContent      String
+  parentPrompt      String
+  storytellingTone  String
+  initialState      String
+  startTime         DateTime @default(now())
+  endTime           DateTime?
+  duration          Int?
+  sleepOnsetTime    DateTime?
+  completed         Boolean  @default(false)
+  
+  initialDriftScore Int      @default(0)
+  finalDriftScore   Int      @default(0)
+  driftScoreHistory Int[]
+  
+  imagePrompts      Json?
+  generatedImages   String[]
+
+  modelUsed         String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@index([startTime])
+}
+
+model SleepSession {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  childId          String   @db.ObjectId
+  storySessionId   String?  @db.ObjectId
+  bedtime          DateTime
+  wakeupTime       DateTime?
+  duration         Int?
+  quality          String?
+  notes            String?
+  
+  timeToSleep      Int?
+  nightWakings     Int      @default(0)
+  sleepEfficiency  Float?
+  
+  weatherCondition String?
+  roomTemperature  Float?
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@index([bedtime])
+}
