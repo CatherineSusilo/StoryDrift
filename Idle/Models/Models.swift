@@ -95,28 +95,41 @@ struct CustomCharacter: Codable, Identifiable {
 }
 
 // MARK: - Story
+// Matches backend StorySession Prisma model
 struct Story: Codable, Identifiable {
     let id: String
     let childId: String
-    var title: String
-    var themes: [String]
-    var paragraphs: [StoryParagraph]
-    var images: [String]
-    var scenes: [StoryScene]
-    var interactiveElements: [InteractiveElement]
-    var metadata: StoryMetadata
-    var completed: Bool
+    var storyTitle: String
+    var storyContent: String
+    var parentPrompt: String
+    var storytellingTone: String
+    var initialState: String
+    let startTime: Date
+    var endTime: Date?
+    var duration: Int?
     var sleepOnsetTime: Date?
-    var duration: TimeInterval
-    var driftScores: [Double]
-    let generatedAt: Date
-    let completedAt: Date?
+    var completed: Bool
+    var initialDriftScore: Int
+    var finalDriftScore: Int
+    var driftScoreHistory: [Int]
+    var generatedImages: [String]
+    var modelUsed: String?
+    let createdAt: Date
+    let updatedAt: Date
 
-    enum CodingKeys: String, CodingKey {
-        case id = "_id"
-        case childId, title, themes, paragraphs, images, scenes
-        case interactiveElements, metadata, completed, sleepOnsetTime
-        case duration, driftScores, generatedAt, completedAt
+    // Convenience accessors used by views
+    var title: String { storyTitle }
+    var images: [String] { generatedImages }
+    var themes: [String] { [storytellingTone] }
+    var generatedAt: Date { startTime }
+    var completedAt: Date? { endTime }
+    var driftScores: [Double] { driftScoreHistory.map { Double($0) } }
+    /// Split storyContent into paragraphs for playback
+    var paragraphs: [StoryParagraph] {
+        storyContent
+            .components(separatedBy: "\n\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .map { StoryParagraph(text: $0.trimmingCharacters(in: .whitespaces)) }
     }
 }
 
@@ -372,4 +385,12 @@ struct DeleteResponse: Codable {
 }
 
 struct EmptyResponse: Codable {}
+
+// Matches paginated responses like GET /api/stories/child/:id → { data: [...], total, limit, offset }
+struct PaginatedResponse<T: Codable>: Codable {
+    let data: [T]
+    let total: Int
+    let limit: Int
+    let offset: Int
+}
 

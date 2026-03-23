@@ -3,23 +3,100 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var vitalsManager: VitalsManager
+
     @State private var currentView: AppView = .dashboard
-    
+    @State private var storyConfig: StoryConfig?
+    @State private var activeStory: Story?
+    @State private var driftHistory: [Double] = []
+    @State private var storyDuration: TimeInterval = 0
+    @State private var selectedChild: Child?
+
     var body: some View {
         ZStack {
             if authManager.isLoading {
                 LoadingView()
+
             } else if authManager.isAuthenticated {
-                MainTabView(currentView: $currentView)
+                switch currentView {
+                case .dashboard, .onboarding, .roadmap:
+                    MainTabView(
+                        currentView: $currentView,
+                        selectedChild: $selectedChild
+                    )
+
+                case .setup:
+                    if let child = selectedChild {
+                        StorySetupView(
+                            child: .constant(child),
+                            onStartStory: { config in
+                                storyConfig = config
+                                currentView = .story
+                                Task { await generateStory(config: config) }
+                            },
+                            onBack: { currentView = .dashboard }
+                        )
+                        .transition(.move(edge: .trailing))
+                    } else {
+                        // No child selected — go back
+                        Color.clear.onAppear { currentView = .dashboard }
+                    }
+
+                case .story:
+                    if let story = activeStory {
+                        StoryPlaybackView(
+                            story: story,
+                            onComplete: { history, duration in
+                                driftHistory = history
+                                storyDuration = duration
+                                currentView = .summary
+                            }
+                        )
+                        .transition(.opacity)
+                    } else {
+                        // Still generating — show loading
+                        LoadingView()
+                    }
+
+                case .summary:
+                    if let story = activeStory {
+                        StorySummaryView(
+                            story: story,
+                            driftHistory: driftHistory,
+                            duration: storyDuration,
+                            onDismiss: {
+                                activeStory = nil
+                                driftHistory = []
+                                storyDuration = 0
+                                currentView = .dashboard
+                            }
+                        )
+                        .transition(.move(edge: .bottom))
+                    } else {
+                        Color.clear.onAppear { currentView = .dashboard }
+                    }
+                }
+
             } else {
                 LoginView()
             }
         }
         .animation(.easeInOut, value: authManager.isAuthenticated)
+        .animation(.easeInOut, value: currentView)
+    }
+
+    private func generateStory(config: StoryConfig) async {
+        guard let token = authManager.accessToken else { return }
+        do {
+            let story = try await APIService.shared.generateStory(config: config, token: token)
+            await MainActor.run { activeStory = story }
+        } catch {
+            print("❌ Story generation failed: \(error)")
+            await MainActor.run { currentView = .dashboard }
+        }
     }
 }
 
-enum AppView {
+enum AppView: Equatable {
     case dashboard
     case onboarding
     case roadmap

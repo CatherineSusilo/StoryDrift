@@ -10,7 +10,7 @@ struct StoryArchiveView: View {
     var sortedStories: [Story] {
         switch sortBy {
         case .date:     return stories.sorted { $0.generatedAt > $1.generatedAt }
-        case .duration: return stories.sorted { $0.duration > $1.duration }
+        case .duration: return stories.sorted { ($0.duration ?? 0) > ($1.duration ?? 0) }
         case .drift:    return stories.sorted { ($0.driftScores.last ?? 0) > ($1.driftScores.last ?? 0) }
         }
     }
@@ -107,7 +107,7 @@ struct StoryArchiveCard: View {
         return formatter.string(from: story.generatedAt)
     }
 
-    private var formattedDuration: String { "\(Int(story.duration / 60)) min" }
+    private var formattedDuration: String { "\(Int((story.duration ?? 0) / 60)) min" }
     private var finalDrift: Int { Int(story.driftScores.last ?? 0) }
 
     var body: some View {

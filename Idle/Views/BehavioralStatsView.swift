@@ -31,7 +31,7 @@ struct BehavioralStatsView: View {
                                        icon: "checkmark.circle.fill", color: .green)
                             MetricCard(title: "Avg Duration",
                                        value: formatDuration(TimeInterval(stats.summary.avgDuration)),
-                                       icon: "timer.fill", color: .orange)
+                                       icon: "clock.fill", color: .orange)
                             if let improvement = stats.summary.avgDriftImprovement {
                                 MetricCard(title: "Drift Improve",
                                            value: String(format: "%.1f", improvement),

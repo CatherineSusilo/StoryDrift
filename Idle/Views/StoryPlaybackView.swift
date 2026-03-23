@@ -4,7 +4,7 @@ import AVFoundation
 struct StoryPlaybackView: View {
     @EnvironmentObject var vitalsManager: VitalsManager
     let story: Story
-    let onComplete: () -> Void
+    let onComplete: ([Double], TimeInterval) -> Void
     
     @State private var currentParagraphIndex = 0
     @State private var isPlaying = true
@@ -259,7 +259,7 @@ struct StoryPlaybackView: View {
     
     private func completeStory() {
         stopStory()
-        onComplete()
+        onComplete(driftHistory, elapsedTime)
     }
     
     private func formatTime(_ seconds: TimeInterval) -> String {
@@ -284,26 +284,21 @@ class AudioPlayerDelegate: NSObject, AVAudioPlayerDelegate {
 #Preview {
     StoryPlaybackView(
         story: Story(
-            id: "1",
-            childId: "child1",
-            title: "The Magical Forest",
-            themes: ["Adventure", "Nature"],
-            paragraphs: [
-                StoryParagraph(text: "Once upon a time, in a magical forest..."),
-                StoryParagraph(text: "There lived a friendly unicorn who loved bedtime stories.")
-            ],
-            images: ["https://example.com/image1.jpg"],
-            scenes: [],
-            interactiveElements: [],
-            metadata: StoryMetadata(targetDuration: 900, initialDriftScore: 0),
+            id: "1", childId: "child1",
+            storyTitle: "The Magical Forest",
+            storyContent: "Once upon a time, in a magical forest...",
+            parentPrompt: "Loves unicorns",
+            storytellingTone: "calming",
+            initialState: "normal",
+            startTime: Date(),
+            endTime: nil, duration: nil, sleepOnsetTime: nil,
             completed: false,
-            sleepOnsetTime: nil,
-            duration: 0,
-            driftScores: [],
-            generatedAt: Date(),
-            completedAt: nil
+            initialDriftScore: 0, finalDriftScore: 0,
+            driftScoreHistory: [], generatedImages: [],
+            modelUsed: nil,
+            createdAt: Date(), updatedAt: Date()
         ),
-        onComplete: {}
+        onComplete: { _, _ in }
     )
     .environmentObject(VitalsManager())
 }

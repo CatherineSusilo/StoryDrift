@@ -152,7 +152,7 @@ struct QuickStatsCard: View {
                 StatItem(
                     value: formatDuration(TimeInterval(stats.summary.avgDuration)),
                     label: "Avg Duration",
-                    icon: "timer.fill",
+                    icon: "clock.fill",
                     color: .orange
                 )
             }
@@ -232,7 +232,7 @@ struct StoryCardView: View {
                     .font(.system(size: 14))
                     .foregroundColor(.purple.opacity(0.8))
                 
-                Text(formatDate(story.generatedAt))
+                Text(formatDate(story.startTime))
                     .font(.system(size: 12))
                     .foregroundColor(.white.opacity(0.5))
             }

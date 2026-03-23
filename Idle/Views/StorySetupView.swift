@@ -208,19 +208,18 @@ struct StorySetupView: View {
     
     private func handleStartStory() {
         isGenerating = true
-        
+
         let config = StoryConfig(
             childId: child.id,
-            themes: [selectedTheme],
-            initialState: initialState,
-            parentPrompt: parentPrompt
+            name: child.name,
+            age: child.age,
+            storytellingTone: storytellingTone.rawValue,
+            parentPrompt: parentPrompt.isEmpty ? selectedTheme : parentPrompt,
+            initialState: initialState.rawValue
         )
-        
-        // Simulate story generation delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            isGenerating = false
-            onStartStory(config)
-        }
+
+        isGenerating = false
+        onStartStory(config)
     }
 }
 

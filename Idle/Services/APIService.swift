@@ -84,11 +84,57 @@ class APIService: ObservableObject {
     // MARK: - Stories
     func getStories(childId: String, token: String? = nil) async throws -> [Story] {
         let tok = token ?? UserDefaults.standard.string(forKey: "accessToken")
-        return try await request(endpoint: "/api/stories/child/\(childId)", token: tok)
+        let response: PaginatedResponse<Story> = try await request(endpoint: "/api/stories/child/\(childId)", token: tok)
+        return response.data
     }
 
     func generateStory(config: StoryConfig, token: String) async throws -> Story {
-        return try await request(endpoint: "/api/generate/story", method: "POST", body: config, token: token)
+        // Step 1: Generate story text + image prompts via Gemini
+        let generateBody: [String: Any] = ["profile": [
+            "childId": config.childId,
+            "name": config.name,
+            "age": config.age,
+            "storytellingTone": config.storytellingTone,
+            "parentPrompt": config.parentPrompt,
+            "initialState": config.initialState
+        ]]
+
+        guard let url = URL(string: "\(Self.baseURL)/api/generate/story") else { throw APIError.invalidURL }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try JSONSerialization.data(withJSONObject: generateBody)
+
+        let (genData, genResp) = try await URLSession.shared.data(for: req)
+        if let http = genResp as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            let raw = String(data: genData, encoding: .utf8) ?? "nil"
+            print("❌ HTTP \(http.statusCode) from /api/generate/story: \(raw)")
+            throw APIError.httpError(statusCode: http.statusCode)
+        }
+
+        guard let genJson = try JSONSerialization.jsonObject(with: genData) as? [String: Any],
+              let storyText = genJson["story"] as? String else {
+            throw APIError.invalidResponse
+        }
+
+        let modelUsed = genJson["modelUsed"] as? String ?? "gemini"
+        print("✅ Story generated (\(storyText.count) chars), saving to backend...")
+
+        // Step 2: Save the story session to the backend
+        let saveBody: [String: Any] = [
+            "childId": config.childId,
+            "storyTitle": "Bedtime Story",
+            "storyContent": storyText,
+            "parentPrompt": config.parentPrompt,
+            "storytellingTone": config.storytellingTone,
+            "initialState": config.initialState,
+            "initialDriftScore": 0,
+            "modelUsed": modelUsed
+        ]
+
+        let story: Story = try await request(endpoint: "/api/stories", method: "POST", body: AnyCodable(saveBody), token: token)
+        return story
     }
 
     // MARK: - Vitals
@@ -108,9 +154,11 @@ class APIService: ObservableObject {
 // MARK: - Story Configuration
 struct StoryConfig: Codable {
     let childId: String
-    let themes: [String]
-    let initialState: InitialState
-    let parentPrompt: String?
+    let name: String
+    let age: Int
+    let storytellingTone: String
+    let parentPrompt: String
+    let initialState: String
 }
 
 // MARK: - API Errors
@@ -128,4 +176,31 @@ enum APIError: LocalizedError {
         case .noData:              return "No data received"
         }
     }
+}
+
+/// Wraps a [String: Any] dictionary so it can be passed as Encodable to the generic request()
+struct AnyCodable: Encodable {
+    private let value: [String: Any]
+    init(_ value: [String: Any]) { self.value = value }
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: AnyCodingKey.self)
+        for (key, val) in value {
+            let k = AnyCodingKey(key)
+            switch val {
+            case let v as String:  try container.encode(v, forKey: k)
+            case let v as Int:     try container.encode(v, forKey: k)
+            case let v as Double:  try container.encode(v, forKey: k)
+            case let v as Bool:    try container.encode(v, forKey: k)
+            case let v as [String]: try container.encode(v, forKey: k)
+            default: break
+            }
+        }
+    }
+}
+struct AnyCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int? { nil }
+    init(_ string: String) { self.stringValue = string }
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { return nil }
 }

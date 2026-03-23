@@ -285,28 +285,20 @@ struct SimpleDriftChart: View {
 #Preview {
     StorySummaryView(
         story: Story(
-            id: "1",
-            childId: "child1",
-            title: "The Magical Forest Adventure",
-            themes: ["Adventure", "Nature", "Magic"],
-            paragraphs: [],
-            images: [],
-            scenes: [],
-            interactiveElements: [],
-            metadata: StoryMetadata(
-                targetDuration: 900,
-                initialDriftScore: 0,
-                finalDriftScore: 95,
-                avgHeartRate: 65,
-                avgBreathingRate: 12,
-                completionReason: nil
-            ),
+            id: "1", childId: "child1",
+            storyTitle: "The Magical Forest Adventure",
+            storyContent: "Once upon a time...",
+            parentPrompt: "Loves adventures",
+            storytellingTone: "calming",
+            initialState: "normal",
+            startTime: Date(),
+            endTime: Date(), duration: 900, sleepOnsetTime: Date(),
             completed: true,
-            sleepOnsetTime: Date(),
-            duration: 900,
-            driftScores: [0, 15, 25, 40, 55, 68, 78, 85, 92, 95],
-            generatedAt: Date(),
-            completedAt: Date()
+            initialDriftScore: 0, finalDriftScore: 95,
+            driftScoreHistory: [0, 15, 25, 40, 55, 68, 78, 85, 92, 95],
+            generatedImages: [],
+            modelUsed: nil,
+            createdAt: Date(), updatedAt: Date()
         ),
         driftHistory: [0, 15, 25, 40, 55, 68, 78, 85, 92, 95],
         duration: 900,
