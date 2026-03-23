@@ -6,278 +6,194 @@ struct StorySummaryView: View {
     let driftHistory: [Double]
     let duration: TimeInterval
     let onDismiss: () -> Void
-    
+
     private var chartData: [ChartDataPoint] {
-        driftHistory.enumerated().map { index, score in
-            ChartDataPoint(time: index, score: score)
-        }
+        driftHistory.enumerated().map { ChartDataPoint(time: $0.offset, score: $0.element) }
     }
-    
+
     private var sleepOnsetTime: String {
-        if let sleepTime = story.sleepOnsetTime {
-            let formatter = DateFormatter()
-            formatter.timeStyle = .short
-            return formatter.string(from: sleepTime)
-        }
-        return "N/A"
+        guard let t = story.sleepOnsetTime else { return "N/A" }
+        let f = DateFormatter(); f.timeStyle = .short
+        return f.string(from: t)
     }
-    
+
     private var formattedDuration: String {
-        let minutes = Int(duration / 60)
-        let seconds = Int(duration.truncatingRemainder(dividingBy: 60))
-        return String(format: "%d:%02d", minutes, seconds)
+        let m = Int(duration / 60), s = Int(duration.truncatingRemainder(dividingBy: 60))
+        return String(format: "%d:%02d", m, s)
     }
-    
+
     var body: some View {
-        ScrollView {
-            VStack(spacing: 32) {
-                // Header
-                VStack(spacing: 12) {
-                    Image(systemName: "moon.stars.fill")
-                        .font(.system(size: 60))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.purple, .blue, .cyan],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    
-                    Text("Sweet Dreams!")
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    Text("Story Complete")
-                        .font(.system(size: 18))
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                .padding(.top, 40)
-                
-                // Story Info
-                VStack(spacing: 16) {
-                    Text(story.title)
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                    
-                    HStack(spacing: 12) {
-                        ForEach(story.themes, id: \.self) { theme in
-                            Text(theme)
-                                .font(.system(size: 14))
-                                .foregroundColor(.purple)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color.purple.opacity(0.2))
-                                .cornerRadius(12)
-                        }
+        ZStack {
+            Theme.background.ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 28) {
+
+                    // ── Hero ──
+                    VStack(spacing: 10) {
+                        Text("🌙")
+                            .font(.system(size: 60))
+                        Text("sweet dreams!")
+                            .font(Theme.titleFont(size: 36))
+                            .foregroundColor(Theme.ink)
+                        Text("story complete")
+                            .font(Theme.bodyFont(size: 18))
+                            .foregroundColor(Theme.inkMuted)
                     }
-                }
-                
-                // Stats Cards
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 16) {
-                    StatCard(
-                        icon: "timer",
-                        value: formattedDuration,
-                        label: "Duration",
-                        color: .blue
-                    )
-                    
-                    StatCard(
-                        icon: "moon.zzz.fill",
-                        value: sleepOnsetTime,
-                        label: "Sleep Time",
-                        color: .purple
-                    )
-                    
-                    StatCard(
-                        icon: "book.fill",
-                        value: "\(story.paragraphs.count)",
-                        label: "Paragraphs",
-                        color: .orange
-                    )
-                    
-                    StatCard(
-                        icon: "chart.line.uptrend.xyaxis",
-                        value: "\(Int(driftHistory.last ?? 0))%",
-                        label: "Final Drift",
-                        color: .green
-                    )
-                }
-                .padding(.horizontal)
-                
-                // Drift Chart
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Drift Progress")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    if #available(iOS 16.0, *) {
-                        Chart(chartData) { point in
-                            LineMark(
-                                x: .value("Time", point.time),
-                                y: .value("Drift", point.score)
-                            )
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.purple, .blue, .cyan],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .interpolationMethod(.catmullRom)
-                            
-                            AreaMark(
-                                x: .value("Time", point.time),
-                                y: .value("Drift", point.score)
-                            )
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.purple.opacity(0.3), .blue.opacity(0.2), .cyan.opacity(0.1)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .interpolationMethod(.catmullRom)
-                        }
-                        .chartXAxis(.hidden)
-                        .chartYAxis {
-                            AxisMarks(position: .leading) { value in
-                                AxisValueLabel()
-                                    .foregroundStyle(.white.opacity(0.6))
+                    .padding(.top, 40)
+
+                    // ── Story title & themes ──
+                    VStack(spacing: 12) {
+                        Text(story.title)
+                            .font(Theme.titleFont(size: 24))
+                            .foregroundColor(Theme.ink)
+                            .multilineTextAlignment(.center)
+                        HStack(spacing: 8) {
+                            ForEach(story.themes, id: \.self) { theme in
+                                Text(theme)
+                                    .font(Theme.bodyFont(size: 13))
+                                    .foregroundColor(Theme.ink.opacity(0.75))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Theme.accent.opacity(0.3))
+                                    .cornerRadius(Theme.radiusSM)
+                                    .overlay(RoundedRectangle(cornerRadius: Theme.radiusSM).stroke(Theme.border, lineWidth: 1))
                             }
                         }
-                        .frame(height: 200)
-                    } else {
-                        SimpleDriftChart(data: chartData)
-                            .frame(height: 200)
                     }
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color.white.opacity(0.05))
-                )
-                .padding(.horizontal)
-                
-                // Action Buttons
-                VStack(spacing: 12) {
-                    Button(action: onDismiss) {
-                        Text("Back to Dashboard")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(
-                                LinearGradient(
-                                    colors: [.purple, .blue],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
+                    .padding(.horizontal, 20)
+
+                    // ── Stats grid ──
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        StatCard(icon: "timer",                    value: formattedDuration, label: "duration")
+                        StatCard(icon: "moon.zzz.fill",            value: sleepOnsetTime,    label: "sleep time")
+                        StatCard(icon: "book.fill",                value: "\(story.paragraphs.count)", label: "paragraphs")
+                        StatCard(icon: "chart.line.uptrend.xyaxis", value: "\(Int(driftHistory.last ?? 0))%", label: "final drift")
+                    }
+                    .padding(.horizontal, 20)
+
+                    // ── Drift chart ──
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("drift progress")
+                            .font(Theme.titleFont(size: 20))
+                            .foregroundColor(Theme.ink)
+
+                        if #available(iOS 16.0, *) {
+                            Chart(chartData) { point in
+                                LineMark(
+                                    x: .value("Time", point.time),
+                                    y: .value("Drift", point.score)
                                 )
-                            )
-                            .cornerRadius(16)
-                    }
-                    
-                    Button(action: {
-                        // Share summary
-                    }) {
-                        HStack {
-                            Image(systemName: "square.and.arrow.up")
-                            Text("Share Summary")
+                                .foregroundStyle(Theme.ink)
+                                .interpolationMethod(.catmullRom)
+
+                                AreaMark(
+                                    x: .value("Time", point.time),
+                                    y: .value("Drift", point.score)
+                                )
+                                .foregroundStyle(Theme.ink.opacity(0.08))
+                                .interpolationMethod(.catmullRom)
+                            }
+                            .chartXAxis(.hidden)
+                            .chartYAxis {
+                                AxisMarks(position: .leading) { _ in
+                                    AxisValueLabel()
+                                        .foregroundStyle(Theme.inkMuted)
+                                }
+                            }
+                            .frame(height: 180)
+                        } else {
+                            SimpleDriftChart(data: chartData).frame(height: 180)
                         }
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(12)
                     }
+                    .padding(18)
+                    .parchmentCard(cornerRadius: Theme.radiusMD)
+                    .padding(.horizontal, 20)
+
+                    // ── Actions ──
+                    VStack(spacing: 12) {
+                        Button(action: onDismiss) {
+                            Text("back to dashboard")
+                                .font(Theme.bodyFont(size: 18))
+                                .fontWeight(.bold)
+                                .foregroundColor(Theme.card)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(Theme.ink)
+                                .cornerRadius(Theme.radiusMD)
+                                .shadow(color: Theme.ink.opacity(0.2), radius: 5, x: 0, y: 3)
+                        }
+
+                        Button(action: {}) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "square.and.arrow.up")
+                                Text("share summary")
+                            }
+                            .font(Theme.bodyFont(size: 16))
+                            .foregroundColor(Theme.ink)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(Theme.card)
+                            .cornerRadius(Theme.radiusMD)
+                            .overlay(RoundedRectangle(cornerRadius: Theme.radiusMD).stroke(Theme.border, lineWidth: 1.5))
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 32)
             }
         }
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.05, green: 0.05, blue: 0.15),
-                    Color(red: 0.15, green: 0.05, blue: 0.25)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-        )
     }
 }
 
+// MARK: - StatCard
+struct StatCard: View {
+    let icon: String
+    let value: String
+    let label: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 24))
+                .foregroundColor(Theme.inkMuted)
+            Text(value)
+                .font(Theme.titleFont(size: 26))
+                .foregroundColor(Theme.ink)
+            Text(label)
+                .font(Theme.bodyFont(size: 13))
+                .foregroundColor(Theme.inkMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .parchmentCard(cornerRadius: Theme.radiusMD)
+    }
+}
+
+// MARK: - ChartDataPoint
 struct ChartDataPoint: Identifiable {
     let id = UUID()
     let time: Int
     let score: Double
 }
 
-struct StatCard: View {
-    let icon: String
-    let value: String
-    let label: String
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 32))
-                .foregroundColor(color)
-            
-            Text(value)
-                .font(.system(size: 24, weight: .bold))
-                .foregroundColor(.white)
-            
-            Text(label)
-                .font(.system(size: 14))
-                .foregroundColor(.white.opacity(0.6))
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.05))
-        )
-    }
-}
-
+// MARK: - SimpleDriftChart (iOS 15 fallback)
 struct SimpleDriftChart: View {
     let data: [ChartDataPoint]
-    
+
     var body: some View {
         GeometryReader { geometry in
             Path { path in
                 guard !data.isEmpty else { return }
-                
                 let maxValue = data.map(\.score).max() ?? 100
                 let stepX = geometry.size.width / CGFloat(max(data.count - 1, 1))
-                
                 for (index, point) in data.enumerated() {
                     let x = CGFloat(index) * stepX
                     let y = geometry.size.height * (1 - point.score / maxValue)
-                    
-                    if index == 0 {
-                        path.move(to: CGPoint(x: x, y: y))
-                    } else {
-                        path.addLine(to: CGPoint(x: x, y: y))
-                    }
+                    index == 0 ? path.move(to: CGPoint(x: x, y: y)) : path.addLine(to: CGPoint(x: x, y: y))
                 }
             }
-            .stroke(
-                LinearGradient(
-                    colors: [.purple, .blue, .cyan],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                ),
-                lineWidth: 3
-            )
+            .stroke(Theme.ink, lineWidth: 2.5)
         }
     }
 }
@@ -287,17 +203,16 @@ struct SimpleDriftChart: View {
         story: Story(
             id: "1", childId: "child1",
             storyTitle: "The Magical Forest Adventure",
-            storyContent: "Once upon a time...",
+            storyContent: "Once upon a time…",
             parentPrompt: "Loves adventures",
             storytellingTone: "calming",
             initialState: "normal",
-            startTime: Date(),
-            endTime: Date(), duration: 900, sleepOnsetTime: Date(),
+            startTime: Date(), endTime: Date(),
+            duration: 900, sleepOnsetTime: Date(),
             completed: true,
             initialDriftScore: 0, finalDriftScore: 95,
             driftScoreHistory: [0, 15, 25, 40, 55, 68, 78, 85, 92, 95],
-            generatedImages: [],
-            modelUsed: nil,
+            generatedImages: [], modelUsed: nil,
             createdAt: Date(), updatedAt: Date()
         ),
         driftHistory: [0, 15, 25, 40, 55, 68, 78, 85, 92, 95],

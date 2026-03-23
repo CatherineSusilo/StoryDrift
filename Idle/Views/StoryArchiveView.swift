@@ -4,6 +4,7 @@ struct StoryArchiveView: View {
     @State private var stories: [Story] = []
     @State private var isLoading = true
     @State private var sortBy: SortOption = .date
+    @EnvironmentObject var authManager: AuthManager
 
     let childId: String
 
@@ -16,77 +17,72 @@ struct StoryArchiveView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Story Archive")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.white)
-                    Text("\(stories.count) stories")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.6))
-                }
-                Spacer()
-                Menu {
-                    Button(action: { sortBy = .date })     { Label("Sort by Date", systemImage: "calendar") }
-                    Button(action: { sortBy = .duration }) { Label("Sort by Duration", systemImage: "timer") }
-                    Button(action: { sortBy = .drift })    { Label("Sort by Drift", systemImage: "moon.zzz.fill") }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.up.arrow.down")
-                        Text(sortBy.rawValue)
-                    }
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.1))
-                    .cornerRadius(8)
-                }
-            }
-            .padding()
-            .background(Color.black.opacity(0.3))
+        ZStack {
+            Theme.background.ignoresSafeArea()
 
-            if isLoading {
-                Spacer()
-                ProgressView().scaleEffect(1.5).tint(.white)
-                Spacer()
-            } else if stories.isEmpty {
-                ArchiveEmptyStateView()
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 16) {
-                        ForEach(sortedStories) { story in
-                            StoryArchiveCard(story: story)
-                        }
+            VStack(spacing: 0) {
+                // ── Header ──
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("story archive")
+                            .font(Theme.titleFont(size: 28))
+                            .foregroundColor(Theme.ink)
+                        Text("\(stories.count) stories")
+                            .font(Theme.bodyFont(size: 14))
+                            .foregroundColor(Theme.inkMuted)
                     }
-                    .padding()
+                    Spacer()
+                    Menu {
+                        Button(action: { sortBy = .date })     { Label("by date",     systemImage: "calendar") }
+                        Button(action: { sortBy = .duration }) { Label("by duration", systemImage: "timer") }
+                        Button(action: { sortBy = .drift })    { Label("by drift",    systemImage: "moon.zzz.fill") }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.up.arrow.down")
+                            Text(sortBy.rawValue.lowercased())
+                        }
+                        .font(Theme.bodyFont(size: 14))
+                        .foregroundColor(Theme.ink)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Theme.card)
+                        .cornerRadius(Theme.radiusSM)
+                        .overlay(RoundedRectangle(cornerRadius: Theme.radiusSM).stroke(Theme.border, lineWidth: 1.5))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+
+                if isLoading {
+                    Spacer()
+                    ProgressView().tint(Theme.ink)
+                    Spacer()
+                } else if stories.isEmpty {
+                    ArchiveEmptyStateView()
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 14) {
+                            ForEach(sortedStories) { story in
+                                StoryArchiveCard(story: story)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 24)
+                    }
                 }
             }
         }
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.05, green: 0.05, blue: 0.15),
-                    Color(red: 0.15, green: 0.05, blue: 0.25)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-        )
         .task { await loadStories() }
     }
 
     private func loadStories() async {
+        let token = authManager.accessToken ?? UserDefaults.standard.string(forKey: "accessToken")
         do {
-            stories = try await APIService.shared.getStories(childId: childId)
-            isLoading = false
+            stories = try await APIService.shared.getStories(childId: childId, token: token)
         } catch {
             print("Failed to load stories: \(error)")
-            isLoading = false
         }
+        isLoading = false
     }
 }
 
@@ -96,67 +92,64 @@ enum SortOption: String {
     case drift = "Drift Score"
 }
 
+// MARK: - StoryArchiveCard
 struct StoryArchiveCard: View {
     let story: Story
     @State private var showingDetails = false
 
     private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: story.generatedAt)
+        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .short
+        return f.string(from: story.generatedAt)
     }
-
     private var formattedDuration: String { "\(Int((story.duration ?? 0) / 60)) min" }
     private var finalDrift: Int { Int(story.driftScores.last ?? 0) }
 
     var body: some View {
         Button(action: { showingDetails = true }) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(story.title)
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
+                            .font(Theme.bodyFont(size: 17))
+                            .fontWeight(.semibold)
+                            .foregroundColor(Theme.ink)
                             .lineLimit(2)
                         Text(formattedDate)
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.6))
+                            .font(Theme.bodyFont(size: 12))
+                            .foregroundColor(Theme.inkMuted)
                     }
                     Spacer()
                     if story.completed {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                            .font(.system(size: 24))
+                            .foregroundColor(Theme.success)
+                            .font(.system(size: 22))
                     }
                 }
 
+                // Theme chips
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 7) {
                         ForEach(story.themes, id: \.self) { theme in
                             Text(theme)
-                                .font(.system(size: 12))
-                                .foregroundColor(.purple)
+                                .font(Theme.bodyFont(size: 12))
+                                .foregroundColor(Theme.ink.opacity(0.75))
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 4)
-                                .background(Color.purple.opacity(0.2))
-                                .cornerRadius(8)
+                                .background(Theme.accent.opacity(0.3))
+                                .cornerRadius(Theme.radiusSM)
+                                .overlay(RoundedRectangle(cornerRadius: Theme.radiusSM).stroke(Theme.border, lineWidth: 1))
                         }
                     }
                 }
 
-                HStack(spacing: 24) {
-                    ArchiveStatItem(icon: "timer",       value: formattedDuration,          color: .blue)
-                    ArchiveStatItem(icon: "book.pages",  value: "\(story.paragraphs.count) parts", color: .orange)
-                    ArchiveStatItem(icon: "moon.zzz.fill", value: "\(finalDrift)% drift",   color: .cyan)
+                HStack(spacing: 20) {
+                    ArchiveStatItem(icon: "timer",         value: formattedDuration)
+                    ArchiveStatItem(icon: "book.pages",    value: "\(story.paragraphs.count) parts")
+                    ArchiveStatItem(icon: "moon.zzz.fill", value: "\(finalDrift)% drift")
                 }
             }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.white.opacity(0.05))
-                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.1), lineWidth: 1))
-            )
+            .padding(16)
+            .parchmentCard(cornerRadius: Theme.radiusMD)
         }
         .buttonStyle(ScaleButtonStyle())
         .sheet(isPresented: $showingDetails) {
@@ -168,12 +161,11 @@ struct StoryArchiveCard: View {
 struct ArchiveStatItem: View {
     let icon: String
     let value: String
-    let color: Color
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon).font(.system(size: 14)).foregroundColor(color)
-            Text(value).font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.8))
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 13)).foregroundColor(Theme.inkMuted)
+            Text(value).font(Theme.bodyFont(size: 13)).foregroundColor(Theme.ink)
         }
     }
 }
@@ -181,11 +173,18 @@ struct ArchiveStatItem: View {
 struct ArchiveEmptyStateView: View {
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "book.closed.fill").font(.system(size: 60)).foregroundColor(.white.opacity(0.3))
-            Text("No Stories Yet").font(.system(size: 24, weight: .semibold)).foregroundColor(.white)
-            Text("Start creating magical bedtime stories").font(.system(size: 14)).foregroundColor(.white.opacity(0.6))
+            Image(systemName: "book.closed.fill")
+                .font(.system(size: 52))
+                .foregroundColor(Theme.inkFaint)
+            Text("no stories yet")
+                .font(Theme.titleFont(size: 24))
+                .foregroundColor(Theme.ink)
+            Text("start creating magical bedtime stories")
+                .font(Theme.bodyFont(size: 15))
+                .foregroundColor(Theme.inkMuted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(40)
     }
 }
 
@@ -195,39 +194,35 @@ struct StoryDetailsView: View {
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    ForEach(story.paragraphs.indices, id: \.self) { index in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Part \(index + 1)")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.purple)
-                            Text(story.paragraphs[index].text)
-                                .font(.system(size: 16))
-                                .foregroundColor(.white)
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(story.paragraphs.indices, id: \.self) { i in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("part \(i + 1)")
+                                    .font(Theme.bodyFont(size: 13))
+                                    .fontWeight(.bold)
+                                    .foregroundColor(Theme.inkMuted)
+                                Text(story.paragraphs[i].text)
+                                    .font(Theme.bodyFont(size: 16))
+                                    .foregroundColor(Theme.ink)
+                                    .lineSpacing(4)
+                            }
+                            .padding(16)
+                            .parchmentCard(cornerRadius: Theme.radiusMD)
                         }
-                        .padding()
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.05)))
                     }
+                    .padding(20)
                 }
-                .padding()
             }
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.05, green: 0.05, blue: 0.15),
-                        Color(red: 0.15, green: 0.05, blue: 0.25)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            )
             .navigationTitle(story.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }.foregroundColor(.white)
+                    Button("done") { dismiss() }
+                        .font(Theme.bodyFont(size: 16))
+                        .foregroundColor(Theme.ink)
                 }
             }
         }
@@ -237,11 +232,12 @@ struct StoryDetailsView: View {
 struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .animation(.easeInOut(duration: 0.2), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 
 #Preview {
     StoryArchiveView(childId: "child1")
+        .environmentObject(AuthManager())
 }

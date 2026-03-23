@@ -5,242 +5,130 @@ struct SettingsView: View {
     @EnvironmentObject var vitalsManager: VitalsManager
     @Binding var children: [ChildProfile]
     @Binding var selectedChild: ChildProfile?
-    
+
     @State private var showingAddChild = false
     @State private var debugMode = false
     @State private var showAISettings = false
     @State private var showDrawingsManager = false
-    
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Profile Section
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Children")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    ForEach(children) { child in
-                        ChildSelectionCard(
-                            child: child,
-                            isSelected: selectedChild?.id == child.id,
-                            onSelect: {
-                                selectedChild = child
-                            }
-                        )
-                    }
-                    
-                    Button(action: {
-                        showingAddChild = true
-                    }) {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text("Add Another Child")
-                        }
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.purple)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.purple.opacity(0.1))
-                        .cornerRadius(12)
-                    }
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.05))
-                )
-                
-                // Monitoring Settings
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Vitals Monitoring")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    SettingsRow(
-                        icon: "heart.fill",
-                        title: "Auto-monitor",
-                        subtitle: "Start monitoring during stories",
-                        toggle: .constant(true)
-                    )
-                    
-                    SettingsRow(
-                        icon: "moon.zzz.fill",
-                        title: "Auto-end stories",
-                        subtitle: "Stop when child is asleep (90% drift)",
-                        toggle: .constant(true)
-                    )
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.05))
-                )
-                
-                // Audio Settings
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Audio")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Narration Voice")
-                            .font(.system(size: 14))
-                            .foregroundColor(.white.opacity(0.6))
-                        
-                        Menu {
-                            ForEach(AudioService.availableVoices) { voice in
-                                Button(voice.name) {
-                                    // Update voice preference
-                                }
-                            }
-                        } label: {
-                            HStack {
-                                Text("Sarah")
-                                    .foregroundColor(.white)
-                                Spacer()
-                                Image(systemName: "chevron.down")
-                                    .foregroundColor(.white.opacity(0.5))
-                            }
-                            .padding()
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(8)
-                        }
-                    }
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.05))
-                )
-                
-                // Advanced Settings
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Advanced")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    SettingsRow(
-                        icon: "ladybug.fill",
-                        title: "Debug Mode",
-                        subtitle: "Show technical information",
-                        toggle: $debugMode
-                    )
-                    
-                    if debugMode {
-                        VStack(alignment: .leading, spacing: 8) {
-                            DebugInfoRow(label: "Heart Rate", value: "\(Int(vitalsManager.currentHeartRate)) bpm")
-                            DebugInfoRow(label: "Breathing Rate", value: String(format: "%.1f rpm", vitalsManager.currentBreathingRate))
-                            DebugInfoRow(label: "Signal Quality", value: "\(vitalsManager.signalQuality)%")
-                            DebugInfoRow(label: "Drift Score", value: "\(Int(vitalsManager.driftScore))%")
-                        }
-                        .padding()
-                        .background(Color.black.opacity(0.3))
-                        .cornerRadius(8)
-                    }
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.05))
-                )
-                
-                // AI & Drawings Section
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("AI & Drawings")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    Button(action: { showAISettings = true }) {
-                        HStack {
-                            Image(systemName: "paintpalette.fill")
-                                .foregroundColor(.purple)
-                                .frame(width: 32)
-                            Text("AI Customization")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(.white.opacity(0.4))
-                        }
-                        .padding()
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(12)
-                    }
-                    
-                    Button(action: { showDrawingsManager = true }) {
-                        HStack {
-                            Image(systemName: "photo.on.rectangle.angled")
-                                .foregroundColor(.purple)
-                                .frame(width: 32)
-                            Text("Drawings Collection")
-                                .foregroundColor(.white)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(.white.opacity(0.4))
-                        }
-                        .padding()
-                        .background(Color.white.opacity(0.05))
-                        .cornerRadius(12)
-                    }
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.05))
-                )
 
-                // About Section
-                VStack(spacing: 12) {
-                    Image(systemName: "moon.stars.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.purple, .blue, .cyan],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+    var body: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+
+                    Text("settings")
+                        .font(Theme.titleFont(size: 32))
+                        .foregroundColor(Theme.ink)
+                        .padding(.top, 20)
+
+                    // ── Children ──
+                    settingsSection(title: "children") {
+                        ForEach(children) { child in
+                            ChildSelectionCard(
+                                child: child,
+                                isSelected: selectedChild?.id == child.id,
+                                onSelect: { selectedChild = child }
                             )
-                        )
-                    
-                    Text("StoryDrift")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    Text("Version 1.0.0")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.6))
-                }
-                .padding()
-                
-                // Logout Button
-                Button(action: {
-                    authManager.logout()
-                }) {
-                    HStack {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                        Text("Sign Out")
+                        }
+                        parchmentButton(icon: "plus.circle.fill", label: "add another child") {
+                            showingAddChild = true
+                        }
                     }
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.red)
+
+                    // ── Vitals Monitoring ──
+                    settingsSection(title: "vitals monitoring") {
+                        SettingsRow(icon: "heart.fill",    title: "auto-monitor",    subtitle: "start monitoring during stories",          toggle: .constant(true))
+                        SettingsRow(icon: "moon.zzz.fill", title: "auto-end stories", subtitle: "stop when child is asleep (90% drift)", toggle: .constant(true))
+                    }
+
+                    // ── Audio ──
+                    settingsSection(title: "audio") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("narration voice")
+                                .font(Theme.bodyFont(size: 14))
+                                .foregroundColor(Theme.inkMuted)
+                            Menu {
+                                ForEach(AudioService.availableVoices) { voice in
+                                    Button(voice.name) {}
+                                }
+                            } label: {
+                                HStack {
+                                    Text("Sarah")
+                                        .font(Theme.bodyFont(size: 16))
+                                        .foregroundColor(Theme.ink)
+                                    Spacer()
+                                    Image(systemName: "chevron.down")
+                                        .foregroundColor(Theme.inkMuted)
+                                }
+                                .padding(12)
+                                .background(Theme.background)
+                                .cornerRadius(Theme.radiusSM)
+                                .overlay(RoundedRectangle(cornerRadius: Theme.radiusSM).stroke(Theme.border, lineWidth: 1.5))
+                            }
+                        }
+                    }
+
+                    // ── AI & Drawings ──
+                    settingsSection(title: "ai & drawings") {
+                        parchmentNavRow(icon: "paintpalette.fill", label: "ai customization")   { showAISettings = true }
+                        parchmentNavRow(icon: "photo.on.rectangle.angled", label: "drawings collection") { showDrawingsManager = true }
+                    }
+
+                    // ── Advanced ──
+                    settingsSection(title: "advanced") {
+                        SettingsRow(icon: "ladybug.fill", title: "debug mode", subtitle: "show technical information", toggle: $debugMode)
+                        if debugMode {
+                            VStack(alignment: .leading, spacing: 8) {
+                                DebugInfoRow(label: "heart rate",    value: "\(Int(vitalsManager.currentHeartRate)) bpm")
+                                DebugInfoRow(label: "breathing",     value: String(format: "%.1f rpm", vitalsManager.currentBreathingRate))
+                                DebugInfoRow(label: "signal quality",value: "\(vitalsManager.signalQuality)%")
+                                DebugInfoRow(label: "drift score",   value: "\(Int(vitalsManager.driftScore))%")
+                            }
+                            .padding(12)
+                            .background(Theme.background)
+                            .cornerRadius(Theme.radiusSM)
+                            .overlay(RoundedRectangle(cornerRadius: Theme.radiusSM).stroke(Theme.border, lineWidth: 1))
+                        }
+                    }
+
+                    // ── About ──
+                    VStack(spacing: 10) {
+                        Text("🌙")
+                            .font(.system(size: 40))
+                        Text("StoryDrift")
+                            .font(Theme.titleFont(size: 26))
+                            .foregroundColor(Theme.ink)
+                        Text("Version 1.0.0")
+                            .font(Theme.bodyFont(size: 14))
+                            .foregroundColor(Theme.inkMuted)
+                    }
                     .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.red.opacity(0.1))
-                    .cornerRadius(12)
+                    .padding(20)
+
+                    // ── Sign out ──
+                    Button(action: { authManager.logout() }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                            Text("sign out")
+                                .fontWeight(.semibold)
+                        }
+                        .font(Theme.bodyFont(size: 17))
+                        .foregroundColor(Theme.destructive)
+                        .frame(maxWidth: .infinity)
+                        .padding(16)
+                        .background(Theme.destructive.opacity(0.08))
+                        .cornerRadius(Theme.radiusMD)
+                        .overlay(RoundedRectangle(cornerRadius: Theme.radiusMD).stroke(Theme.destructive.opacity(0.25), lineWidth: 1.5))
+                    }
+
+                    Spacer(minLength: 32)
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
             }
-            .padding()
         }
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.05, green: 0.05, blue: 0.15),
-                    Color(red: 0.15, green: 0.05, blue: 0.25)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-        )
         .sheet(isPresented: $showingAddChild) {
             ChildOnboardingView { child in
                 children.append(child)
@@ -256,93 +144,142 @@ struct SettingsView: View {
                 .environmentObject(authManager)
         }
     }
+
+    // MARK: - Helpers
+    @ViewBuilder
+    private func settingsSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title)
+                .font(Theme.titleFont(size: 20))
+                .foregroundColor(Theme.ink)
+            content()
+        }
+        .padding(16)
+        .parchmentCard(cornerRadius: Theme.radiusMD)
+    }
+
+    @ViewBuilder
+    private func parchmentButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                Text(label)
+                    .fontWeight(.semibold)
+            }
+            .font(Theme.bodyFont(size: 16))
+            .foregroundColor(Theme.ink)
+            .frame(maxWidth: .infinity)
+            .padding(14)
+            .background(Theme.accent.opacity(0.3))
+            .cornerRadius(Theme.radiusSM)
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusSM).stroke(Theme.border, lineWidth: 1.5))
+        }
+    }
+
+    @ViewBuilder
+    private func parchmentNavRow(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(Theme.inkMuted)
+                    .frame(width: 28)
+                Text(label)
+                    .font(Theme.bodyFont(size: 16))
+                    .foregroundColor(Theme.ink)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14))
+                    .foregroundColor(Theme.inkMuted)
+            }
+            .padding(14)
+            .background(Theme.background)
+            .cornerRadius(Theme.radiusSM)
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusSM).stroke(Theme.border, lineWidth: 1))
+        }
+    }
 }
 
+// MARK: - ChildSelectionCard
 struct ChildSelectionCard: View {
     let child: ChildProfile
     let isSelected: Bool
     let onSelect: () -> Void
-    
+
     var body: some View {
         Button(action: onSelect) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(child.name)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    Text("Age \(child.age)")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.6))
+                        .font(Theme.bodyFont(size: 17))
+                        .fontWeight(.semibold)
+                        .foregroundColor(Theme.ink)
+                    Text("age \(child.age)")
+                        .font(Theme.bodyFont(size: 13))
+                        .foregroundColor(Theme.inkMuted)
                 }
-                
                 Spacer()
-                
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.purple)
-                        .font(.system(size: 24))
+                        .foregroundColor(Theme.success)
+                        .font(.system(size: 22))
                 }
             }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.purple.opacity(0.2) : Color.white.opacity(0.05))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(isSelected ? Color.purple : Color.clear, lineWidth: 2)
-                    )
+            .padding(14)
+            .background(isSelected ? Theme.accent.opacity(0.25) : Theme.background)
+            .cornerRadius(Theme.radiusSM)
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.radiusSM)
+                    .stroke(isSelected ? Theme.borderActive : Theme.border, lineWidth: isSelected ? 2 : 1.5)
             )
         }
     }
 }
 
+// MARK: - SettingsRow
 struct SettingsRow: View {
     let icon: String
     let title: String
     let subtitle: String
     @Binding var toggle: Bool
-    
+
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(.purple)
-                .frame(width: 32)
-            
-            VStack(alignment: .leading, spacing: 4) {
+                .font(.system(size: 18))
+                .foregroundColor(Theme.inkMuted)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-                
+                    .font(Theme.bodyFont(size: 16))
+                    .foregroundColor(Theme.ink)
                 Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.6))
+                    .font(Theme.bodyFont(size: 12))
+                    .foregroundColor(Theme.inkMuted)
             }
-            
             Spacer()
-            
             Toggle("", isOn: $toggle)
-                .tint(.purple)
+                .tint(Theme.ink)
         }
+        .padding(.vertical, 4)
     }
 }
 
+// MARK: - DebugInfoRow
 struct DebugInfoRow: View {
     let label: String
     let value: String
-    
+
     var body: some View {
         HStack {
             Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.6))
-            
+                .font(Theme.bodyFont(size: 13))
+                .foregroundColor(Theme.inkMuted)
             Spacer()
-            
             Text(value)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.cyan)
+                .font(Theme.bodyFont(size: 13))
+                .fontWeight(.bold)
+                .foregroundColor(Theme.ink)
         }
     }
 }

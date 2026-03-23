@@ -3,81 +3,62 @@ import AuthenticationServices
 
 struct LoginView: View {
     @EnvironmentObject var authManager: AuthManager
-    
+
     var body: some View {
         ZStack {
-            // Background gradient
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.1, green: 0.1, blue: 0.2),
-                    Color(red: 0.2, green: 0.1, blue: 0.3)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
-            VStack(spacing: 40) {
+            Theme.background.ignoresSafeArea()
+
+            VStack(spacing: 0) {
                 Spacer()
-                
-                // App logo and title
-                VStack(spacing: 20) {
-                    Image(systemName: "moon.stars.fill")
-                        .font(.system(size: 80))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.purple, .blue, .cyan],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    
-                    Text("Idle")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    
-                    Text("Adaptive Bedtime Stories")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.white.opacity(0.7))
+
+                // ── Logo & title ──
+                VStack(spacing: 18) {
+                    Text("🌙")
+                        .font(.system(size: 72))
+
+                    Text("StoryDrift")
+                        .font(Theme.titleFont(size: 52))
+                        .foregroundColor(Theme.ink)
+
+                    Text("adaptive bedtime stories")
+                        .font(Theme.bodyFont(size: 18))
+                        .foregroundColor(Theme.inkMuted)
                 }
-                
+
                 Spacer()
-                
-                // Login button
+
+                // ── Login card ──
                 VStack(spacing: 16) {
-                    Button(action: {
-                        authManager.login()
-                    }) {
-                        HStack {
+                    Button(action: { authManager.login() }) {
+                        HStack(spacing: 10) {
                             if authManager.isLoading {
                                 ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .progressViewStyle(CircularProgressViewStyle(tint: Theme.card))
                             } else {
                                 Image(systemName: "person.circle.fill")
-                                Text("Continue with Auth0")
+                                    .font(.system(size: 20))
+                                Text("continue with auth0")
+                                    .font(Theme.bodyFont(size: 19))
+                                    .fontWeight(.bold)
                             }
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(
-                            LinearGradient(
-                                colors: [.purple, .blue],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .foregroundColor(.white)
-                        .font(.system(size: 18, weight: .semibold))
-                        .cornerRadius(16)
+                        .frame(height: 58)
+                        .foregroundColor(Theme.card)
+                        .background(Theme.ink)
+                        .cornerRadius(Theme.radiusMD)
+                        .shadow(color: Theme.ink.opacity(0.2), radius: 6, x: 0, y: 3)
                     }
                     .disabled(authManager.isLoading)
-                    
-                    Text("Stories that adapt to your child's sleep rhythm")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.6))
+
+                    Text("stories that adapt to your child's sleep rhythm")
+                        .font(Theme.bodyFont(size: 14))
+                        .foregroundColor(Theme.inkMuted)
                         .multilineTextAlignment(.center)
                 }
-                .padding(.horizontal, 32)
+                .padding(24)
+                .parchmentCard(cornerRadius: Theme.radiusLG)
+                .padding(.horizontal, 28)
                 .padding(.bottom, 60)
             }
         }

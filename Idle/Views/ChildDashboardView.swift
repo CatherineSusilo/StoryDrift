@@ -3,254 +3,205 @@ import SwiftUI
 struct ChildDashboardView: View {
     @Binding var child: ChildProfile
     @EnvironmentObject var vitalsManager: VitalsManager
+    @EnvironmentObject var authManager: AuthManager
     @State private var recentStories: [Story] = []
     @State private var statistics: ChildStatistics?
     let onStartStory: () -> Void
-    
+
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Header
-                VStack(spacing: 8) {
-                    Text("Good evening,")
-                        .font(.system(size: 18))
-                        .foregroundColor(.white.opacity(0.7))
-                    
-                    Text(child.name)
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundColor(.white)
-                }
-                .padding(.top, 20)
-                
-                // Start Story Button
-                Button(action: onStartStory) {
-                    HStack {
-                        Image(systemName: "moon.stars.fill")
-                            .font(.system(size: 24))
-                        
-                        Text("Start Bedtime Story")
-                            .font(.system(size: 20, weight: .semibold))
+        ZStack {
+            Theme.background.ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+
+                    // ── Greeting header ──
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("good evening,")
+                            .font(Theme.bodyFont(size: 18))
+                            .foregroundColor(Theme.inkMuted)
+                        Text(child.name)
+                            .font(Theme.titleFont(size: 38))
+                            .foregroundColor(Theme.ink)
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 68)
-                    .background(
-                        LinearGradient(
-                            colors: [.purple, .blue, .cyan],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .foregroundColor(.white)
-                    .cornerRadius(20)
-                }
-                .padding(.horizontal)
-                
-                // Quick Stats
-                if let stats = statistics {
-                    QuickStatsCard(stats: stats)
-                        .padding(.horizontal)
-                }
-                
-                // Recent Stories
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Recent Stories")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal)
-                    
-                    if recentStories.isEmpty {
-                        EmptyStateView(
-                            icon: "book",
-                            message: "No stories yet.\nStart your first bedtime adventure!"
-                        )
-                        .padding()
-                    } else {
-                        ForEach(recentStories.prefix(3)) { story in
-                            StoryCardView(story: story)
-                                .padding(.horizontal)
+                    .padding(.top, 24)
+
+                    // ── Start Story CTA ──
+                    Button(action: onStartStory) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "moon.stars.fill")
+                                .font(.system(size: 22))
+                            Text("start bedtime story")
+                                .font(Theme.bodyFont(size: 20))
+                                .fontWeight(.bold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 64)
+                        .foregroundColor(Theme.card)
+                        .background(Theme.ink)
+                        .cornerRadius(Theme.radiusMD)
+                        .shadow(color: Theme.ink.opacity(0.25), radius: 6, x: 0, y: 3)
+                    }
+
+                    // ── Quick stats ──
+                    if let stats = statistics {
+                        QuickStatsCard(stats: stats)
+                    }
+
+                    // ── Recent Stories ──
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("recent stories")
+                            .font(Theme.titleFont(size: 22))
+                            .foregroundColor(Theme.ink)
+
+                        if recentStories.isEmpty {
+                            EmptyStateView(
+                                icon: "book",
+                                message: "no stories yet.\nstart your first bedtime adventure!"
+                            )
+                        } else {
+                            ForEach(recentStories.prefix(3)) { story in
+                                StoryCardView(story: story)
+                            }
                         }
                     }
+
+                    // ── Drift meter preview ──
+                    if vitalsManager.isMonitoring {
+                        DriftMeterPreview()
+                    }
                 }
-                .padding(.top)
-                
-                // Drift Meter Preview (if monitoring)
-                if vitalsManager.isMonitoring {
-                    DriftMeterPreview()
-                        .padding(.horizontal)
-                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 32)
             }
-            .padding(.bottom, 24)
         }
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.05, green: 0.05, blue: 0.15),
-                    Color(red: 0.15, green: 0.05, blue: 0.25)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-        )
-        .task {
-            await loadDashboardData()
-        }
+        .task { await loadDashboardData() }
     }
-    
+
     private func loadDashboardData() async {
-        guard let token = UserDefaults.standard.string(forKey: "accessToken") else {
-            return
-        }
-        
+        let token = authManager.accessToken ?? UserDefaults.standard.string(forKey: "accessToken")
+        guard let token else { return }
         do {
-            async let storiesTask = APIService.shared.getStories(
-                childId: child.id,
-                token: token
-            )
-            async let statsTask = APIService.shared.getStatistics(
-                childId: child.id,
-                token: token
-            )
-            
+            async let storiesTask = APIService.shared.getStories(childId: child.id, token: token)
+            async let statsTask   = APIService.shared.getStatistics(childId: child.id, token: token)
             recentStories = try await storiesTask
-            statistics = try await statsTask
+            statistics    = try await statsTask
         } catch {
             print("Error loading dashboard data: \(error)")
         }
     }
 }
 
+// MARK: - QuickStatsCard
 struct QuickStatsCard: View {
     let stats: ChildStatistics
-    
+
     var body: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 16) {
-                StatItem(
-                    value: "\(stats.summary.totalSessions)",
-                    label: "Stories",
-                    icon: "book.fill",
-                    color: .purple
-                )
-                
-                StatItem(
-                    value: formatDuration(TimeInterval(stats.summary.avgDuration)),
-                    label: "Avg Sleep Time",
-                    icon: "moon.zzz.fill",
-                    color: .blue
-                )
-            }
-            
-            HStack(spacing: 16) {
-                StatItem(
-                    value: "\(stats.summary.completedSessions)/\(stats.summary.totalSessions)",
-                    label: "Completion",
-                    icon: "checkmark.circle.fill",
-                    color: .green
-                )
-                
-                StatItem(
-                    value: formatDuration(TimeInterval(stats.summary.avgDuration)),
-                    label: "Avg Duration",
-                    icon: "clock.fill",
-                    color: .orange
-                )
-            }
+        HStack(spacing: 0) {
+            StatItem(value: "\(stats.summary.totalSessions)",
+                     label: "stories",       icon: "book.fill")
+            divider
+            StatItem(value: formatDuration(TimeInterval(stats.summary.avgDuration)),
+                     label: "avg sleep",     icon: "moon.zzz.fill")
+            divider
+            StatItem(value: "\(stats.summary.completedSessions)/\(stats.summary.totalSessions)",
+                     label: "completed",     icon: "checkmark.circle.fill")
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.05))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                )
-        )
+        .parchmentCard(cornerRadius: Theme.radiusMD)
     }
-    
+
+    private var divider: some View {
+        Rectangle()
+            .fill(Theme.border)
+            .frame(width: 1.5)
+            .padding(.vertical, 12)
+    }
+
     private func formatDuration(_ seconds: TimeInterval) -> String {
-        let minutes = Int(seconds / 60)
-        return "\(minutes)m"
+        "\(Int(seconds / 60))m"
     }
 }
 
+// MARK: - StatItem
 struct StatItem: View {
     let value: String
     let label: String
     let icon: String
-    let color: Color
-    
+
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundColor(color)
-            
+                .font(.system(size: 18))
+                .foregroundColor(Theme.inkMuted)
             Text(value)
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(.white)
-            
+                .font(Theme.titleFont(size: 22))
+                .foregroundColor(Theme.ink)
             Text(label)
-                .font(.system(size: 12))
-                .foregroundColor(.white.opacity(0.6))
+                .font(Theme.bodyFont(size: 12))
+                .foregroundColor(Theme.inkMuted)
         }
         .frame(maxWidth: .infinity)
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.03))
-        )
+        .padding(.vertical, 16)
     }
 }
 
+// MARK: - StoryCardView
 struct StoryCardView: View {
     let story: Story
-    
+
     var body: some View {
-        HStack(spacing: 16) {
-            // Story thumbnail
-            if let firstImage = story.images.first,
-               let url = URL(string: firstImage) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
+        HStack(spacing: 14) {
+            // Thumbnail
+            if let firstImage = story.images.first, let url = URL(string: firstImage) {
+                AsyncImage(url: url) { img in
+                    img.resizable().aspectRatio(contentMode: .fill)
                 } placeholder: {
-                    Color.purple.opacity(0.3)
+                    Theme.accent.opacity(0.4)
                 }
-                .frame(width: 80, height: 80)
-                .cornerRadius(12)
+                .frame(width: 72, height: 72)
+                .cornerRadius(Theme.radiusSM)
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.radiusSM)
+                        .stroke(Theme.border, lineWidth: 1)
+                )
+            } else {
+                RoundedRectangle(cornerRadius: Theme.radiusSM)
+                    .fill(Theme.accent.opacity(0.3))
+                    .frame(width: 72, height: 72)
+                    .overlay(
+                        Image(systemName: "book.fill")
+                            .foregroundColor(Theme.inkMuted)
+                    )
             }
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(story.title)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
+                    .font(Theme.bodyFont(size: 17))
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.ink)
                     .lineLimit(2)
-                
+
                 Text(story.themes.joined(separator: ", "))
-                    .font(.system(size: 14))
-                    .foregroundColor(.purple.opacity(0.8))
-                
+                    .font(Theme.bodyFont(size: 13))
+                    .foregroundColor(Theme.inkMuted)
+
                 Text(formatDate(story.startTime))
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.5))
+                    .font(Theme.bodyFont(size: 12))
+                    .foregroundColor(Theme.inkFaint)
             }
-            
+
             Spacer()
-            
+
             if story.completed {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
+                    .foregroundColor(Theme.success)
+                    .font(.system(size: 20))
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.05))
-        )
+        .padding(14)
+        .parchmentCard(cornerRadius: Theme.radiusMD)
     }
-    
+
     private func formatDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
@@ -258,52 +209,48 @@ struct StoryCardView: View {
     }
 }
 
+// MARK: - DriftMeterPreview
 struct DriftMeterPreview: View {
     @EnvironmentObject var vitalsManager: VitalsManager
-    
+
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Drift Score")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-                
+                Text("drift score")
+                    .font(Theme.bodyFont(size: 17))
+                    .fontWeight(.semibold)
+                    .foregroundColor(Theme.ink)
                 Spacer()
-                
                 Text("\(vitalsManager.getDriftPercentage())%")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.cyan)
+                    .font(Theme.titleFont(size: 28))
+                    .foregroundColor(Theme.ink)
             }
-            
             ProgressView(value: vitalsManager.driftScore / 100)
-                .tint(.cyan)
-                .scaleEffect(y: 2)
-            
+                .tint(Theme.ink)
+                .scaleEffect(y: 1.6)
+                .padding(.vertical, 4)
             Text(vitalsManager.getDriftStatus())
-                .font(.system(size: 14))
-                .foregroundColor(.white.opacity(0.7))
+                .font(Theme.bodyFont(size: 13))
+                .foregroundColor(Theme.inkMuted)
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.05))
-        )
+        .padding(16)
+        .parchmentCard(cornerRadius: Theme.radiusMD)
     }
 }
 
+// MARK: - EmptyStateView
 struct EmptyStateView: View {
     let icon: String
     let message: String
-    
+
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 48))
-                .foregroundColor(.white.opacity(0.3))
-            
+                .font(.system(size: 44))
+                .foregroundColor(Theme.inkFaint)
             Text(message)
-                .font(.system(size: 16))
-                .foregroundColor(.white.opacity(0.5))
+                .font(Theme.bodyFont(size: 16))
+                .foregroundColor(Theme.inkMuted)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -314,11 +261,12 @@ struct EmptyStateView: View {
 #Preview {
     ChildDashboardView(
         child: .constant(Child(
-            id: "1", userId: "user1", name: "Emma", age: 5,
+            id: "1", userId: "user1", name: "Catherin Jr", age: 5,
             dateOfBirth: nil, avatar: nil,
             createdAt: Date(), updatedAt: Date(), preferences: nil
         )),
         onStartStory: {}
     )
     .environmentObject(VitalsManager())
+    .environmentObject(AuthManager())
 }
