@@ -185,7 +185,7 @@ struct SimpleDriftChart: View {
         GeometryReader { geometry in
             Path { path in
                 guard !data.isEmpty else { return }
-                let maxValue = data.map(\.score).max() ?? 100
+                let maxValue = max(data.map(\.score).max() ?? 100, 1)
                 let stepX = geometry.size.width / CGFloat(max(data.count - 1, 1))
                 for (index, point) in data.enumerated() {
                     let x = CGFloat(index) * stepX

@@ -225,7 +225,7 @@ struct DriftMeterPreview: View {
                     .font(Theme.titleFont(size: 28))
                     .foregroundColor(Theme.ink)
             }
-            ProgressView(value: vitalsManager.driftScore / 100)
+            ProgressView(value: (vitalsManager.driftScore.isFinite ? min(max(vitalsManager.driftScore, 0), 100) : 0) / 100)
                 .tint(Theme.ink)
                 .scaleEffect(y: 1.6)
                 .padding(.vertical, 4)

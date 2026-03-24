@@ -265,7 +265,7 @@ struct StoryRoadmapView: View {
             // Progress ring
             if node.unlocked && !node.completed && node.progress > 0 {
                 Circle()
-                    .trim(from: 0, to: CGFloat(node.progress) / CGFloat(node.totalStories))
+                    .trim(from: 0, to: node.totalStories > 0 ? CGFloat(node.progress) / CGFloat(node.totalStories) : 0)
                     .stroke(
                         Color(red: 0.275, green: 0.510, blue: 0.314).opacity(0.85),
                         style: StrokeStyle(lineWidth: 5, lineCap: .round)
