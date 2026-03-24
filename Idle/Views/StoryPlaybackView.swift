@@ -13,6 +13,9 @@ struct StoryPlaybackView: View {
     @State private var audioPlayer: AVAudioPlayer?
     @State private var timer: Timer?
     @State private var driftHistory: [Double] = []
+
+    // SmartSpectra vitals tracker — one instance per playback session
+    @StateObject private var vitalsTracker = StoryVitalsTracker()
     
     private var currentParagraph: StoryParagraph? {
         guard currentParagraphIndex < story.paragraphs.count else { return nil }
@@ -139,6 +142,13 @@ struct StoryPlaybackView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 32)
             }
+
+            // Transparent SmartSpectra vitals tracker — zero visual footprint
+            VitalsOverlayView(
+                tracker: vitalsTracker,
+                storyId: story.id,
+                childId: story.childId
+            )
         }
         .onAppear {
             startStory()
@@ -172,6 +182,14 @@ struct StoryPlaybackView: View {
                 if vitalsManager.driftScore >= 90 {
                     completeStory()
                 }
+
+                // MARK: - ⚠️ DEBUG ONLY — remove before release
+                #if DEBUG
+                if story.parentPrompt.hasPrefix("DEBUG_2MIN:") && elapsedTime >= 120 {
+                    completeStory()
+                }
+                #endif
+                // END DEBUG
             }
         }
         

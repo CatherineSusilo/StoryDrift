@@ -20,11 +20,23 @@ enum Secrets {
     static let falAPIKey: String         = value(for: "FalAPIKey")
     static let elevenLabsAPIKey: String  = value(for: "ElevenLabsAPIKey")
 
+    // MARK: - SmartSpectra (Presage)
+    /// Get your key from https://physiology.presagetech.com
+    /// Returns nil if the key hasn't been set in Config.xcconfig yet.
+    static let smartSpectraAPIKey: String? = optionalValue(for: "SmartSpectraAPIKey")
+
     // MARK: - Private helper
     private static func value(for key: String) -> String {
         guard let val = Bundle.main.infoDictionary?[key] as? String, !val.isEmpty else {
             fatalError("⚠️  Missing key '\(key)' in Info.plist / Config.xcconfig")
         }
+        return val
+    }
+
+    private static func optionalValue(for key: String) -> String? {
+        guard let val = Bundle.main.infoDictionary?[key] as? String,
+              !val.isEmpty,
+              !val.hasPrefix("YOUR_") else { return nil }
         return val
     }
 }

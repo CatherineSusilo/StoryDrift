@@ -116,8 +116,13 @@ class StoryVitalsTracker: ObservableObject {
         self.isTracking = true
 
 #if canImport(SmartSpectraSwiftSDK)
-        // Configure SDK
-        sdk.setApiKey(Secrets.smartSpectraAPIKey)
+        // Configure SDK — skip if API key not yet set
+        guard let apiKey = Secrets.smartSpectraAPIKey else {
+            statusHint = "SmartSpectra API key not configured"
+            print("[StoryVitalsTracker] ⚠️  Set SMARTSPECTRA_API_KEY in Config.xcconfig to enable vitals tracking.")
+            return
+        }
+        sdk.setApiKey(apiKey)
         sdk.setSmartSpectraMode(.continuous)
         sdk.setCameraPosition(.front)
 
@@ -129,7 +134,7 @@ class StoryVitalsTracker: ObservableObject {
         sdk.$metricsBuffer
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak vitalsManager] buffer in
-                guard let self, let buffer else { return }
+                guard let self, let buffer, let vitalsManager else { return }
 
                 // Latest pulse rate
                 let hr = buffer.pulse.rate.last.map { Double($0.value) } ?? 0
@@ -185,9 +190,7 @@ class StoryVitalsTracker: ObservableObject {
 
         // Fire-and-forget: post to backend if token available
         if let token = UserDefaults.standard.string(forKey: "accessToken") {
-            Task {
-                try? await APIService.shared.postStoryVitals(summary: summary, token: token)
-            }
+            Task { await postToBackend(summary: summary, token: token) }
         }
 
         self.storyId = nil
@@ -208,5 +211,31 @@ class StoryVitalsTracker: ObservableObject {
             confidence: 1.0
         )
         snapshots.append(snap)
+    }
+
+    private func postToBackend(summary: StoryVitalsSummary, token: String) async {
+        struct Body: Encodable {
+            let childId: String
+            let avgHeartRate: Double
+            let avgBreathingRate: Double
+            let minHeartRate: Double
+            let maxHeartRate: Double
+            let snapshots: [StoryVitalsSnapshot]
+        }
+        let body = Body(
+            childId: summary.childId,
+            avgHeartRate: summary.avgHeartRate,
+            avgBreathingRate: summary.avgBreathingRate,
+            minHeartRate: summary.minHeartRate,
+            maxHeartRate: summary.maxHeartRate,
+            snapshots: summary.snapshots
+        )
+        guard let url = URL(string: "\(APIService.baseURL)/api/stories/vitals/\(summary.storyId)") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try? JSONEncoder().encode(body)
+        _ = try? await URLSession.shared.data(for: req)
     }
 }
