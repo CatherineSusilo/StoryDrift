@@ -30,6 +30,7 @@
 		BB0000112F6CD78F001DBFE5 /* InteractiveElementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000122F6CD78F001DBFE5 /* InteractiveElementsView.swift */; };
 		BB0000132F6CD78F001DBFE5 /* VitalsMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000142F6CD78F001DBFE5 /* VitalsMonitorView.swift */; };
 		BB1000002A2B3C4D001EEFF0 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000001A2B3C4D001EEFF0 /* Secrets.swift */; };
+		CF8857B92F725CBB005678AE /* SmartSpectraSwiftSDK in Frameworks */ = {isa = PBXBuildFile; productRef = CF8857B82F725CBB005678AE /* SmartSpectraSwiftSDK */; };
 		DD0000012F6CD78F001DBFE5 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000022F6CD78F001DBFE5 /* AISettingsView.swift */; };
 		DD0000032F6CD78F001DBFE5 /* DrawingsManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000042F6CD78F001DBFE5 /* DrawingsManagerView.swift */; };
 		DD0000052F6CD78F001DBFE5 /* StoryRoadmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000062F6CD78F001DBFE5 /* StoryRoadmapView.swift */; };
@@ -74,13 +75,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CF8857B92F725CBB005678AE /* SmartSpectraSwiftSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		AA0000212F6CD78F001DBFE5 /* StoryDrift */ = {
+		AA0000212F6CD78F001DBFE5 = {
 			isa = PBXGroup;
 			children = (
 				AA0000222F6CD78F001DBFE5 /* Idle */,
@@ -216,6 +218,9 @@
 				Base,
 			);
 			mainGroup = AA0000212F6CD78F001DBFE5;
+			packageReferences = (
+				CF8857B72F725CBB005678AE /* XCRemoteSwiftPackageReference "SmartSpectra" */,
+			);
 			productRefGroup = AA0000232F6CD78F001DBFE5 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -263,10 +268,10 @@
 				BB0000112F6CD78F001DBFE5 /* InteractiveElementsView.swift in Sources */,
 				BB0000132F6CD78F001DBFE5 /* VitalsMonitorView.swift in Sources */,
 				BB1000002A2B3C4D001EEFF0 /* Secrets.swift in Sources */,
-		DD0000012F6CD78F001DBFE5 /* AISettingsView.swift in Sources */,
-		DD0000032F6CD78F001DBFE5 /* DrawingsManagerView.swift in Sources */,
-		DD0000052F6CD78F001DBFE5 /* StoryRoadmapView.swift in Sources */,
-		EE0000012F6CD78F001DBFE5 /* Theme.swift in Sources */,
+				DD0000012F6CD78F001DBFE5 /* AISettingsView.swift in Sources */,
+				DD0000032F6CD78F001DBFE5 /* DrawingsManagerView.swift in Sources */,
+				DD0000052F6CD78F001DBFE5 /* StoryRoadmapView.swift in Sources */,
+				EE0000012F6CD78F001DBFE5 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -478,6 +483,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CF8857B72F725CBB005678AE /* XCRemoteSwiftPackageReference "SmartSpectra" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Presage-Security/SmartSpectra";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CF8857B82F725CBB005678AE /* SmartSpectraSwiftSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CF8857B72F725CBB005678AE /* XCRemoteSwiftPackageReference "SmartSpectra" */;
+			productName = SmartSpectraSwiftSDK;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AA00002C2F6CD78F001DBFE5 /* Project object */;
 }
