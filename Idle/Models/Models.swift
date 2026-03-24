@@ -174,11 +174,6 @@ struct InteractiveElement: Codable, Identifiable {
     var paragraphIndex: Int
     var completed: Bool
     var response: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id = "_id"
-        case type, content, options, paragraphIndex, completed, response
-    }
 }
 
 enum InteractiveType: String, Codable {
@@ -223,11 +218,6 @@ struct VitalsData: Codable, Identifiable {
     var signalQuality: Double
     var driftScore: Double
     let timestamp: Date
-
-    enum CodingKeys: String, CodingKey {
-        case id = "_id"
-        case childId, heartRate, breathingRate, signalQuality, driftScore, timestamp
-    }
 }
 
 struct VitalsSnapshot: Codable, Identifiable {

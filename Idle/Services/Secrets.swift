@@ -11,7 +11,9 @@ enum Secrets {
     // auth0Audience is built from auth0Domain in AuthManager — xcconfig can't store URLs with :// safely
 
     // MARK: - Backend
-    static let apiBaseURL: String     = value(for: "APIBaseURL")
+    // ⚠️  Update this IP to your Mac's current LAN IP each time you switch WiFi.
+    // Run `update-ip.sh` from the StoryDrift folder to do it automatically.
+    static let apiBaseURL: String = "http://100.66.72.18:3001"
 
     // MARK: - AI Services
     static let geminiAPIKey: String      = value(for: "GeminiAPIKey")

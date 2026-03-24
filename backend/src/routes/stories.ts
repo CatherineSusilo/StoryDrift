@@ -5,6 +5,17 @@ import { z } from 'zod';
 
 const router = Router();
 
+// Helper: deserialize a StorySession (arrays stored as JSON strings)
+function deserializeStory(story: any) {
+  if (!story) return story;
+  return {
+    ...story,
+    driftScoreHistory: JSON.parse(story.driftScoreHistory || '[]'),
+    generatedImages: JSON.parse(story.generatedImages || '[]'),
+    imagePrompts: story.imagePrompts ? JSON.parse(story.imagePrompts) : null,
+  };
+}
+
 // Schema for creating a story session
 const createStorySchema = z.object({
   childId: z.string().min(1),
@@ -72,7 +83,7 @@ router.get('/child/:childId', async (req: AuthRequest, res) => {
     });
 
     res.json({
-      data: stories,
+      data: stories.map(deserializeStory),
       total,
       limit: parseInt(limit as string),
       offset: parseInt(offset as string),
@@ -117,7 +128,7 @@ router.get('/:storyId', async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Story session not found' });
     }
 
-    res.json(story);
+    res.json(deserializeStory(story));
   } catch (error) {
     console.error('Get story error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to get story session' });
@@ -163,14 +174,14 @@ router.post('/', async (req: AuthRequest, res) => {
         storytellingTone: body.storytellingTone,
         initialState: body.initialState,
         initialDriftScore: body.initialDriftScore,
-        imagePrompts: body.imagePrompts,
-        generatedImages: body.generatedImages || [],
+        imagePrompts: body.imagePrompts ? JSON.stringify(body.imagePrompts) : undefined,
+        generatedImages: JSON.stringify(body.generatedImages || []),
         modelUsed: body.modelUsed,
-        driftScoreHistory: [body.initialDriftScore],
+        driftScoreHistory: JSON.stringify([body.initialDriftScore]),
       },
     });
 
-    res.status(201).json(story);
+    res.status(201).json(deserializeStory(story));
   } catch (error) {
     console.error('Create story error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to create story session' });
@@ -219,11 +230,11 @@ router.patch('/:storyId', async (req: AuthRequest, res) => {
         sleepOnsetTime: body.sleepOnsetTime ? new Date(body.sleepOnsetTime) : undefined,
         completed: body.completed,
         finalDriftScore: body.finalDriftScore,
-        driftScoreHistory: body.driftScoreHistory,
+        driftScoreHistory: body.driftScoreHistory !== undefined ? JSON.stringify(body.driftScoreHistory) : undefined,
       },
     });
 
-    res.json(story);
+    res.json(deserializeStory(story));
   } catch (error) {
     console.error('Update story error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to update story session' });

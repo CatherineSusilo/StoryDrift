@@ -51,6 +51,18 @@ struct LoginView: View {
                     }
                     .disabled(authManager.isLoading)
 
+                    if let errorMessage = authManager.loginError {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.system(size: 14))
+                            Text(errorMessage)
+                                .font(Theme.bodyFont(size: 14))
+                        }
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
                     Text("stories that adapt to your child's sleep rhythm")
                         .font(Theme.bodyFont(size: 14))
                         .foregroundColor(Theme.inkMuted)
@@ -60,6 +72,7 @@ struct LoginView: View {
                 .parchmentCard(cornerRadius: Theme.radiusLG)
                 .padding(.horizontal, 28)
                 .padding(.bottom, 60)
+                .animation(.easeInOut(duration: 0.25), value: authManager.loginError)
             }
         }
     }

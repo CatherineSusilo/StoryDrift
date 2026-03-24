@@ -7,6 +7,7 @@ class AuthManager: NSObject, ObservableObject {
     @Published var isLoading = false
     @Published var user: User?
     @Published var accessToken: String?
+    @Published var loginError: String? = nil
     
     private var authSession: ASWebAuthenticationSession?
     
@@ -23,7 +24,10 @@ class AuthManager: NSObject, ObservableObject {
     }
     
     func login() {
-        DispatchQueue.main.async { self.isLoading = true }
+        DispatchQueue.main.async {
+            self.isLoading = true
+            self.loginError = nil
+        }
         let authURL = buildAuthURL()
         print("🔐 Auth URL: \(authURL.absoluteString)")
         
@@ -37,7 +41,7 @@ class AuthManager: NSObject, ObservableObject {
                 let nsError = error as NSError
                 print("❌ Auth error: \(error.localizedDescription)")
                 print("❌ Error code: \(nsError.code), domain: \(nsError.domain)")
-                // Code 1 = user cancelled, which is fine
+                // Code 1 = user cancelled — don't show an error message
                 DispatchQueue.main.async { self.isLoading = false }
                 return
             }
@@ -55,7 +59,11 @@ class AuthManager: NSObject, ObservableObject {
             if let authError = components?.queryItems?.first(where: { $0.name == "error" })?.value,
                let desc = components?.queryItems?.first(where: { $0.name == "error_description" })?.value {
                 print("❌ Auth0 error: \(authError) — \(desc)")
-                DispatchQueue.main.async { self.isLoading = false }
+                let friendlyMessage = Self.friendlyAuthError(code: authError, description: desc)
+                DispatchQueue.main.async {
+                    self.loginError = friendlyMessage
+                    self.isLoading = false
+                }
                 return
             }
             
@@ -87,20 +95,22 @@ class AuthManager: NSObject, ObservableObject {
     }
     
     private func checkAuthState() {
-        if let token = UserDefaults.standard.string(forKey: "accessToken") {
-            self.accessToken = token
-            DispatchQueue.main.async { self.isLoading = true }
-            Task {
-                await verifyToken(token)
-            }
+        guard let token = UserDefaults.standard.string(forKey: "accessToken") else {
+            // No stored token — stay on login screen
+            return
         }
-        // no stored token — stay on login screen, isLoading stays false
+        self.accessToken = token
+        DispatchQueue.main.async { self.isLoading = true }
+        // Delay slightly so the app's network stack is fully ready before the first request
+        Task {
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+            await verifyToken(token)
+        }
     }
     
     private func verifyToken(_ token: String) async {
-        // Verify by calling Auth0's /userinfo — if the token is valid we get user info back
         guard let url = URL(string: "https://\(domain)/userinfo") else {
-            DispatchQueue.main.async { self.isLoading = false }
+            self.fetchOrCreateProfile(accessToken: token, email: nil, name: nil, picture: nil)
             return
         }
 
@@ -109,26 +119,26 @@ class AuthManager: NSObject, ObservableObject {
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            let httpResponse = response as? HTTPURLResponse
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
 
-            if httpResponse?.statusCode == 200,
-               let userInfo = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let email = userInfo["email"] as? String {
-                // Token still valid — re-fetch profile from backend
-                self.fetchOrCreateProfile(accessToken: token)
-            } else {
-                print("⚠️ Stored token invalid, logging out")
+            if statusCode == 401 {
+                print("⚠️ Stored token rejected by /userinfo (401), logging out")
                 DispatchQueue.main.async {
                     self.logout()
                     self.isLoading = false
                 }
+            } else {
+                // Parse email/name/picture out of the /userinfo response while we have it
+                let userInfo = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+                let email   = userInfo?["email"]   as? String
+                let name    = userInfo?["name"]    as? String
+                let picture = userInfo?["picture"] as? String
+                print("✅ Token verified (status \(statusCode)), email: \(email ?? "none")")
+                self.fetchOrCreateProfile(accessToken: token, email: email, name: name, picture: picture)
             }
         } catch {
-            print("Token verification error: \(error)")
-            DispatchQueue.main.async {
-                self.logout()
-                self.isLoading = false
-            }
+            print("⚠️ /userinfo unreachable (\(error.localizedDescription)), attempting profile anyway...")
+            self.fetchOrCreateProfile(accessToken: token, email: nil, name: nil, picture: nil)
         }
     }
     
@@ -237,7 +247,8 @@ class AuthManager: NSObject, ObservableObject {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
-        var body: [String: Any] = ["email": email]
+        var body: [String: Any] = [:]
+        if !email.isEmpty { body["email"] = email }
         if let name = name { body["name"] = name }
         if let picture = picture { body["picture"] = picture }
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
@@ -263,6 +274,7 @@ class AuthManager: NSObject, ObservableObject {
                     self.user = user
                     self.isAuthenticated = true
                     self.isLoading = false
+                    self.loginError = nil
                     print("✅ Logged in as \(user.email)")
                 }
             } catch {
@@ -273,21 +285,22 @@ class AuthManager: NSObject, ObservableObject {
         }.resume()
     }
 
-    private func fetchOrCreateProfile(accessToken: String) {
-        // Called when verifying a stored token — we don't have the id_token anymore,
-        // so just call the backend profile endpoint directly (it will find the existing user)
+    private func fetchOrCreateProfile(accessToken: String, email: String?, name: String?, picture: String?) {
         guard let profileURL = URL(string: "\(APIService.baseURL)/api/auth/profile") else {
             DispatchQueue.main.async { self.isLoading = false }
             return
         }
 
-        // We need email for the backend — decode from stored access token if possible,
-        // otherwise use empty string (backend finds user by auth0Id from token sub claim)
         var req = URLRequest(url: profileURL)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["email": ""])
+
+        var body: [String: Any] = [:]
+        if let email = email, !email.isEmpty { body["email"] = email }
+        if let name = name { body["name"] = name }
+        if let picture = picture { body["picture"] = picture }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         URLSession.shared.dataTask(with: req) { [weak self] data, _, error in
             guard let self = self else { return }
@@ -309,6 +322,36 @@ class AuthManager: NSObject, ObservableObject {
                 DispatchQueue.main.async { self.logout(); self.isLoading = false }
             }
         }.resume()
+    }
+    // MARK: - Error Helpers
+
+    /// Converts Auth0 error codes and descriptions into user-friendly messages.
+    private static func friendlyAuthError(code: String, description: String) -> String {
+        let desc = description.lowercased()
+
+        // "user does not exist" signals
+        if desc.contains("user does not exist")
+            || desc.contains("no user found")
+            || desc.contains("user not found")
+            || code == "invalid_grant" && desc.contains("user") {
+            return "No account found with that email address."
+        }
+
+        // Wrong password / bad credentials
+        if desc.contains("wrong email or password")
+            || desc.contains("invalid password")
+            || desc.contains("incorrect password")
+            || code == "invalid_grant" {
+            return "Incorrect password. Please try again."
+        }
+
+        // Account blocked / too many attempts
+        if desc.contains("blocked") || desc.contains("too many") {
+            return "Account temporarily blocked. Please try again later."
+        }
+
+        // Generic fallback
+        return "Sign-in failed. Please try again."
     }
 }
 

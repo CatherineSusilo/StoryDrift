@@ -6,12 +6,12 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @default(cuid())
   auth0Id   String   @unique
   email     String   @unique
   name      String?
@@ -23,16 +23,16 @@ model User {
 }
 
 model Child {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId      String   @db.ObjectId
+  id          String    @id @default(cuid())
+  userId      String
   name        String
   age         Int
   dateOfBirth DateTime?
   avatar      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   sleepSessions SleepSession[]
   storySessions StorySession[]
   preferences   ChildPreferences?
@@ -41,10 +41,10 @@ model Child {
 }
 
 model ChildPreferences {
-  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
-  childId             String   @unique @db.ObjectId
+  id                  String   @id @default(cuid())
+  childId             String   @unique
   storytellingTone    String   @default("calming")
-  favoriteThemes      String[]
+  favoriteThemes      String   @default("[]") // JSON array stored as string
   defaultInitialState String   @default("normal")
   personality         String?
   favoriteMedia       String?
@@ -56,28 +56,28 @@ model ChildPreferences {
 }
 
 model StorySession {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  childId           String   @db.ObjectId
+  id                String    @id @default(cuid())
+  childId           String
   storyTitle        String
   storyContent      String
   parentPrompt      String
   storytellingTone  String
   initialState      String
-  startTime         DateTime @default(now())
+  startTime         DateTime  @default(now())
   endTime           DateTime?
   duration          Int?
   sleepOnsetTime    DateTime?
-  completed         Boolean  @default(false)
-  
+  completed         Boolean   @default(false)
+
   initialDriftScore Int      @default(0)
   finalDriftScore   Int      @default(0)
-  driftScoreHistory Int[]
-  
-  imagePrompts      Json?
-  generatedImages   String[]
+  driftScoreHistory String   @default("[]") // JSON array stored as string
+
+  imagePrompts      String?  // JSON stored as string
+  generatedImages   String   @default("[]") // JSON array stored as string
 
   modelUsed         String?
-  
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -88,22 +88,22 @@ model StorySession {
 }
 
 model SleepSession {
-  id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  childId          String   @db.ObjectId
-  storySessionId   String?  @db.ObjectId
+  id               String    @id @default(cuid())
+  childId          String
+  storySessionId   String?
   bedtime          DateTime
   wakeupTime       DateTime?
   duration         Int?
   quality          String?
   notes            String?
-  
+
   timeToSleep      Int?
   nightWakings     Int      @default(0)
   sleepEfficiency  Float?
-  
+
   weatherCondition String?
   roomTemperature  Float?
-  
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

@@ -5,6 +5,24 @@ import { z } from 'zod';
 
 const router = Router();
 
+// Helper: deserialize a ChildPreferences object (favoriteThemes stored as JSON string)
+function deserializePreferences(prefs: any) {
+  if (!prefs) return prefs;
+  return {
+    ...prefs,
+    favoriteThemes: JSON.parse(prefs.favoriteThemes || '[]'),
+  };
+}
+
+// Helper: deserialize child (includes preferences)
+function deserializeChild(child: any) {
+  if (!child) return child;
+  return {
+    ...child,
+    preferences: child.preferences ? deserializePreferences(child.preferences) : child.preferences,
+  };
+}
+
 // Schema for creating a child
 const createChildSchema = z.object({
   name: z.string().min(1).max(100),
@@ -45,7 +63,7 @@ router.get('/', async (req: AuthRequest, res) => {
       orderBy: { createdAt: 'asc' },
     });
 
-    res.json(children);
+    res.json(children.map(deserializeChild));
   } catch (error) {
     console.error('Get children error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to get children' });
@@ -84,7 +102,7 @@ router.get('/:childId', async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Child not found' });
     }
 
-    res.json(child);
+    res.json(deserializeChild(child));
   } catch (error) {
     console.error('Get child error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to get child' });
@@ -117,7 +135,10 @@ router.post('/', async (req: AuthRequest, res) => {
         dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : undefined,
         avatar: body.avatar,
         preferences: body.preferences ? {
-          create: body.preferences,
+          create: {
+            ...body.preferences,
+            favoriteThemes: JSON.stringify(body.preferences.favoriteThemes),
+          },
         } : undefined,
       },
       include: {
@@ -125,7 +146,7 @@ router.post('/', async (req: AuthRequest, res) => {
       },
     });
 
-    res.status(201).json(child);
+    res.status(201).json(deserializeChild(child));
   } catch (error) {
     console.error('Create child error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to create child' });
@@ -173,8 +194,14 @@ router.patch('/:childId', async (req: AuthRequest, res) => {
         avatar: body.avatar,
         preferences: body.preferences ? {
           upsert: {
-            create: body.preferences,
-            update: body.preferences,
+            create: {
+              ...body.preferences,
+              favoriteThemes: JSON.stringify(body.preferences.favoriteThemes ?? []),
+            },
+            update: {
+              ...body.preferences,
+              favoriteThemes: JSON.stringify(body.preferences.favoriteThemes ?? []),
+            },
           },
         } : undefined,
       },
@@ -183,7 +210,7 @@ router.patch('/:childId', async (req: AuthRequest, res) => {
       },
     });
 
-    res.json(child);
+    res.json(deserializeChild(child));
   } catch (error) {
     console.error('Update child error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to update child' });
