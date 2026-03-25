@@ -9,7 +9,7 @@ import {
   MinigameTrigger,
   MinigameResult,
 } from './types';
-import { readBiometrics } from './nodes/biometric-reader';
+import { readBiometrics, syntheticBiometrics } from './nodes/biometric-reader';
 import { calculateDriftScore } from './nodes/drift-calculator';
 import { calculateEngagementScore } from './nodes/engagement-calculator';
 import { routeNarrativeStrategy } from './nodes/narrative-router';
@@ -103,14 +103,27 @@ export function deleteSession(sessionId: string): void {
 
 // ── Main tick: runs the full node pipeline ─────────────────────────────────────
 
-export async function tick(sessionId: string, biometrics: BiometricInput): Promise<TickResult> {
+export async function tick(
+  sessionId: string,
+  biometrics: BiometricInput,
+  cameraEnabled: boolean = true,
+): Promise<TickResult> {
   const state = sessions.get(sessionId);
   if (!state) throw new Error(`Session ${sessionId} not found`);
 
+  // Camera-off fallback: synthesise signals from time + profile
+  const effectiveBiometrics: BiometricInput = cameraEnabled
+    ? biometrics
+    : syntheticBiometrics(
+        state.session_minutes,
+        state.mode,
+        state.mode === 'bedtime' ? state.childProfile.tonightsMood : undefined,
+      );
+
   if (state.mode === 'bedtime') {
-    return tickBedtime(state as BedtimeState, biometrics);
+    return tickBedtime(state as BedtimeState, effectiveBiometrics);
   } else {
-    return tickEducational(state as EducationalState, biometrics);
+    return tickEducational(state as EducationalState, effectiveBiometrics);
   }
 }
 
@@ -132,12 +145,12 @@ async function tickBedtime(state: BedtimeState, biometrics: BiometricInput): Pro
   if (drift_score > 85 && state.arc_position !== 'resolved') {
     console.log('😴 Resolution protocol triggered');
     const segment = await generateResolutionSegment(state);
-    const { imageUrl } = await generateSceneImage(segment, drift_score, 'bedtime',
-      getLastImageUrls(state));
+    const { imageUrl, falUrl } = await generateSceneImage(segment, drift_score, 'bedtime',
+      getLastFalUrls(state));
     const voice = await generateVoice(segment, drift_score, 'bedtime');
 
     const updated = await updateBedtimeState(
-      state, segment, imageUrl, voice?.audioBase64 ?? null,
+      state, segment, imageUrl, falUrl, voice?.audioBase64 ?? null,
       drift_score, drift_trajectory, 'resolved', 'resolution', false,
     );
     updated.sleep_onset_time = new Date().toISOString();
@@ -171,8 +184,8 @@ async function tickBedtime(state: BedtimeState, biometrics: BiometricInput): Pro
   segment = guard.segment;
 
   // Node 6 — Image Generator
-  const { imageUrl } = await generateSceneImage(
-    segment, drift_score, 'bedtime', getLastImageUrls(state),
+  const { imageUrl, falUrl } = await generateSceneImage(
+    segment, drift_score, 'bedtime', getLastFalUrls(state),
   );
 
   // Node 7 — Voice Output
@@ -180,7 +193,7 @@ async function tickBedtime(state: BedtimeState, biometrics: BiometricInput): Pro
 
   // Node 8 — State Updater
   const updated = await updateBedtimeState(
-    state, segment, imageUrl, voice?.audioBase64 ?? null,
+    state, segment, imageUrl, falUrl, voice?.audioBase64 ?? null,
     drift_score, drift_trajectory, arc_position, strategy.strategy, guardFailed,
   );
   sessions.set(state.sessionId, updated);
@@ -223,12 +236,12 @@ async function tickEducational(
   if (lessonComplete) {
     console.log('🎓 Lesson completion protocol triggered');
     const segment = await generateLessonCompletionSegment({ ...state, engagement_score });
-    const { imageUrl } = await generateSceneImage(segment, engagement_score, 'educational',
-      getLastImageUrls(state), state.lesson_name);
+    const { imageUrl, falUrl } = await generateSceneImage(segment, engagement_score, 'educational',
+      getLastFalUrls(state), state.lesson_name);
     const voice = await generateVoice(segment, engagement_score, 'educational');
 
     const updated = await updateEducationalState(
-      state, segment, imageUrl, voice?.audioBase64 ?? null,
+      state, segment, imageUrl, falUrl, voice?.audioBase64 ?? null,
       engagement_score, engagement_trajectory, 100,
       'consolidation', undefined, undefined, false,
     );
@@ -263,9 +276,9 @@ async function tickEducational(
   segment = guard.segment;
 
   // Node 7 — Image Generator (highlight concept visually)
-  const { imageUrl } = await generateSceneImage(
+  const { imageUrl, falUrl } = await generateSceneImage(
     segment, engagement_score, 'educational',
-    getLastImageUrls(state),
+    getLastFalUrls(state),
     strategy.next_concept,
   );
 
@@ -280,7 +293,7 @@ async function tickEducational(
       : undefined;
 
   const updated = await updateEducationalState(
-    state, segment, imageUrl, voice?.audioBase64 ?? null,
+    state, segment, imageUrl, falUrl, voice?.audioBase64 ?? null,
     engagement_score, engagement_trajectory, lesson_progress,
     strategy.strategy, conceptIntroduced, conceptReinforced, guardFailed,
   );
@@ -309,10 +322,14 @@ async function tickEducational(
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function getLastImageUrls(state: GraphState): string[] {
+// Returns the last 2 *Fal.ai CDN URLs* — these are what we pass as the
+// image-to-image reference, because Fal.ai's servers can only reach their
+// own CDN, not our local Express /images/ endpoint.
+// CDN URLs are valid for ~1h, which is always enough within an active session.
+function getLastFalUrls(state: GraphState): string[] {
   return state.segments
     .slice(-2)
-    .map((s) => s.imageUrl)
+    .map((s) => s.falImageUrl)
     .filter((u): u is string => !!u);
 }
 

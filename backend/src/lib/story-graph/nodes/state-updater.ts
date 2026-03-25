@@ -49,7 +49,8 @@ Rules:
 export async function updateBedtimeState(
   state: BedtimeState,
   segment: string,
-  imageUrl: string,
+  imageUrl: string,      // local /images/... URL — permanent
+  falImageUrl: string,   // Fal.ai CDN URL — temporary, for next image-to-image reference
   audioBase64: string | null,
   drift_score: number,
   drift_trajectory: BedtimeState['drift_trajectory'],
@@ -78,6 +79,7 @@ export async function updateBedtimeState(
       {
         text: segment,
         imageUrl,
+        falImageUrl: falImageUrl || undefined,
         audioUrl: audioBase64 ? `data:audio/mpeg;base64,${audioBase64}` : undefined,
         timestamp: Date.now(),
         score: drift_score,
@@ -99,7 +101,8 @@ export async function updateBedtimeState(
 export async function updateEducationalState(
   state: EducationalState,
   segment: string,
-  imageUrl: string,
+  imageUrl: string,      // local permanent URL
+  falImageUrl: string,   // temporary Fal.ai CDN URL
   audioBase64: string | null,
   engagement_score: number,
   engagement_trajectory: EducationalState['engagement_trajectory'],
@@ -140,6 +143,7 @@ export async function updateEducationalState(
       {
         text: segment,
         imageUrl,
+        falImageUrl: falImageUrl || undefined,
         audioUrl: audioBase64 ? `data:audio/mpeg;base64,${audioBase64}` : undefined,
         timestamp: Date.now(),
         score: engagement_score,

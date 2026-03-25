@@ -8,10 +8,25 @@ class VitalsManager: ObservableObject {
     @Published var signalQuality: Int = 0
     @Published var driftScore: Double = 0
 
+    /// Persisted setting — user can disable camera in Settings.
+    /// When false the backend uses synthetic biometrics derived from
+    /// session time + child profile so stories still adapt naturally.
+    @Published var isCameraEnabled: Bool {
+        didSet { UserDefaults.standard.set(isCameraEnabled, forKey: "cameraEnabled") }
+    }
+
+    init() {
+        self.isCameraEnabled = UserDefaults.standard.object(forKey: "cameraEnabled") as? Bool ?? true
+    }
+
     private var cancellables = Set<AnyCancellable>()
     private var monitoringTask: Task<Void, Never>?
     private var childId: String?
     private var startTime: Date?
+
+    // Convenience aliases used by session views
+    var heartRate: Double    { currentHeartRate }
+    var breathingRate: Double { currentBreathingRate }
 
     let metricsPublisher = PassthroughSubject<VitalsMetrics, Never>()
 

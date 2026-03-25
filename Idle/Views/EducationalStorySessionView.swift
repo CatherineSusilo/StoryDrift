@@ -330,17 +330,18 @@ struct EducationalStorySessionView: View {
     private func runTick() async {
         guard let sid = sessionId, let token = authManager.accessToken else { return }
 
-        let biometrics: [String: Any] = [
-            "pulse_rate": vitalsManager.heartRate > 0 ? vitalsManager.heartRate : NSNull(),
+        let cameraEnabled = vitalsManager.isCameraEnabled && vitalsManager.signalQuality > 0.2
+        let biometrics: [String: Any] = cameraEnabled ? [
+            "pulse_rate":     vitalsManager.heartRate > 0 ? vitalsManager.heartRate : NSNull(),
             "breathing_rate": vitalsManager.breathingRate > 0 ? vitalsManager.breathingRate : NSNull(),
             "movement_level": 0.3,
             "signal_quality": vitalsManager.signalQuality,
-        ]
+        ] : [:]
 
         do {
             let data = try await APIService.shared.post(
                 path: "/api/story-session/\(sid)/tick?includeAudio=1",
-                body: ["biometrics": biometrics],
+                body: ["biometrics": biometrics, "cameraEnabled": cameraEnabled],
                 token: token
             )
             let resp = try JSONDecoder().decode(TickResponse.self, from: data)

@@ -29,7 +29,8 @@ export interface LessonPlan {
 
 export interface StorySegment {
   text: string;
-  imageUrl?: string;
+  imageUrl?: string;     // permanent local URL served by Express (e.g. /images/abc.webp)
+  falImageUrl?: string;  // temporary Fal.ai CDN URL — used as reference for next image-to-image call
   audioUrl?: string;
   timestamp: number;
   score: number;

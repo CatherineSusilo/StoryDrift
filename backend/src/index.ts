@@ -3,9 +3,15 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
 // IMPORTANT: Load environment variables FIRST before importing auth middleware
 dotenv.config();
+
+// Ensure story image uploads directory exists
+const uploadsDir = path.join(process.cwd(), 'uploads', 'story-images');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
@@ -35,6 +41,13 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
+
+// ── Static: permanently stored story images (no auth required) ──
+// Served at GET /images/{filename} — URLs stored in session state never expire
+app.use('/images', express.static(uploadsDir, {
+  maxAge: '365d',           // client-side caching — files are immutable
+  immutable: true,
+}));
 
 // Health check
 app.get('/health', (req, res) => {

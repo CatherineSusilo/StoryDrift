@@ -128,9 +128,11 @@ router.post('/:sessionId/tick', async (req: AuthRequest, res: Response) => {
 
     const bioParsed = BiometricSchema.safeParse(req.body.biometrics ?? {});
     const biometrics: BiometricInput = bioParsed.success ? bioParsed.data : {};
+    // cameraEnabled defaults to true; send false when camera permission is denied
+    const cameraEnabled = req.body.cameraEnabled !== false;
 
-    console.log(`⏱️  Tick for session ${sessionId} | mode: ${session.mode}`);
-    const result = await tick(sessionId, biometrics);
+    console.log(`⏱️  Tick for session ${sessionId} | mode: ${session.mode} | camera: ${cameraEnabled}`);
+    const result = await tick(sessionId, biometrics, cameraEnabled);
 
     // Persist updated state to DB
     await prisma.storyGraphSession.update({
