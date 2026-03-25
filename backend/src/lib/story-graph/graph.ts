@@ -1,0 +1,319 @@
+import { v4 as uuid } from 'uuid';
+import {
+  GraphState,
+  BedtimeState,
+  EducationalState,
+  BiometricInput,
+  ChildProfile,
+  TickResult,
+} from './types';
+import { readBiometrics } from './nodes/biometric-reader';
+import { calculateDriftScore } from './nodes/drift-calculator';
+import { calculateEngagementScore } from './nodes/engagement-calculator';
+import { routeNarrativeStrategy } from './nodes/narrative-router';
+import { routeEducationalStrategy } from './nodes/educational-router';
+import { planLesson } from './nodes/lesson-planner';
+import {
+  generateBedtimeSegment,
+  generateEducationalSegment,
+  generateResolutionSegment,
+  generateLessonCompletionSegment,
+} from './nodes/story-generator';
+import { runHallucinationGuard } from './nodes/hallucination-guard';
+import { generateSceneImage } from './nodes/image-generator';
+import { generateVoice } from './nodes/voice-output';
+import { updateBedtimeState, updateEducationalState } from './nodes/state-updater';
+
+// In-memory session store (persisted to DB via routes)
+const sessions = new Map<string, GraphState>();
+
+// ── Session initialisation ─────────────────────────────────────────────────────
+
+export function createBedtimeSession(childProfile: ChildProfile): BedtimeState {
+  const sessionId = uuid();
+  const state: BedtimeState = {
+    mode: 'bedtime',
+    sessionId,
+    childId: childProfile.childId,
+    childProfile,
+    drift_score: 0,
+    drift_trajectory: 'flat',
+    drift_score_history: [],
+    story_context: '',
+    characters: {},
+    arc_position: 'opening',
+    session_minutes: 0,
+    guard_failures: 0,
+    segments: [],
+    session_complete: false,
+  };
+  sessions.set(sessionId, state);
+  return state;
+}
+
+export async function createEducationalSession(
+  childProfile: ChildProfile,
+  lessonName: string,
+  lessonDescription: string,
+): Promise<EducationalState> {
+  const sessionId = uuid();
+
+  // Lesson Planner runs once at session start
+  console.log('📚 Running lesson planner...');
+  const lesson_plan = await planLesson(lessonName, lessonDescription, childProfile);
+  console.log('✅ Lesson plan created:', lesson_plan.concept_sequence);
+
+  const state: EducationalState = {
+    mode: 'educational',
+    sessionId,
+    childId: childProfile.childId,
+    childProfile,
+    engagement_score: 50,
+    engagement_trajectory: 'flat',
+    engagement_score_history: [],
+    lesson_name: lessonName,
+    lesson_description: lessonDescription,
+    lesson_plan,
+    lesson_progress: 0,
+    concepts_introduced: [],
+    concepts_reinforced: [],
+    story_context: '',
+    characters: {},
+    session_minutes: 0,
+    guard_failures: 0,
+    segments: [],
+    session_complete: false,
+  };
+  sessions.set(sessionId, state);
+  return state;
+}
+
+export function getSession(sessionId: string): GraphState | undefined {
+  return sessions.get(sessionId);
+}
+
+export function deleteSession(sessionId: string): void {
+  sessions.delete(sessionId);
+}
+
+// ── Main tick: runs the full node pipeline ─────────────────────────────────────
+
+export async function tick(sessionId: string, biometrics: BiometricInput): Promise<TickResult> {
+  const state = sessions.get(sessionId);
+  if (!state) throw new Error(`Session ${sessionId} not found`);
+
+  if (state.mode === 'bedtime') {
+    return tickBedtime(state as BedtimeState, biometrics);
+  } else {
+    return tickEducational(state as EducationalState, biometrics);
+  }
+}
+
+// ── BEDTIME TICK ───────────────────────────────────────────────────────────────
+
+async function tickBedtime(state: BedtimeState, biometrics: BiometricInput): Promise<TickResult> {
+  // Node 1 — Biometric Reader
+  const normalised = readBiometrics(biometrics);
+
+  // Node 2 — Drift Score Calculator
+  const { drift_score, drift_trajectory } = calculateDriftScore(
+    normalised,
+    state.drift_score,
+    state.drift_score_history,
+  );
+  console.log(`🌙 Drift: ${drift_score} (${drift_trajectory})`);
+
+  // Resolution protocol
+  if (drift_score > 85 && state.arc_position !== 'resolved') {
+    console.log('😴 Resolution protocol triggered');
+    const segment = await generateResolutionSegment(state);
+    const { imageUrl } = await generateSceneImage(segment, drift_score, 'bedtime',
+      getLastImageUrls(state));
+    const voice = await generateVoice(segment, drift_score, 'bedtime');
+
+    const updated = await updateBedtimeState(
+      state, segment, imageUrl, voice?.audioBase64 ?? null,
+      drift_score, drift_trajectory, 'resolved', 'resolution', false,
+    );
+    updated.sleep_onset_time = new Date().toISOString();
+    updated.session_complete = true;
+    sessions.set(state.sessionId, updated);
+
+    return toTickResult(updated, segment, imageUrl, voice?.audioBase64 ?? null, 'resolution');
+  }
+
+  // Node 3 — Narrative Strategy Router
+  const { strategy, arc_position } = routeNarrativeStrategy({ ...state, drift_score });
+
+  // Node 4 — Story Generator
+  let segment = await generateBedtimeSegment(
+    { ...state, drift_score, arc_position },
+    strategy,
+  );
+
+  // Node 5 — Hallucination Guard (with retry)
+  let guard = await runHallucinationGuard(segment, { ...state, drift_score }, state.guard_failures);
+  let guardFailed = !guard.passed;
+
+  if (!guard.passed) {
+    // One retry
+    const retry = await generateBedtimeSegment({ ...state, drift_score, arc_position }, strategy);
+    const guard2 = await runHallucinationGuard(retry, { ...state, drift_score }, state.guard_failures + 1);
+    guardFailed = !guard2.passed;
+    guard = guard2;
+  }
+
+  segment = guard.segment;
+
+  // Node 6 — Image Generator
+  const { imageUrl } = await generateSceneImage(
+    segment, drift_score, 'bedtime', getLastImageUrls(state),
+  );
+
+  // Node 7 — Voice Output
+  const voice = await generateVoice(segment, drift_score, 'bedtime');
+
+  // Node 8 — State Updater
+  const updated = await updateBedtimeState(
+    state, segment, imageUrl, voice?.audioBase64 ?? null,
+    drift_score, drift_trajectory, arc_position, strategy.strategy, guardFailed,
+  );
+  sessions.set(state.sessionId, updated);
+
+  return toTickResult(updated, segment, imageUrl, voice?.audioBase64 ?? null, strategy.strategy);
+}
+
+// ── EDUCATIONAL TICK ───────────────────────────────────────────────────────────
+
+async function tickEducational(
+  state: EducationalState,
+  biometrics: BiometricInput,
+): Promise<TickResult> {
+  // Node 1 — Biometric Reader
+  const normalised = readBiometrics(biometrics);
+
+  // Node 2 — Engagement Score Calculator
+  const { engagement_score, engagement_trajectory } = calculateEngagementScore(
+    normalised,
+    state.engagement_score,
+    state.engagement_score_history,
+  );
+  console.log(`📚 Engagement: ${engagement_score} (${engagement_trajectory})`);
+
+  // Node 3 — Lesson Progress Checker (inline)
+  // Handled inside educational router
+
+  // Node 4 — Educational Strategy Router
+  const { result: strategy, lesson_progress } = routeEducationalStrategy({
+    ...state,
+    engagement_score,
+  });
+
+  // Lesson completion check
+  const allConcepts = state.lesson_plan?.concept_sequence ?? [];
+  const allIntroduced = allConcepts.every((c) => state.concepts_introduced.includes(c));
+  const allReinforced = allConcepts.every((c) => state.concepts_reinforced.includes(c));
+  const lessonComplete = lesson_progress >= 100 || (allIntroduced && allReinforced);
+
+  if (lessonComplete) {
+    console.log('🎓 Lesson completion protocol triggered');
+    const segment = await generateLessonCompletionSegment({ ...state, engagement_score });
+    const { imageUrl } = await generateSceneImage(segment, engagement_score, 'educational',
+      getLastImageUrls(state), state.lesson_name);
+    const voice = await generateVoice(segment, engagement_score, 'educational');
+
+    const updated = await updateEducationalState(
+      state, segment, imageUrl, voice?.audioBase64 ?? null,
+      engagement_score, engagement_trajectory, 100,
+      'consolidation', undefined, undefined, false,
+    );
+    updated.lesson_progress = 100;
+    updated.session_complete = true;
+    sessions.set(state.sessionId, updated);
+
+    return toTickResult(updated, segment, imageUrl, voice?.audioBase64 ?? null, 'consolidation');
+  }
+
+  // Node 5 — Story Generator
+  let segment = await generateEducationalSegment(
+    { ...state, engagement_score },
+    strategy,
+  );
+
+  // Node 6 — Hallucination Guard
+  let guard = await runHallucinationGuard(
+    segment, { ...state, engagement_score }, state.guard_failures,
+  );
+  let guardFailed = !guard.passed;
+
+  if (!guard.passed) {
+    const retry = await generateEducationalSegment({ ...state, engagement_score }, strategy);
+    const guard2 = await runHallucinationGuard(
+      retry, { ...state, engagement_score }, state.guard_failures + 1,
+    );
+    guardFailed = !guard2.passed;
+    guard = guard2;
+  }
+
+  segment = guard.segment;
+
+  // Node 7 — Image Generator (highlight concept visually)
+  const { imageUrl } = await generateSceneImage(
+    segment, engagement_score, 'educational',
+    getLastImageUrls(state),
+    strategy.next_concept,
+  );
+
+  // Node 8 — Voice Output
+  const voice = await generateVoice(segment, engagement_score, 'educational');
+
+  // Node 9 — State Updater
+  const conceptIntroduced = !strategy.hold_concept ? strategy.next_concept : undefined;
+  const conceptReinforced =
+    strategy.strategy === 'optimal_learning' && strategy.next_concept
+      ? strategy.next_concept
+      : undefined;
+
+  const updated = await updateEducationalState(
+    state, segment, imageUrl, voice?.audioBase64 ?? null,
+    engagement_score, engagement_trajectory, lesson_progress,
+    strategy.strategy, conceptIntroduced, conceptReinforced, guardFailed,
+  );
+  sessions.set(state.sessionId, updated);
+
+  return toTickResult(updated, segment, imageUrl, voice?.audioBase64 ?? null, strategy.strategy);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function getLastImageUrls(state: GraphState): string[] {
+  return state.segments
+    .slice(-2)
+    .map((s) => s.imageUrl)
+    .filter((u): u is string => !!u);
+}
+
+function toTickResult(
+  state: GraphState,
+  segment: string,
+  imageUrl: string,
+  audioBase64: string | null,
+  strategy: string,
+): TickResult {
+  const score = state.mode === 'bedtime' ? state.drift_score : state.engagement_score;
+  const trajectory =
+    state.mode === 'bedtime' ? state.drift_trajectory : state.engagement_trajectory;
+
+  return {
+    segment,
+    imageUrl: imageUrl || undefined,
+    audioUrl: audioBase64 ? `data:audio/mpeg;base64,${audioBase64}` : undefined,
+    strategy,
+    score,
+    trajectory,
+    arcPosition: state.mode === 'bedtime' ? state.arc_position : undefined,
+    lessonProgress: state.mode === 'educational' ? state.lesson_progress : undefined,
+    sessionComplete: state.session_complete,
+    state,
+  };
+}
