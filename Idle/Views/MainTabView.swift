@@ -1,13 +1,15 @@
 import SwiftUI
 
 // MARK: - Nav destination enum
+
 enum NavDestination: Int, CaseIterable {
-    case home, journey, analytics, stories, settings
+    case home, bedtime, learn, analytics, stories, settings
 
     var label: String {
         switch self {
         case .home:      return "home"
-        case .journey:   return "journey"
+        case .bedtime:   return "bedtime"
+        case .learn:     return "learn"
         case .analytics: return "behavioral insights"
         case .stories:   return "story archive"
         case .settings:  return "settings"
@@ -17,7 +19,8 @@ enum NavDestination: Int, CaseIterable {
     var icon: String {
         switch self {
         case .home:      return "house.fill"
-        case .journey:   return "map.fill"
+        case .bedtime:   return "moon.zzz.fill"
+        case .learn:     return "star.fill"
         case .analytics: return "chart.bar.fill"
         case .stories:   return "book.fill"
         case .settings:  return "gearshape.fill"
@@ -26,15 +29,24 @@ enum NavDestination: Int, CaseIterable {
 }
 
 // MARK: - MainTabView
+
 struct MainTabView: View {
     @Binding var currentView: AppView
     @Binding var selectedChild: Child?
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var vitalsManager: VitalsManager
 
     @State private var children: [ChildProfile] = []
     @State private var isLoading = true
     @State private var selectedDest: NavDestination = .home
     @State private var menuOpen = false
+
+    // Educational lesson selection
+    @State private var selectedLesson: LessonDefinition? = nil
+    @State private var completedLessonIds: Set<String> = []
+
+    // Bedtime session sheet
+    @State private var showBedtimeSession = false
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -51,16 +63,13 @@ struct MainTabView: View {
                 } else {
                     let child = selectedChild ?? children[0]
                     ZStack(alignment: .topTrailing) {
-                        // Page content
                         pageContent(for: selectedDest, child: child)
-                            // dim/blur when menu is open
                             .scaleEffect(menuOpen ? 0.96 : 1.0)
                             .brightness(menuOpen ? -0.04 : 0)
                             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: menuOpen)
                             .allowsHitTesting(!menuOpen)
                             .onTapGesture { if menuOpen { withAnimation { menuOpen = false } } }
 
-                        // Hamburger button (always visible in top-left)
                         hamburgerButton
                     }
                 }
@@ -68,21 +77,44 @@ struct MainTabView: View {
 
             // ── Sidebar drawer ──
             if menuOpen {
-                // Tap-outside dismissal overlay
                 Color.black.opacity(0.35)
                     .ignoresSafeArea()
                     .onTapGesture { withAnimation(.spring(response: 0.3)) { menuOpen = false } }
                     .transition(.opacity)
 
-                // Drawer panel
                 sidebarDrawer
                     .transition(.move(edge: .trailing))
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: menuOpen)
+        // Bedtime session — presented full-screen
+        .fullScreenCover(isPresented: $showBedtimeSession) {
+            if let child = selectedChild ?? children.first.map({ $0 }) {
+                BedtimeStorySessionView(child: child) { driftHistory, duration in
+                    showBedtimeSession = false
+                    // Could post session summary here
+                }
+                .environmentObject(authManager)
+                .environmentObject(vitalsManager)
+            }
+        }
+        // Educational session — presented full-screen
+        .fullScreenCover(item: $selectedLesson) { lesson in
+            if let child = selectedChild ?? children.first.map({ $0 }) {
+                EducationalStorySessionView(child: child, lesson: lesson) { summary in
+                    selectedLesson = nil
+                    if summary.lessonProgress >= 100 {
+                        completedLessonIds.insert(lesson.id)
+                    }
+                }
+                .environmentObject(authManager)
+                .environmentObject(vitalsManager)
+            }
+        }
     }
 
     // MARK: - Hamburger button
+
     private var hamburgerButton: some View {
         Button {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
@@ -105,15 +137,15 @@ struct MainTabView: View {
             )
             .shadow(color: Theme.cardShadow, radius: 3, x: 0, y: 2)
         }
-        .padding(.top, 56)   // below status bar
+        .padding(.top, 56)
         .padding(.trailing, 16)
         .zIndex(10)
     }
 
     // MARK: - Sidebar drawer
+
     private var sidebarDrawer: some View {
         ZStack(alignment: .topTrailing) {
-            // Parchment panel
             Theme.card
                 .frame(width: 280)
                 .ignoresSafeArea()
@@ -126,7 +158,7 @@ struct MainTabView: View {
                 .shadow(color: .black.opacity(0.15), radius: 20, x: -8, y: 0)
 
             VStack(alignment: .leading, spacing: 0) {
-                // App title in drawer header
+                // App header
                 VStack(alignment: .leading, spacing: 4) {
                     Text("🌙")
                         .font(.system(size: 36))
@@ -143,10 +175,20 @@ struct MainTabView: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
 
-                // Nav items
-                ForEach(NavDestination.allCases, id: \.self) { dest in
-                    navRow(dest)
-                }
+                // ── Bedtime section ──
+                sectionLabel("Bedtime")
+                navRow(.home)
+                navRow(.bedtime)
+
+                // ── Learn section ──
+                sectionLabel("Learning")
+                navRow(.learn)
+
+                // ── Account section ──
+                sectionLabel("Account")
+                navRow(.analytics)
+                navRow(.stories)
+                navRow(.settings)
 
                 Spacer()
             }
@@ -155,7 +197,17 @@ struct MainTabView: View {
         .zIndex(20)
     }
 
+    private func sectionLabel(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(Theme.inkMuted)
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+            .padding(.bottom, 4)
+    }
+
     // MARK: - Single nav row
+
     @ViewBuilder
     private func navRow(_ dest: NavDestination) -> some View {
         let isActive = selectedDest == dest
@@ -168,28 +220,54 @@ struct MainTabView: View {
             HStack(spacing: 14) {
                 Image(systemName: dest.icon)
                     .font(.system(size: 17))
-                    .foregroundColor(isActive ? Theme.ink : Theme.inkMuted)
+                    .foregroundColor(isActive ? iconColor(dest) : Theme.inkMuted)
                     .frame(width: 24)
                 Text(dest.label)
                     .font(Theme.bodyFont(size: 17))
                     .fontWeight(isActive ? .bold : .regular)
                     .foregroundColor(isActive ? Theme.ink : Theme.inkMuted)
                 Spacer()
+
+                // Badges
+                if dest == .bedtime {
+                    Text("NEW")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.indigo)
+                        .cornerRadius(4)
+                }
+                if dest == .learn {
+                    Text("\(completedLessonIds.count)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(Color.cyan))
+                }
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 20)
             .background(
                 isActive
-                    ? Theme.accent.opacity(0.35)
+                    ? iconColor(dest).opacity(0.12)
                         .cornerRadius(Theme.radiusSM)
                         .padding(.horizontal, 8)
                     : nil
             )
         }
-        .padding(.horizontal, isActive ? 0 : 0)
+    }
+
+    private func iconColor(_ dest: NavDestination) -> Color {
+        switch dest {
+        case .bedtime: return Color.indigo
+        case .learn:   return Color.cyan
+        default:       return Theme.accent
+        }
     }
 
     // MARK: - Page content router
+
     @ViewBuilder
     private func pageContent(for dest: NavDestination, child: ChildProfile) -> some View {
         switch dest {
@@ -201,25 +279,117 @@ struct MainTabView: View {
                     currentView = .setup
                 }
             )
-        case .journey:
-            StoryRoadmapView(
+
+        case .bedtime:
+            // Bedtime tab: setup + launch button (no interactive elements in session)
+            bedtimeTabView(child: child)
+
+        case .learn:
+            // Educational tab: Duolingo-style lesson roadmap
+            LessonRoadmapView(
                 child: child,
-                onBack: { withAnimation { selectedDest = .home } },
-                onStartStory: { _ in
-                    selectedChild = child
-                    currentView = .setup
+                completedLessonIds: completedLessonIds,
+                onStartLesson: { lesson in
+                    selectedLesson = lesson
                 }
             )
+
         case .analytics:
             BehavioralStatsView(child: child)
+
         case .stories:
             StoryArchiveView(childId: child.id)
+
         case .settings:
             SettingsView(children: $children, selectedChild: $selectedChild)
         }
     }
 
+    // MARK: - Bedtime tab landing page
+
+    private func bedtimeTabView(child: ChildProfile) -> some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+
+            VStack(spacing: 32) {
+                Spacer()
+
+                // Moon illustration
+                VStack(spacing: 16) {
+                    Text("🌙")
+                        .font(.system(size: 80))
+                    Text("Bedtime Stories")
+                        .font(Theme.titleFont(size: 28))
+                        .foregroundColor(Theme.ink)
+                    Text("Personalised stories that drift\n\(child.name.components(separatedBy: " ").first ?? child.name) gently to sleep")
+                        .font(Theme.bodyFont(size: 16))
+                        .foregroundColor(Theme.inkMuted)
+                        .multilineTextAlignment(.center)
+                }
+
+                // Feature pills
+                VStack(spacing: 12) {
+                    featurePill(icon: "waveform.path.ecg", text: "Adapts to biometric signals in real time", color: .indigo)
+                    featurePill(icon: "photo.fill",        text: "Scene images fade as you drift to sleep", color: .purple)
+                    featurePill(icon: "speaker.wave.2",    text: "Voice slows as drift score rises",       color: .blue)
+                    featurePill(icon: "moon.stars",        text: "No interactive elements — pure story",   color: .indigo)
+                }
+                .padding(.horizontal, 32)
+
+                Spacer()
+
+                // Start button
+                Button {
+                    showBedtimeSession = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "moon.zzz.fill")
+                            .font(.system(size: 20))
+                        Text("Begin Tonight's Story")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(
+                        LinearGradient(colors: [Color(red: 0.35, green: 0.2, blue: 0.75),
+                                                Color(red: 0.25, green: 0.1, blue: 0.55)],
+                                       startPoint: .leading, endPoint: .trailing)
+                    )
+                    .cornerRadius(18)
+                    .shadow(color: Color.indigo.opacity(0.4), radius: 12, x: 0, y: 6)
+                }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 48)
+            }
+        }
+    }
+
+    private func featurePill(icon: String, text: String, color: Color) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundColor(color)
+                .frame(width: 32, height: 32)
+                .background(color.opacity(0.12))
+                .cornerRadius(8)
+            Text(text)
+                .font(Theme.bodyFont(size: 14))
+                .foregroundColor(Theme.inkMuted)
+                .multilineTextAlignment(.leading)
+            Spacer()
+        }
+        .padding(14)
+        .background(Theme.card)
+        .cornerRadius(Theme.radiusMD)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.radiusMD)
+                .stroke(Theme.border, lineWidth: 1)
+        )
+    }
+
     // MARK: - Load children
+
     private func loadChildren() async {
         guard let token = authManager.accessToken else { isLoading = false; return }
         do {
@@ -233,6 +403,13 @@ struct MainTabView: View {
             isLoading = false
         }
     }
+}
+
+// MARK: - LessonDefinition Identifiable for .fullScreenCover(item:)
+
+extension LessonDefinition: Hashable {
+    static func == (lhs: LessonDefinition, rhs: LessonDefinition) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 #Preview {

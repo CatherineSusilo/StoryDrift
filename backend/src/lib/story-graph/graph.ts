@@ -6,6 +6,8 @@ import {
   BiometricInput,
   ChildProfile,
   TickResult,
+  MinigameTrigger,
+  MinigameResult,
 } from './types';
 import { readBiometrics } from './nodes/biometric-reader';
 import { calculateDriftScore } from './nodes/drift-calculator';
@@ -23,6 +25,7 @@ import { runHallucinationGuard } from './nodes/hallucination-guard';
 import { generateSceneImage } from './nodes/image-generator';
 import { generateVoice } from './nodes/voice-output';
 import { updateBedtimeState, updateEducationalState } from './nodes/state-updater';
+import { decidMinigame } from './nodes/minigame-trigger';
 
 // In-memory session store (persisted to DB via routes)
 const sessions = new Map<string, GraphState>();
@@ -82,6 +85,8 @@ export async function createEducationalSession(
     session_minutes: 0,
     guard_failures: 0,
     segments: [],
+    minigame_events: [],
+    segments_since_last_minigame: 0,
     session_complete: false,
   };
   sessions.set(sessionId, state);
@@ -279,9 +284,27 @@ async function tickEducational(
     engagement_score, engagement_trajectory, lesson_progress,
     strategy.strategy, conceptIntroduced, conceptReinforced, guardFailed,
   );
-  sessions.set(state.sessionId, updated);
 
-  return toTickResult(updated, segment, imageUrl, voice?.audioBase64 ?? null, strategy.strategy);
+  // Minigame Trigger — decide if a minigame should follow this segment
+  let minigame: MinigameTrigger | undefined;
+  const updatedWithMeta = {
+    ...updated,
+    segments_since_last_minigame: (updated as EducationalState).segments_since_last_minigame + 1,
+  } as EducationalState;
+
+  const trigger = await decidMinigame(updatedWithMeta, segment);
+  if (trigger) {
+    minigame = trigger;
+    updatedWithMeta.segments_since_last_minigame = 0;
+    updatedWithMeta.minigame_events = [
+      ...(updatedWithMeta.minigame_events ?? []),
+      { type: trigger.type, segmentIndex: updated.segments.length - 1, triggeredAt: Date.now() },
+    ];
+  }
+
+  sessions.set(state.sessionId, updatedWithMeta);
+
+  return { ...toTickResult(updatedWithMeta, segment, imageUrl, voice?.audioBase64 ?? null, strategy.strategy), minigame };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -316,4 +339,20 @@ function toTickResult(
     sessionComplete: state.session_complete,
     state,
   };
+}
+
+// ── Record minigame result ─────────────────────────────────────────────────────
+
+export function recordMinigameResult(sessionId: string, result: MinigameResult): void {
+  const state = sessions.get(sessionId);
+  if (!state || state.mode !== 'educational') return;
+
+  const edu = state as EducationalState;
+  const events = [...(edu.minigame_events ?? [])];
+  const lastEvent = events[events.length - 1];
+  if (lastEvent && !lastEvent.result) {
+    lastEvent.result = result;
+  }
+
+  sessions.set(sessionId, { ...edu, minigame_events: events });
 }

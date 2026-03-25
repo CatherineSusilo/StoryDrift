@@ -132,10 +132,50 @@ export interface EducationalState {
   current_strategy?: EducationalStrategy;
 
   segments: StorySegment[];
+  minigame_events: MinigameEvent[];
+  segments_since_last_minigame: number;
   session_complete: boolean;
 }
 
 export type GraphState = BedtimeState | EducationalState;
+
+// ── Minigame system ────────────────────────────────────────────────────────────
+
+export type MinigameType = 'drawing' | 'voice' | 'shape_sorting' | 'multiple_choice';
+
+export interface MinigameChoice {
+  id: string;
+  label: string;
+  emoji?: string;
+  isCorrect: boolean;
+}
+
+export interface ShapeSlot {
+  id: string;
+  shape: 'circle' | 'square' | 'triangle' | 'star' | 'heart';
+  color: string;
+  targetSlotId: string;
+}
+
+export interface MinigameTrigger {
+  type: MinigameType;
+  narratorPrompt: string;       // What ElevenLabs says to introduce the minigame
+  drawingTheme?: string;        // e.g. "a sword for the night"
+  drawingDarkBackground?: boolean;
+  voiceTarget?: string;         // e.g. "moo" — what the child should say
+  voiceHint?: string;           // e.g. "What sound does a cow make?"
+  choices?: MinigameChoice[];   // multiple_choice options
+  shapes?: ShapeSlot[];         // shape_sorting pieces
+  timeoutSeconds?: number;      // how long before auto-skip (default 30)
+}
+
+export interface MinigameResult {
+  type: MinigameType;
+  completed: boolean;
+  correct?: boolean;
+  skipped: boolean;
+  responseData?: string;        // base64 drawing / transcribed word / chosen id
+}
 
 // ── Session tick response ──────────────────────────────────────────────────────
 
@@ -148,6 +188,15 @@ export interface TickResult {
   trajectory: DriftTrajectory;
   arcPosition?: ArcPosition;
   lessonProgress?: number;
+  minigame?: MinigameTrigger;   // present when a minigame should fire after this segment
   sessionComplete: boolean;
   state: GraphState;
+}
+
+// Add minigame tracking to educational state
+export interface MinigameEvent {
+  type: MinigameType;
+  segmentIndex: number;
+  result?: MinigameResult;
+  triggeredAt: number;
 }

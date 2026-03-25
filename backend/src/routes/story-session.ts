@@ -8,6 +8,7 @@ import {
   getSession,
   deleteSession,
   tick,
+  recordMinigameResult,
 } from '../lib/story-graph/graph';
 import { ChildProfile, BiometricInput } from '../lib/story-graph/types';
 
@@ -145,13 +146,13 @@ router.post('/:sessionId/tick', async (req: AuthRequest, res: Response) => {
     res.json({
       segment: result.segment,
       imageUrl: result.imageUrl,
-      // audioUrl is base64 — large payload; clients can opt-in via query param
       audioUrl: req.query.includeAudio === '1' ? result.audioUrl : undefined,
       strategy: result.strategy,
       score: result.score,
       trajectory: result.trajectory,
       arcPosition: result.arcPosition,
       lessonProgress: result.lessonProgress,
+      minigame: result.minigame ?? null,
       sessionComplete: result.sessionComplete,
     });
   } catch (err: any) {
@@ -237,6 +238,23 @@ router.post('/:sessionId/end', async (req: AuthRequest, res: Response) => {
   } catch (err: any) {
     console.error('❌ End session error:', err.message);
     res.status(500).json({ error: 'Failed to end session', details: err.message });
+  }
+});
+
+// ── POST /api/story-session/:sessionId/minigame-result ────────────────────────
+
+router.post('/:sessionId/minigame-result', async (req: AuthRequest, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    const { type, completed, correct, skipped, responseData } = req.body;
+
+    if (!type) return res.status(400).json({ error: 'minigame type required' });
+
+    recordMinigameResult(sessionId, { type, completed, correct, skipped, responseData });
+
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to record minigame result', details: err.message });
   }
 });
 
