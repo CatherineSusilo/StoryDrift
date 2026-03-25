@@ -1,0 +1,76 @@
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import dotenv from 'dotenv';
+
+// IMPORTANT: Load environment variables FIRST before importing auth middleware
+dotenv.config();
+
+import { authMiddleware } from './middleware/auth';
+import { errorHandler } from './middleware/errorHandler';
+import { requestLogger } from './middleware/requestLogger';
+
+// Routes
+import authRoutes from './routes/auth';
+import userRoutes from './routes/users';
+import childrenRoutes from './routes/children';
+import storyRoutes from './routes/stories';
+import sleepRoutes from './routes/sleep';
+import statisticsRoutes from './routes/statistics';
+import audioRoutes from './routes/audio';
+import generateRoutes from './routes/generate';
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Middleware
+app.use(helmet());
+app.use(compression());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  credentials: true,
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(requestLogger);
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Public routes (no auth required)
+app.use('/api/auth', authRoutes);
+
+// Protected routes (require Auth0 token)
+app.use('/api/users', authMiddleware, userRoutes);
+app.use('/api/children', authMiddleware, childrenRoutes);
+app.use('/api/stories', authMiddleware, storyRoutes);
+app.use('/api/sleep', authMiddleware, sleepRoutes);
+app.use('/api/statistics', authMiddleware, statisticsRoutes);
+app.use('/api/audio', authMiddleware, audioRoutes);
+app.use('/api/generate', authMiddleware, generateRoutes);
+
+// Error handling
+app.use(errorHandler);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 StoryDrift API running on http://0.0.0.0:${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔐 Auth0 Domain: ${process.env.AUTH0_DOMAIN}`);
+});
+
+const shutdown = () => {
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(1), 3000);
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
+export default app;
