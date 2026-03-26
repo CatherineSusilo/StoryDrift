@@ -78,13 +78,38 @@ model StorySession {
 
   modelUsed         String?
 
+  // Vitals summary for this story session (populated when story ends)
+  avgHeartRate      Float?
+  avgBreathingRate  Float?
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+  child       Child        @relation(fields: [childId], references: [id], onDelete: Cascade)
+  storyVitals StoryVitals?
 
   @@index([childId])
   @@index([startTime])
+}
+
+/// Per-story vitals data captured via SmartSpectra SDK.
+/// One row per story session; snapshots are stored as a JSON array.
+model StoryVitals {
+  id               String   @id @default(cuid())
+  storySessionId   String   @unique
+  childId          String
+  avgHeartRate     Float    @default(0)
+  avgBreathingRate Float    @default(0)
+  minHeartRate     Float    @default(0)
+  maxHeartRate     Float    @default(0)
+  /// JSON array of { timestamp, heartRate, breathingRate, confidence }
+  snapshots        String   @default("[]")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  storySession StorySession @relation(fields: [storySessionId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
 }
 
 model SleepSession {

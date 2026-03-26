@@ -190,7 +190,31 @@ struct StorySetupView: View {
                 }
                 .disabled(isGenerating || parentPrompt.isEmpty)
                 .padding(.horizontal)
-                .padding(.bottom, 32)
+
+                // MARK: - ⚠️ DEBUG ONLY — remove before release
+                #if DEBUG
+                Button(action: handleStartStoryDebug) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "stopwatch")
+                        Text("⚠️ Test: 2-min Story")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(Color.orange.opacity(0.25))
+                    .foregroundColor(.orange)
+                    .cornerRadius(14)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.orange.opacity(0.6), lineWidth: 1.5)
+                    )
+                }
+                .disabled(isGenerating)
+                .padding(.horizontal)
+                #endif
+                // END DEBUG
+
+                Spacer().frame(height: 32)
             }
         }
         .background(
@@ -221,6 +245,33 @@ struct StorySetupView: View {
         isGenerating = false
         onStartStory(config)
     }
+
+    // MARK: - ⚠️ DEBUG ONLY — remove before release
+    #if DEBUG
+    private func handleStartStoryDebug() {
+        isGenerating = true
+        var config = StoryConfig(
+            childId: child.id,
+            name: child.name,
+            age: child.age,
+            storytellingTone: storytellingTone.rawValue,
+            parentPrompt: parentPrompt.isEmpty ? "quick test story" : parentPrompt,
+            initialState: initialState.rawValue
+        )
+        isGenerating = false
+        // Signal the 2-min cap via a special parentPrompt prefix that StoryPlaybackView reads
+        config = StoryConfig(
+            childId: config.childId,
+            name: config.name,
+            age: config.age,
+            storytellingTone: config.storytellingTone,
+            parentPrompt: "DEBUG_2MIN:\(config.parentPrompt)",
+            initialState: config.initialState
+        )
+        onStartStory(config)
+    }
+    #endif
+    // END DEBUG
 }
 
 struct StoryPromptCard: View {

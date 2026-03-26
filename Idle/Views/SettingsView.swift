@@ -95,11 +95,10 @@ struct SettingsView: View {
 
                     // ── About ──
                     VStack(spacing: 10) {
-                        Text("🌙")
-                            .font(.system(size: 40))
-                        Text("StoryDrift")
-                            .font(Theme.titleFont(size: 26))
-                            .foregroundColor(Theme.ink)
+                        Image("StoryDriftLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 80, height: 80)
                         Text("Version 1.0.0")
                             .font(Theme.bodyFont(size: 14))
                             .foregroundColor(Theme.inkMuted)

@@ -284,4 +284,96 @@ router.delete('/:storyId', async (req: AuthRequest, res) => {
   }
 });
 
+// ── SmartSpectra Vitals ──────────────────────────────────────────────────────
+
+const storyVitalsSchema = z.object({
+  childId: z.string().min(1),
+  avgHeartRate: z.number().min(0),
+  avgBreathingRate: z.number().min(0),
+  minHeartRate: z.number().min(0).optional(),
+  maxHeartRate: z.number().min(0).optional(),
+  snapshots: z.array(z.any()).optional(),
+});
+
+// POST /api/stories/vitals/:storyId — upsert vitals summary for a story session
+router.post('/vitals/:storyId', async (req: AuthRequest, res) => {
+  try {
+    const auth0Id = req.auth?.payload?.sub;
+    const { storyId } = req.params;
+
+    if (!auth0Id) return res.status(401).json({ error: 'Unauthorized' });
+
+    const user = await prisma.user.findUnique({ where: { auth0Id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Verify story belongs to user's child
+    const story = await prisma.storySession.findFirst({
+      where: { id: storyId, child: { userId: user.id } },
+    });
+    if (!story) return res.status(404).json({ error: 'Story session not found' });
+
+    const parsed = storyVitalsSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    const { childId, avgHeartRate, avgBreathingRate, minHeartRate = 0, maxHeartRate = 0, snapshots = [] } = parsed.data;
+
+    const vitals = await prisma.storyVitals.upsert({
+      where: { storySessionId: storyId },
+      create: {
+        storySessionId: storyId,
+        childId,
+        avgHeartRate,
+        avgBreathingRate,
+        minHeartRate,
+        maxHeartRate,
+        snapshots: JSON.stringify(snapshots),
+      },
+      update: {
+        avgHeartRate,
+        avgBreathingRate,
+        minHeartRate,
+        maxHeartRate,
+        snapshots: JSON.stringify(snapshots),
+      },
+    });
+
+    // Also update summary fields on the StorySession itself
+    await prisma.storySession.update({
+      where: { id: storyId },
+      data: { avgHeartRate, avgBreathingRate },
+    });
+
+    res.json({ ...vitals, snapshots });
+  } catch (error) {
+    console.error('Save story vitals error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'Failed to save story vitals' });
+  }
+});
+
+// GET /api/stories/vitals/:storyId — retrieve vitals summary for a story session
+router.get('/vitals/:storyId', async (req: AuthRequest, res) => {
+  try {
+    const auth0Id = req.auth?.payload?.sub;
+    const { storyId } = req.params;
+
+    if (!auth0Id) return res.status(401).json({ error: 'Unauthorized' });
+
+    const user = await prisma.user.findUnique({ where: { auth0Id } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const story = await prisma.storySession.findFirst({
+      where: { id: storyId, child: { userId: user.id } },
+      include: { storyVitals: true },
+    });
+    if (!story) return res.status(404).json({ error: 'Story session not found' });
+    if (!story.storyVitals) return res.status(404).json({ error: 'No vitals for this story' });
+
+    const { storyVitals: sv } = story;
+    res.json({ ...sv, snapshots: JSON.parse(sv.snapshots || '[]') });
+  } catch (error) {
+    console.error('Get story vitals error:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: 'Failed to get story vitals' });
+  }
+});
+
 export default router;

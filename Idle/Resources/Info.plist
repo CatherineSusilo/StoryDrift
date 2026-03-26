@@ -2,8 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Idle</string>
 	<key>CFBundleExecutable</key>
@@ -59,6 +57,13 @@
 	<string>$(FAL_API_KEY)</string>
 	<key>ElevenLabsAPIKey</key>
 	<string>$(ELEVENLABS_API_KEY)</string>
+	<key>SmartSpectraAPIKey</key>
+	<string>$(SMARTSPECTRA_API_KEY)</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>IndieFlower-Regular.ttf</string>
+		<string>PatrickHand-Regular.ttf</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Idle uses your camera to monitor vital signs contactlessly during bedtime stories.</string>
 	<key>CFBundleURLTypes</key>
@@ -76,7 +81,7 @@
 	<dict>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>100.66.72.18</key>
+			<key>100.66.72.164</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>

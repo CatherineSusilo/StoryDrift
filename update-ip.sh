@@ -1,20 +1,51 @@
 #!/bin/bash
 
-# Gets your current Mac IP and updates Config.xcconfig automatically.
-# Run this every time you switch WiFi: ./update-ip.sh
+# Run this every time you switch WiFi networks:
+#   ./update-ip.sh
+#
+# Updates the backend IP in:
+#   1. Idle/Services/Secrets.swift      (apiBaseURL)
+#   2. Idle/Resources/Info.plist        (NSAppTransportSecurity ATS exception)
 
-IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)
+set -e
+
+# ── Detect current IP ────────────────────────────────────────────────────────
+IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)
 
 if [ -z "$IP" ]; then
-  echo "❌ Could not detect your IP. Are you connected to WiFi?"
+  echo "❌  Could not detect your IP. Are you connected to WiFi?"
   exit 1
 fi
 
-XCCONFIG="/Users/catherinesusilo/StoryDrift/Idle/Resources/Config.xcconfig"
+PORT=3001
+BASE_URL="http://$IP:$PORT"
 
-# Replace the API_BASE_URL line
-sed -i '' "s|API_BASE_URL = .*|API_BASE_URL = http:$()//$IP:3001|" "$XCCONFIG"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SECRETS="$SCRIPT_DIR/Idle/Services/Secrets.swift"
+PLIST="$SCRIPT_DIR/Idle/Resources/Info.plist"
 
-echo "✅ IP updated to $IP"
-echo "📱 API_BASE_URL = http://$IP:3001"
-echo "👉 Rebuild the app in Xcode to apply the change."
+echo "🔍  Detected IP: $IP"
+
+# ── 1. Update Secrets.swift ──────────────────────────────────────────────────
+if [ ! -f "$SECRETS" ]; then
+  echo "❌  Secrets.swift not found at $SECRETS"
+  exit 1
+fi
+
+sed -i '' "s|static let apiBaseURL: String = \"http://[0-9.]*:[0-9]*\"|static let apiBaseURL: String = \"$BASE_URL\"|" "$SECRETS"
+echo "✅  Secrets.swift   → $BASE_URL"
+
+# ── 2. Update Info.plist ATS exception domain ────────────────────────────────
+if [ ! -f "$PLIST" ]; then
+  echo "❌  Info.plist not found at $PLIST"
+  exit 1
+fi
+
+# Replace any existing ATS exception IP (matches any x.x.x.x inside the plist key)
+sed -i '' "s|<key>[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}</key>|<key>$IP</key>|" "$PLIST"
+echo "✅  Info.plist      → ATS exception domain set to $IP"
+
+# ── Done ─────────────────────────────────────────────────────────────────────
+echo ""
+echo "📱  Backend URL: $BASE_URL"
+echo "👉  Rebuild in Xcode (Cmd+B) to apply the changes."

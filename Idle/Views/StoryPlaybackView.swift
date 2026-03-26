@@ -13,6 +13,9 @@ struct StoryPlaybackView: View {
     @State private var audioPlayer: AVAudioPlayer?
     @State private var timer: Timer?
     @State private var driftHistory: [Double] = []
+
+    // SmartSpectra vitals tracker — one instance per playback session
+    @StateObject private var vitalsTracker = StoryVitalsTracker()
     
     private var currentParagraph: StoryParagraph? {
         guard currentParagraphIndex < story.paragraphs.count else { return nil }
@@ -159,30 +162,48 @@ struct StoryPlaybackView: View {
             Button("Cancel", role: .cancel) {}
         }
     }
-    
+
     private func startStory() {
         vitalsManager.startMonitoring(childId: story.childId)
-        
+
+        // Start SmartSpectra continuous vitals tracking
+        vitalsTracker.startTracking(
+            storyId: story.id,
+            childId: story.childId,
+            vitalsManager: vitalsManager
+        )
+
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             if isPlaying {
                 elapsedTime += 1
                 driftHistory.append(vitalsManager.driftScore)
-                
+
                 // Check if child is asleep (drift > 90%)
                 if vitalsManager.driftScore >= 90 {
                     completeStory()
                 }
+
+                // MARK: - ⚠️ DEBUG ONLY — remove before release
+                #if DEBUG
+                if story.parentPrompt.hasPrefix("DEBUG_2MIN:") && elapsedTime >= 120 {
+                    completeStory()
+                }
+                #endif
+                // END DEBUG
             }
         }
-        
+
         playCurrentParagraph()
     }
-    
+
     private func stopStory() {
         timer?.invalidate()
         timer = nil
         audioPlayer?.stop()
         vitalsManager.stopMonitoring()
+
+        // Stop SmartSpectra and persist vitals summary
+        vitalsTracker.stopTracking()
     }
     
     private func togglePlayback() {
