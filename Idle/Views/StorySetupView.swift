@@ -1,376 +1,580 @@
 import SwiftUI
+import PhotosUI
 
 struct StorySetupView: View {
     @EnvironmentObject var authManager: AuthManager
     @Binding var child: ChildProfile
     let onStartStory: (StoryConfig) -> Void
     let onBack: () -> Void
-    
-    @State private var selectedTheme = "Adventure"
+
+    // MARK: - ThemeStore
+    @StateObject private var themeStore = ThemeStore.shared
+
+    // MARK: - Form state
+    @State private var selectedTheme: StoryThemeItem? = nil
     @State private var parentPrompt = ""
     @State private var storytellingTone: StorytellingTone = .calming
     @State private var initialState: InitialState = .normal
     @State private var storyLength: StoryLength = .medium
     @State private var isGenerating = false
-    @State private var selectedImages: [UIImage] = []
-    @State private var showImagePicker = false
-    
+
+    // MARK: - Drawings state
+    @State private var savedDrawings: [ChildDrawing] = []
+    @State private var selectedDrawingIds: Set<String> = []
+    // Custom drawings uploaded directly in this screen (not saved to library)
+    @State private var customDrawings: [CustomUpload] = []
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var showPhotoPicker = false
+
+    // MARK: - Parchment palette
+    private let bg        = Color(red: 0.894, green: 0.835, blue: 0.718)
+    private let cardBg    = Color(red: 0.980, green: 0.961, blue: 0.922)
+    private let borderClr = Color(red: 0.157, green: 0.118, blue: 0.078).opacity(0.28)
+    private let btnBg     = Color(red: 0.824, green: 0.706, blue: 0.549).opacity(0.4)
+    private let ink       = Color(red: 0.078, green: 0.059, blue: 0.039)
+    private let activeCardBg  = Color(red: 0.824, green: 0.706, blue: 0.549).opacity(0.45)
+    private let activeBorder  = Color(red: 0.157, green: 0.118, blue: 0.078).opacity(0.65)
+
     enum StoryLength: String, CaseIterable {
         case short = "Short"
         case medium = "Medium"
         case long = "Long"
-        
+
         var duration: Int {
             switch self {
-            case .short: return 10 // 10 minutes
+            case .short: return 10
             case .medium: return 15
             case .long: return 20
             }
         }
     }
-    
-    let storyPrompts = [
-        ("🏰", "a princess and her magical castle"),
-        ("🌲", "an adventure through enchanted woods"),
-        ("🚀", "a journey to the stars and beyond"),
-        ("🐉", "a friendly dragon who loves bedtime"),
-        ("🌊", "underwater kingdom of mermaids"),
-        ("🦄", "unicorns in a rainbow meadow")
-    ]
-    
+
+    // MARK: - Body
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Header
-                HStack {
-                    Button(action: onBack) {
-                        HStack {
+        ZStack {
+            bg.ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+
+                    // ── Header ───────────────────────────────────────────
+                    HStack {
+                        Button(action: onBack) {
                             Image(systemName: "chevron.left")
-                            Text("Back")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(ink)
                         }
-                        .foregroundColor(.white)
+                        Spacer()
+                        Text("story setup")
+                            .font(.custom("IndieFlower-Regular", size: 30))
+                            .foregroundColor(ink)
+                        Spacer()
+                        Color.clear.frame(width: 24)
                     }
-                    
-                    Spacer()
-                    
-                    Text("Story Setup")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    // Placeholder for spacing
-                    Color.clear.frame(width: 60)
-                }
-                .padding(.horizontal)
-                .padding(.top, 20)
-                
-                // Story Prompts
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Choose a Theme")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    LazyVGrid(columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible())
-                    ], spacing: 12) {
-                        ForEach(storyPrompts, id: \.1) { emoji, text in
-                            StoryPromptCard(
-                                emoji: emoji,
-                                text: text,
-                                isSelected: parentPrompt.contains(text)
-                            ) {
-                                parentPrompt = text
+                    .padding(.top, 20)
+
+                    // ── Theme picker ─────────────────────────────────────
+                    sectionCard(title: "choose a theme") {
+                        LazyVGrid(
+                            columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                            spacing: 10
+                        ) {
+                            ForEach(themeStore.themes) { theme in
+                                themePickerCard(theme)
                             }
                         }
                     }
-                }
-                .padding(.horizontal)
-                
-                // Custom Prompt
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Or Add Your Own Ideas")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    TextEditor(text: $parentPrompt)
-                        .frame(height: 100)
-                        .padding()
-                        .background(Color.white.opacity(0.1))
-                        .cornerRadius(12)
-                        .foregroundColor(.white)
-                        .scrollContentBackground(.hidden)
-                    
-                    Text("Tell us what your child loves! Characters, themes, or anything special.")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.6))
-                }
-                .padding(.horizontal)
-                
-                // Story Length
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Story Length")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    Picker("Story Length", selection: $storyLength) {
-                        ForEach(StoryLength.allCases, id: \.self) { length in
-                            Text("\(length.rawValue) (\(length.duration) min)")
-                                .tag(length)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                .padding(.horizontal)
-                
-                // Storytelling Tone
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Storytelling Tone")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    VStack(spacing: 8) {
-                        ForEach(StorytellingTone.allCases, id: \.self) { tone in
-                            ToneButton(
-                                tone: tone,
-                                isSelected: storytellingTone == tone
-                            ) {
-                                storytellingTone = tone
+
+                    // ── Custom prompt ────────────────────────────────────
+                    sectionCard(title: "or describe your own") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ZStack(alignment: .topLeading) {
+                                TextEditor(text: $parentPrompt)
+                                    .font(.custom("PatrickHand-Regular", size: 16))
+                                    .foregroundColor(ink)
+                                    .scrollContentBackground(.hidden)
+                                    .frame(minHeight: 80)
+                                    .padding(10)
+                                    .background(cardBg.opacity(0.6))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(borderClr, lineWidth: 1.5)
+                                    )
+                                    .cornerRadius(6)
+
+                                if parentPrompt.isEmpty {
+                                    Text("tell us what \(child.name) loves — characters, places, anything special…")
+                                        .font(.custom("PatrickHand-Regular", size: 16))
+                                        .foregroundColor(ink.opacity(0.35))
+                                        .padding(.horizontal, 14)
+                                        .padding(.top, 18)
+                                        .allowsHitTesting(false)
+                                }
                             }
                         }
                     }
-                }
-                .padding(.horizontal)
-                
-                // Initial Energy State
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Child's Current State")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                    
-                    VStack(spacing: 8) {
-                        ForEach(InitialState.allCases, id: \.self) { state in
-                            StateButton(
-                                state: state,
-                                isSelected: initialState == state
+
+                    // ── Drawings (optional) ──────────────────────────────
+                    sectionCard(title: "inspire with drawings  ✦ optional") {
+                        VStack(alignment: .leading, spacing: 10) {
+
+                            // Upload button
+                            PhotosPicker(
+                                selection: $pickerItems,
+                                maxSelectionCount: 6,
+                                matching: .images
                             ) {
-                                initialState = state
+                                HStack(spacing: 8) {
+                                    Image(systemName: "arrow.up.doc")
+                                        .font(.system(size: 14))
+                                    Text("upload a drawing")
+                                        .font(.custom("PatrickHand-Regular", size: 15))
+                                        .fontWeight(.bold)
+                                }
+                                .foregroundColor(ink.opacity(0.8))
+                                .padding(.vertical, 9)
+                                .padding(.horizontal, 14)
+                                .background(btnBg)
+                                .overlay(RoundedRectangle(cornerRadius: 6).stroke(borderClr, lineWidth: 1.5))
+                                .cornerRadius(6)
+                            }
+                            .onChange(of: pickerItems) { _ in
+                                Task { await loadPickerItems() }
+                            }
+
+                            // Custom uploads row
+                            if !customDrawings.isEmpty {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(customDrawings) { upload in
+                                            customDrawingThumbnail(upload)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Saved library drawings (togglable)
+                            if !savedDrawings.isEmpty {
+                                Text("from drawing collection")
+                                    .font(.custom("PatrickHand-Regular", size: 12))
+                                    .foregroundColor(ink.opacity(0.45))
+                                    .padding(.top, 2)
+
+                                LazyVGrid(
+                                    columns: [
+                                        GridItem(.flexible(), spacing: 8),
+                                        GridItem(.flexible(), spacing: 8),
+                                        GridItem(.flexible(), spacing: 8)
+                                    ],
+                                    spacing: 8
+                                ) {
+                                    ForEach(savedDrawings) { drawing in
+                                        drawingToggleCard(drawing)
+                                    }
+                                }
+                            }
+
+                            if customDrawings.isEmpty && savedDrawings.isEmpty {
+                                Text("upload a photo of \(child.name)'s drawing to weave it into the story")
+                                    .font(.custom("PatrickHand-Regular", size: 14))
+                                    .foregroundColor(ink.opacity(0.4))
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }
-                }
-                .padding(.horizontal)
-                
-                // Start Story Button
-                Button(action: handleStartStory) {
-                    HStack(spacing: 12) {
-                        if isGenerating {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        } else {
-                            Image(systemName: "moon.stars.fill")
-                                .font(.system(size: 24))
+
+                    // ── Story Length ─────────────────────────────────────
+                    sectionCard(title: "story length") {
+                        HStack(spacing: 10) {
+                            ForEach(StoryLength.allCases, id: \.self) { len in
+                                Button {
+                                    storyLength = len
+                                } label: {
+                                    VStack(spacing: 3) {
+                                        Text(len.rawValue.lowercased())
+                                            .font(.custom("PatrickHand-Regular", size: 16))
+                                            .fontWeight(storyLength == len ? .bold : .regular)
+                                        Text("\(len.duration) min")
+                                            .font(.custom("PatrickHand-Regular", size: 12))
+                                            .opacity(0.65)
+                                    }
+                                    .foregroundColor(ink)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(storyLength == len ? activeCardBg : cardBg.opacity(0.5))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .stroke(storyLength == len ? activeBorder : borderClr, lineWidth: storyLength == len ? 2 : 1)
+                                    )
+                                    .cornerRadius(6)
+                                }
+                            }
                         }
-                        
-                        Text(isGenerating ? "Generating Story..." : "Start Bedtime Story")
-                            .font(.system(size: 20, weight: .semibold))
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 64)
-                    .background(
-                        LinearGradient(
-                            colors: [.purple, .blue, .cyan],
-                            startPoint: .leading,
-                            endPoint: .trailing
+
+                    // ── Storytelling Tone ────────────────────────────────
+                    sectionCard(title: "storytelling tone") {
+                        VStack(spacing: 8) {
+                            ForEach(StorytellingTone.allCases, id: \.self) { tone in
+                                toneRow(tone)
+                            }
+                        }
+                    }
+
+                    // ── Child's Current State ────────────────────────────
+                    sectionCard(title: "child's current state") {
+                        VStack(spacing: 8) {
+                            ForEach(InitialState.allCases, id: \.self) { state in
+                                stateRow(state)
+                            }
+                        }
+                    }
+
+                    // ── Start button ─────────────────────────────────────
+                    Button(action: handleStartStory) {
+                        HStack(spacing: 10) {
+                            if isGenerating {
+                                ProgressView().tint(ink)
+                            } else {
+                                Image(systemName: "moon.stars.fill")
+                                    .font(.system(size: 20))
+                            }
+                            Text(isGenerating ? "generating story…" : "begin the story")
+                                .font(.custom("IndieFlower-Regular", size: 22))
+                                .fontWeight(.bold)
+                        }
+                        .foregroundColor(ink.opacity(0.9))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                        .background(btnBg)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(activeBorder, lineWidth: 2)
                         )
-                    )
-                    .foregroundColor(.white)
-                    .cornerRadius(20)
-                }
-                .disabled(isGenerating || parentPrompt.isEmpty)
-                .padding(.horizontal)
-
-                // MARK: - ⚠️ DEBUG ONLY — remove before release
-                #if DEBUG
-                Button(action: handleStartStoryDebug) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "stopwatch")
-                        Text("⚠️ Test: 2-min Story")
-                            .font(.system(size: 15, weight: .semibold))
+                        .cornerRadius(8)
+                        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .background(Color.orange.opacity(0.25))
-                    .foregroundColor(.orange)
-                    .cornerRadius(14)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.orange.opacity(0.6), lineWidth: 1.5)
-                    )
-                }
-                .disabled(isGenerating)
-                .padding(.horizontal)
-                #endif
-                // END DEBUG
+                    .disabled(isGenerating || (selectedTheme == nil && parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty))
+                    .opacity((selectedTheme == nil && parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty) ? 0.5 : 1)
 
-                Spacer().frame(height: 32)
+                    // ── DEBUG ────────────────────────────────────────────
+                    #if DEBUG
+                    Button(action: handleStartStoryDebug) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "stopwatch")
+                            Text("⚠️ Test: 2-min Story")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(Color.orange.opacity(0.2))
+                        .foregroundColor(.orange)
+                        .cornerRadius(8)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.5), lineWidth: 1.5))
+                    }
+                    .disabled(isGenerating)
+                    #endif
+
+                    Spacer(minLength: 32)
+                }
+                .padding(.horizontal, 20)
             }
         }
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.05, green: 0.05, blue: 0.15),
-                    Color(red: 0.15, green: 0.05, blue: 0.25)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-        )
+        .navigationBarHidden(true)
+        .onAppear { loadDrawings() }
+        .onChange(of: selectedTheme) { theme in
+            // When a theme card is tapped, prefill the prompt with the theme name
+            // but keep any custom text the parent has typed.
+            if let theme, parentPrompt.isEmpty {
+                parentPrompt = theme.name
+            }
+        }
     }
-    
+
+    // MARK: - Section card wrapper
+    @ViewBuilder
+    private func sectionCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.custom("PatrickHand-Regular", size: 14))
+                .foregroundColor(ink.opacity(0.55))
+                .textCase(.uppercase)
+                .kerning(1.2)
+            content()
+        }
+        .padding(16)
+        .background(cardBg.opacity(0.7))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(borderClr, lineWidth: 1.5))
+        .cornerRadius(10)
+        .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 2)
+    }
+
+    // MARK: - Theme picker card
+    @ViewBuilder
+    private func themePickerCard(_ theme: StoryThemeItem) -> some View {
+        let isActive = selectedTheme?.id == theme.id
+        Button {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                selectedTheme = isActive ? nil : theme
+                if !isActive {
+                    // Reflect theme in prompt when nothing else typed yet
+                    if parentPrompt.isEmpty { parentPrompt = theme.name }
+                } else {
+                    if parentPrompt == theme.name { parentPrompt = "" }
+                }
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Text(theme.icon).font(.system(size: 26))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(theme.name)
+                        .font(.custom("PatrickHand-Regular", size: 15))
+                        .fontWeight(isActive ? .bold : .regular)
+                        .foregroundColor(ink)
+                    Text(theme.description)
+                        .font(.custom("PatrickHand-Regular", size: 12))
+                        .foregroundColor(ink.opacity(0.6))
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                if isActive {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(ink.opacity(0.7))
+                }
+            }
+            .padding(10)
+            .background(isActive ? activeCardBg : cardBg.opacity(0.5))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isActive ? activeBorder : borderClr, lineWidth: isActive ? 2 : 1)
+            )
+            .cornerRadius(6)
+        }
+    }
+
+    // MARK: - Drawing toggle card
+    @ViewBuilder
+    private func drawingToggleCard(_ drawing: ChildDrawing) -> some View {
+        let isSelected = selectedDrawingIds.contains(drawing.id)
+        Button {
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                if isSelected { selectedDrawingIds.remove(drawing.id) }
+                else { selectedDrawingIds.insert(drawing.id) }
+            }
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: 4) {
+                    if let uiImage = UIImage(data: drawing.imageData) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 80)
+                            .clipped()
+                            .cornerRadius(4)
+                    } else {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(cardBg)
+                            .frame(height: 80)
+                            .overlay(Image(systemName: "photo").foregroundColor(ink.opacity(0.3)))
+                    }
+                    Text(drawing.name)
+                        .font(.custom("PatrickHand-Regular", size: 11))
+                        .foregroundColor(ink.opacity(0.7))
+                        .lineLimit(1)
+                }
+                .padding(6)
+                .background(isSelected ? activeCardBg : cardBg.opacity(0.5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isSelected ? activeBorder : borderClr, lineWidth: isSelected ? 2 : 1)
+                )
+                .cornerRadius(6)
+
+                // Checkmark badge
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(ink.opacity(0.75))
+                        .padding(4)
+                }
+            }
+        }
+    }
+
+    // MARK: - Tone row
+    @ViewBuilder
+    private func toneRow(_ tone: StorytellingTone) -> some View {
+        let isActive = storytellingTone == tone
+        Button { storytellingTone = tone } label: {
+            HStack(spacing: 12) {
+                Text(tone.emoji).font(.system(size: 22))
+                Text(tone.displayName)
+                    .font(.custom("PatrickHand-Regular", size: 16))
+                    .fontWeight(isActive ? .bold : .regular)
+                    .foregroundColor(ink)
+                Spacer()
+                if isActive {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(ink.opacity(0.65))
+                }
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(isActive ? activeCardBg : Color.clear)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isActive ? activeBorder : borderClr.opacity(0.4), lineWidth: isActive ? 1.5 : 1)
+            )
+            .cornerRadius(6)
+        }
+    }
+
+    // MARK: - State row
+    @ViewBuilder
+    private func stateRow(_ state: InitialState) -> some View {
+        let isActive = initialState == state
+        Button { initialState = state } label: {
+            HStack {
+                Text(state.displayName)
+                    .font(.custom("PatrickHand-Regular", size: 16))
+                    .fontWeight(isActive ? .bold : .regular)
+                    .foregroundColor(ink)
+                Spacer()
+                if isActive {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(ink.opacity(0.65))
+                }
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(isActive ? activeCardBg : Color.clear)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isActive ? activeBorder : borderClr.opacity(0.4), lineWidth: isActive ? 1.5 : 1)
+            )
+            .cornerRadius(6)
+        }
+    }
+
+    // MARK: - Custom drawing thumbnail (with remove button)
+    @ViewBuilder
+    private func customDrawingThumbnail(_ upload: CustomUpload) -> some View {
+        ZStack(alignment: .topTrailing) {
+            Image(uiImage: upload.image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 80, height: 80)
+                .clipped()
+                .cornerRadius(6)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(activeBorder, lineWidth: 2))
+
+            // Remove button
+            Button {
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                    customDrawings.removeAll { $0.id == upload.id }
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(4)
+                    .background(Color(red: 0.4, green: 0.25, blue: 0.15).opacity(0.85))
+                    .clipShape(Circle())
+            }
+            .padding(3)
+        }
+    }
+
+    // MARK: - Load PhotosPicker items into CustomUpload array
+    private func loadPickerItems() async {
+        var loaded: [CustomUpload] = []
+        for item in pickerItems {
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let img = UIImage(data: data) else { continue }
+            loaded.append(CustomUpload(image: img, data: data))
+        }
+        await MainActor.run {
+            // Append without duplicating already-loaded ones
+            let existingData = Set(customDrawings.map { $0.data })
+            customDrawings.append(contentsOf: loaded.filter { !existingData.contains($0.data) })
+            pickerItems = []
+        }
+    }
+
+    // MARK: - Load child's saved drawings from UserDefaults
+    private func loadDrawings() {
+        let key = "drawings_\(child.id)"
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let decoded = try? JSONDecoder().decode([ChildDrawing].self, from: data) else {
+            savedDrawings = []
+            return
+        }
+        savedDrawings = decoded
+    }
+
+    // MARK: - Build base64 strings for chosen drawings
+    private func selectedDrawingBase64() -> [String] {
+        let fromLibrary = savedDrawings
+            .filter { selectedDrawingIds.contains($0.id) }
+            .map { $0.imageData.base64EncodedString() }
+        let fromCustom = customDrawings.map { $0.data.base64EncodedString() }
+        return fromLibrary + fromCustom
+    }
+
+    // MARK: - Start story
     private func handleStartStory() {
         isGenerating = true
+        let prompt = parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty
+            ? (selectedTheme?.name ?? "a magical bedtime adventure")
+            : parentPrompt
 
-        let config = StoryConfig(
-            childId: child.id,
-            name: child.name,
-            age: child.age,
-            storytellingTone: storytellingTone.rawValue,
-            parentPrompt: parentPrompt.isEmpty ? selectedTheme : parentPrompt,
-            initialState: initialState.rawValue
-        )
-
-        isGenerating = false
-        onStartStory(config)
-    }
-
-    // MARK: - ⚠️ DEBUG ONLY — remove before release
-    #if DEBUG
-    private func handleStartStoryDebug() {
-        isGenerating = true
         var config = StoryConfig(
             childId: child.id,
             name: child.name,
             age: child.age,
             storytellingTone: storytellingTone.rawValue,
-            parentPrompt: parentPrompt.isEmpty ? "quick test story" : parentPrompt,
+            parentPrompt: prompt,
             initialState: initialState.rawValue
         )
+        let drawings = selectedDrawingBase64()
+        if !drawings.isEmpty { config.drawingPrompts = drawings }
+
         isGenerating = false
-        // Signal the 2-min cap via a special parentPrompt prefix that StoryPlaybackView reads
-        config = StoryConfig(
-            childId: config.childId,
-            name: config.name,
-            age: config.age,
-            storytellingTone: config.storytellingTone,
-            parentPrompt: "DEBUG_2MIN:\(config.parentPrompt)",
-            initialState: config.initialState
+        onStartStory(config)
+    }
+
+    // MARK: - DEBUG
+    #if DEBUG
+    private func handleStartStoryDebug() {
+        isGenerating = true
+        let prompt = parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty ? "quick test story" : parentPrompt
+        var config = StoryConfig(
+            childId: child.id,
+            name: child.name,
+            age: child.age,
+            storytellingTone: storytellingTone.rawValue,
+            parentPrompt: "DEBUG_2MIN:\(prompt)",
+            initialState: initialState.rawValue
         )
+        let drawings = selectedDrawingBase64()
+        if !drawings.isEmpty { config.drawingPrompts = drawings }
+        isGenerating = false
         onStartStory(config)
     }
     #endif
-    // END DEBUG
 }
 
-struct StoryPromptCard: View {
-    let emoji: String
-    let text: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Text(emoji)
-                    .font(.system(size: 40))
-                
-                Text(text)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 120)
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(isSelected ? Color.purple.opacity(0.3) : Color.white.opacity(0.05))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(
-                                isSelected ? Color.purple : Color.white.opacity(0.1),
-                                lineWidth: 2
-                            )
-                    )
-            )
-        }
-    }
+// MARK: - CustomUpload  (transient — not persisted to library)
+private struct CustomUpload: Identifiable {
+    let id = UUID()
+    let image: UIImage
+    let data: Data
 }
 
-struct ToneButton: View {
-    let tone: StorytellingTone
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack {
-                Text(tone.emoji)
-                    .font(.system(size: 24))
-                
-                Text(tone.displayName)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                
-                Spacer()
-                
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.purple)
-                        .font(.system(size: 24))
-                }
-            }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.purple.opacity(0.2) : Color.white.opacity(0.05))
-            )
-        }
-    }
-}
-
-struct StateButton: View {
-    let state: InitialState
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack {
-                Text(state.displayName)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                
-                Spacer()
-                
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.purple)
-                        .font(.system(size: 24))
-                }
-            }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.purple.opacity(0.2) : Color.white.opacity(0.05))
-            )
-        }
-    }
-}
-
+// MARK: - Preview
 #Preview {
     StorySetupView(
         child: .constant(Child(

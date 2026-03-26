@@ -1,242 +1,211 @@
 import SwiftUI
 
+// MARK: - StoryThemesView  (ported from StoryThemes.tsx)
 struct StoryThemesView: View {
-    @State private var selectedCategory: ThemeCategory = .all
-    @State private var searchText = ""
-    
-    let onThemeSelect: (String) -> Void
-    
-    private let themeCategories: [ThemeCategory: [StoryTheme]] = [
-        .adventure: [
-            StoryTheme(emoji: "🏰", name: "Castle Adventure", description: "Knights and dragons"),
-            StoryTheme(emoji: "🗺️", name: "Treasure Hunt", description: "Maps and exploration"),
-            StoryTheme(emoji: "🚀", name: "Space Explorer", description: "Galactic adventures"),
-            StoryTheme(emoji: "🏴‍☠️", name: "Pirate Journey", description: "Sailing the seas"),
-            StoryTheme(emoji: "🦖", name: "Dinosaur Discovery", description: "Prehistoric world")
-        ],
-        .nature: [
-            StoryTheme(emoji: "🌲", name: "Magic Forest", description: "Enchanted woods"),
-            StoryTheme(emoji: "🌊", name: "Ocean Depths", description: "Underwater world"),
-            StoryTheme(emoji: "🏔️", name: "Mountain Quest", description: "Snowy peaks"),
-            StoryTheme(emoji: "🌈", name: "Rainbow Valley", description: "Colorful meadows"),
-            StoryTheme(emoji: "🌙", name: "Moonlit Garden", description: "Nighttime magic")
-        ],
-        .fantasy: [
-            StoryTheme(emoji: "🧙‍♀️", name: "Wizard School", description: "Magic and spells"),
-            StoryTheme(emoji: "🦄", name: "Unicorn Kingdom", description: "Mythical creatures"),
-            StoryTheme(emoji: "🐉", name: "Dragon Friends", description: "Friendly dragons"),
-            StoryTheme(emoji: "✨", name: "Fairy Tales", description: "Classic stories"),
-            StoryTheme(emoji: "🔮", name: "Crystal Cave", description: "Magical gems")
-        ],
-        .educational: [
-            StoryTheme(emoji: "🔬", name: "Science Lab", description: "Experiments"),
-            StoryTheme(emoji: "📚", name: "Library Mystery", description: "Books and learning"),
-            StoryTheme(emoji: "🌍", name: "World Traveler", description: "Geography"),
-            StoryTheme(emoji: "⚗️", name: "Alchemy", description: "Mixing potions"),
-            StoryTheme(emoji: "🎨", name: "Art Studio", description: "Creativity")
-        ],
-        .cozy: [
-            StoryTheme(emoji: "☕", name: "Cozy Cafe", description: "Warm drinks"),
-            StoryTheme(emoji: "🏡", name: "Home Sweet Home", description: "Family stories"),
-            StoryTheme(emoji: "🐻", name: "Teddy Bear Picnic", description: "Stuffed friends"),
-            StoryTheme(emoji: "⛺", name: "Camping Night", description: "Under the stars"),
-            StoryTheme(emoji: "🎵", name: "Music Box", description: "Lullabies")
-        ]
-    ]
-    
-    private var filteredThemes: [(ThemeCategory, [StoryTheme])] {
-        let themes = selectedCategory == .all
-            ? Array(themeCategories)
-            : [(selectedCategory, themeCategories[selectedCategory] ?? [])]
-        
-        if searchText.isEmpty {
-            return themes
-        }
-        
-        return themes.compactMap { category, themeList in
-            let filtered = themeList.filter { theme in
-                theme.name.localizedCaseInsensitiveContains(searchText) ||
-                theme.description.localizedCaseInsensitiveContains(searchText)
-            }
-            return filtered.isEmpty ? nil : (category, filtered)
-        }
-    }
-    
+
+    // MARK: - State
+    @StateObject private var store = ThemeStore.shared
+    @State private var showAddForm = false
+    @State private var newName = ""
+    @State private var newDescription = ""
+    @State private var newIcon = "📖"
+
+    // MARK: - Parchment palette  (matches DrawingsManagerView + StoryThemes.tsx)
+    private let bg        = Color(red: 0.894, green: 0.835, blue: 0.718)
+    private let cardBg    = Color(red: 0.980, green: 0.961, blue: 0.922)
+    private let borderClr = Color(red: 0.157, green: 0.118, blue: 0.078).opacity(0.28)
+    private let btnBg     = Color(red: 0.824, green: 0.706, blue: 0.549).opacity(0.4)
+    private let ink       = Color(red: 0.078, green: 0.059, blue: 0.039)
+
+    // MARK: - Body
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            VStack(spacing: 16) {
-                Text("Choose a Theme")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(.white)
-                
-                // Search bar
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.white.opacity(0.5))
-                    
-                    TextField("Search themes...", text: $searchText)
-                        .foregroundColor(.white)
-                        .accentColor(.purple)
-                }
-                .padding()
-                .background(Color.white.opacity(0.1))
-                .cornerRadius(12)
-                
-                // Category pills
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(ThemeCategory.allCases, id: \.self) { category in
-                            CategoryPill(
-                                category: category,
-                                isSelected: selectedCategory == category,
-                                onTap: { selectedCategory = category }
-                            )
-                        }
-                    }
-                    .padding(.horizontal, 4)
-                }
-            }
-            .padding()
-            .background(Color.black.opacity(0.3))
-            
-            // Themes Grid
+        ZStack {
+            bg.ignoresSafeArea()
+
             ScrollView {
-                LazyVStack(spacing: 24) {
-                    ForEach(filteredThemes, id: \.0) { category, themes in
-                        VStack(alignment: .leading, spacing: 16) {
-                            if selectedCategory == .all {
-                                Text(category.displayName)
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal)
+                VStack(alignment: .leading, spacing: 20) {
+
+                    // ── Header ──────────────────────────────────────────
+                    HStack {
+                        Text("story themes")
+                            .font(.custom("IndieFlower-Regular", size: 34))
+                            .foregroundColor(ink)
+
+                        Spacer()
+
+                        // "add theme" button
+                        Button {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                showAddForm.toggle()
                             }
-                            
-                            LazyVGrid(columns: [
-                                GridItem(.flexible()),
-                                GridItem(.flexible())
-                            ], spacing: 16) {
-                                ForEach(themes) { theme in
-                                    ThemeCard(theme: theme, onSelect: {
-                                        onThemeSelect(theme.name)
-                                    })
-                                }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: showAddForm ? "minus" : "plus")
+                                    .font(.system(size: 14, weight: .bold))
+                                Text("add theme")
+                                    .font(.custom("PatrickHand-Regular", size: 17))
+                                    .fontWeight(.bold)
                             }
-                            .padding(.horizontal)
+                            .foregroundColor(ink.opacity(0.85))
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 16)
+                            .background(btnBg)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(borderClr, lineWidth: 2)
+                            )
+                            .cornerRadius(6)
+                            .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
                         }
                     }
+                    .padding(.top, 20)
+
+                    // ── Add Theme Form ───────────────────────────────────
+                    if showAddForm {
+                        addThemeForm
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
+                    // ── Themes Grid ──────────────────────────────────────
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible(), spacing: 12),
+                            GridItem(.flexible(), spacing: 12),
+                            GridItem(.flexible(), spacing: 12)
+                        ],
+                        spacing: 14
+                    ) {
+                        ForEach(store.themes) { theme in
+                            themeCard(theme)
+                        }
+                    }
+
+                    Spacer(minLength: 40)
                 }
-                .padding(.vertical)
+                .padding(.horizontal, 20)
             }
         }
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 0.05, green: 0.05, blue: 0.15),
-                    Color(red: 0.15, green: 0.05, blue: 0.25)
-                ]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-        )
     }
-}
 
-struct StoryTheme: Identifiable {
-    let id = UUID()
-    let emoji: String
-    let name: String
-    let description: String
-}
-
-enum ThemeCategory: String, CaseIterable {
-    case all = "All"
-    case adventure = "Adventure"
-    case nature = "Nature"
-    case fantasy = "Fantasy"
-    case educational = "Educational"
-    case cozy = "Cozy"
-    
-    var displayName: String {
-        rawValue
-    }
-    
-    var icon: String {
-        switch self {
-        case .all: return "star.fill"
-        case .adventure: return "map.fill"
-        case .nature: return "leaf.fill"
-        case .fantasy: return "sparkles"
-        case .educational: return "book.fill"
-        case .cozy: return "heart.fill"
-        }
-    }
-}
-
-struct CategoryPill: View {
-    let category: ThemeCategory
-    let isSelected: Bool
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 6) {
-                Image(systemName: category.icon)
-                    .font(.system(size: 14))
-                
-                Text(category.displayName)
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .foregroundColor(isSelected ? Color(red: 0.05, green: 0.05, blue: 0.15) : .white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(
-                Capsule()
-                    .fill(isSelected ? Color.white : Color.white.opacity(0.1))
-            )
-        }
-    }
-}
-
-struct ThemeCard: View {
-    let theme: StoryTheme
-    let onSelect: () -> Void
-    
-    var body: some View {
-        Button(action: onSelect) {
-            VStack(spacing: 12) {
-                Text(theme.emoji)
-                    .font(.system(size: 48))
-                
-                Text(theme.name)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
+    // MARK: - Add Theme Form
+    private var addThemeForm: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                // Emoji / icon field
+                TextField("emoji", text: $newIcon)
+                    .font(.custom("PatrickHand-Regular", size: 22))
+                    .foregroundColor(ink)
                     .multilineTextAlignment(.center)
-                
-                Text(theme.description)
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.6))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.white.opacity(0.05))
+                    .frame(width: 64)
+                    .padding(10)
+                    .background(cardBg.opacity(0.7))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(borderClr, lineWidth: 1.5)
                     )
-            )
+                    .cornerRadius(6)
+
+                VStack(spacing: 8) {
+                    // Theme name
+                    TextField("theme name", text: $newName)
+                        .font(.custom("PatrickHand-Regular", size: 17))
+                        .foregroundColor(ink)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(cardBg.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(borderClr, lineWidth: 1.5)
+                        )
+                        .cornerRadius(6)
+
+                    // Short description
+                    TextField("short description", text: $newDescription)
+                        .font(.custom("PatrickHand-Regular", size: 17))
+                        .foregroundColor(ink)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(cardBg.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(borderClr, lineWidth: 1.5)
+                        )
+                        .cornerRadius(6)
+                }
+            }
+
+            // Save button
+            Button {
+                saveTheme()
+            } label: {
+                Text("save theme")
+                    .font(.custom("PatrickHand-Regular", size: 17))
+                    .fontWeight(.bold)
+                    .foregroundColor(ink.opacity(0.85))
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 20)
+                    .background(btnBg)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(borderClr, lineWidth: 2)
+                    )
+                    .cornerRadius(6)
+            }
+            .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
         }
-        .buttonStyle(ScaleButtonStyle())
+        .padding(16)
+        .background(cardBg.opacity(0.9))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(borderClr, lineWidth: 2)
+        )
+        .cornerRadius(8)
+        .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
+    }
+
+    // MARK: - Theme Card
+    @ViewBuilder
+    private func themeCard(_ theme: StoryThemeItem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(theme.icon)
+                .font(.system(size: 38))
+
+            Text(theme.name)
+                .font(.custom("IndieFlower-Regular", size: 20))
+                .fontWeight(.bold)
+                .foregroundColor(ink)
+
+            Text(theme.description)
+                .font(.custom("PatrickHand-Regular", size: 14))
+                .foregroundColor(ink.opacity(0.65))
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(cardBg.opacity(0.85))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(borderClr, lineWidth: 2)
+        )
+        .cornerRadius(8)
+        .shadow(color: .black.opacity(0.07), radius: 3, x: 0, y: 2)
+    }
+
+    // MARK: - Actions
+    private func saveTheme() {
+        store.add(icon: newIcon,
+                  name: newName,
+                  description: newDescription)
+        newName = ""
+        newDescription = ""
+        newIcon = "📖"
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            showAddForm = false
+        }
     }
 }
 
+// MARK: - Preview
 #Preview {
-    StoryThemesView { theme in
-        print("Selected: \(theme)")
-    }
+    StoryThemesView()
 }

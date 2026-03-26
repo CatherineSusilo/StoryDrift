@@ -9,7 +9,6 @@ struct SettingsView: View {
     @State private var showingAddChild = false
     @State private var debugMode = false
     @State private var showAISettings = false
-    @State private var showDrawingsManager = false
 
     var body: some View {
         ZStack {
@@ -73,7 +72,6 @@ struct SettingsView: View {
                     // ── AI & Drawings ──
                     settingsSection(title: "ai & drawings") {
                         parchmentNavRow(icon: "paintpalette.fill", label: "ai customization")   { showAISettings = true }
-                        parchmentNavRow(icon: "photo.on.rectangle.angled", label: "drawings collection") { showDrawingsManager = true }
                     }
 
                     // ── Advanced ──
@@ -136,10 +134,6 @@ struct SettingsView: View {
         }
         .fullScreenCover(isPresented: $showAISettings) {
             AISettingsView(onBack: { showAISettings = false })
-                .environmentObject(authManager)
-        }
-        .fullScreenCover(isPresented: $showDrawingsManager) {
-            DrawingsManagerView(onBack: { showDrawingsManager = false })
                 .environmentObject(authManager)
         }
     }

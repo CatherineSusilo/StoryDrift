@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Nav destination enum
 enum NavDestination: Int, CaseIterable {
-    case home, journey, analytics, stories, settings
+    case home, journey, analytics, stories, drawings, themes, settings
 
     var label: String {
         switch self {
@@ -10,6 +10,8 @@ enum NavDestination: Int, CaseIterable {
         case .journey:   return "journey"
         case .analytics: return "behavioral insights"
         case .stories:   return "story archive"
+        case .drawings:  return "drawings collection"
+        case .themes:    return "story themes"
         case .settings:  return "settings"
         }
     }
@@ -20,6 +22,8 @@ enum NavDestination: Int, CaseIterable {
         case .journey:   return "map.fill"
         case .analytics: return "chart.bar.fill"
         case .stories:   return "book.fill"
+        case .drawings:  return "photo.on.rectangle.angled"
+        case .themes:    return "sparkles"
         case .settings:  return "gearshape.fill"
         }
     }
@@ -217,6 +221,10 @@ struct MainTabView: View {
             BehavioralStatsView(child: child)
         case .stories:
             StoryArchiveView(childId: child.id)
+        case .drawings:
+            DrawingsManagerView(onBack: { withAnimation { selectedDest = .home } })
+        case .themes:
+            StoryThemesView()
         case .settings:
             SettingsView(children: $children, selectedChild: $selectedChild)
         }

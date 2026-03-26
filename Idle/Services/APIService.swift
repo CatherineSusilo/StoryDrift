@@ -159,6 +159,8 @@ struct StoryConfig: Codable {
     let storytellingTone: String
     let parentPrompt: String
     let initialState: String
+    /// Optional base64-encoded drawing images chosen by the parent to inspire the story.
+    var drawingPrompts: [String]?
 }
 
 // MARK: - API Errors
