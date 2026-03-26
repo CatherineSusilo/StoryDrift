@@ -6,6 +6,9 @@ struct BehavioralStatsView: View {
     @State private var statistics: ChildStatistics?
     @State private var sleepStats: SleepStatisticsResponse?
     @State private var isLoading = true
+    // SmartSpectra vitals per story (read from local store)
+    @State private var storyVitalsList: [StoryVitalsSummary] = []
+    @State private var selectedVitalsIndex: Int = 0
 
     var body: some View {
         ZStack {
@@ -69,6 +72,11 @@ struct BehavioralStatsView: View {
                         if statistics == nil && sleepStats == nil {
                             parchmentEmptyState
                         }
+
+                        // ── Story Vitals (SmartSpectra) ──
+                        if !storyVitalsList.isEmpty {
+                            storyVitalsSection
+                        }
                     }
 
                     Spacer(minLength: 32)
@@ -78,6 +86,9 @@ struct BehavioralStatsView: View {
             }
         }
         .task { await loadStatistics() }
+        .onAppear {
+            storyVitalsList = StoryVitalsStore.shared.summaries(for: child.id)
+        }
     }
 
     // MARK: - Insight cards row (matches the 4-card row in the screenshot)
@@ -121,6 +132,68 @@ struct BehavioralStatsView: View {
             }
             .padding(.vertical, 4)
         }
+    }
+
+    // MARK: - Story Vitals Graph Section (SmartSpectra)
+    @ViewBuilder
+    private var storyVitalsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+
+            Text("vitals during storytime")
+                .font(Theme.titleFont(size: 22))
+                .foregroundColor(Theme.ink)
+
+            // ── Storytime tab picker ──
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(storyVitalsList.indices, id: \.self) { i in
+                        let summary = storyVitalsList[i]
+                        let label = storyTabLabel(summary: summary, index: i)
+                        Button(action: { selectedVitalsIndex = i }) {
+                            Text(label)
+                                .font(Theme.bodyFont(size: 13))
+                                .foregroundColor(selectedVitalsIndex == i ? Theme.card : Theme.inkMuted)
+                                .padding(.vertical, 7)
+                                .padding(.horizontal, 14)
+                                .background(
+                                    Capsule()
+                                        .fill(selectedVitalsIndex == i ? Theme.ink : Theme.card)
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Theme.border, lineWidth: 1)
+                                )
+                        }
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+
+            // ── Graphs for selected session ──
+            if storyVitalsList.indices.contains(selectedVitalsIndex) {
+                let summary = storyVitalsList[selectedVitalsIndex]
+
+                VStack(spacing: 16) {
+                    VitalsLineGraph(
+                        snapshots: summary.snapshots,
+                        metric: .heartRate,
+                        color: Color(red: 0.75, green: 0.18, blue: 0.18)
+                    )
+                    VitalsLineGraph(
+                        snapshots: summary.snapshots,
+                        metric: .breathingRate,
+                        color: Color(red: 0.15, green: 0.50, blue: 0.65)
+                    )
+                }
+            }
+        }
+    }
+
+    private func storyTabLabel(summary: StoryVitalsSummary, index: Int) -> String {
+        guard let snap = summary.snapshots.first else { return "Story \(index + 1)" }
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f.string(from: snap.timestamp)
     }
 
     private func buildLearningInsight(stats: ChildStatistics) -> String {
@@ -219,6 +292,161 @@ struct MetricCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .parchmentCard(cornerRadius: Theme.radiusMD)
+    }
+}
+
+// MARK: - VitalsLineGraph
+/// Draws a line graph for heart rate or breathing rate over a story session.
+struct VitalsLineGraph: View {
+
+    enum Metric { case heartRate, breathingRate }
+
+    let snapshots: [StoryVitalsSnapshot]
+    let metric: Metric
+    let color: Color
+
+    private var values: [Double] {
+        snapshots.map { metric == .heartRate ? $0.heartRate : $0.breathingRate }
+    }
+    private var title: String  { metric == .heartRate ? "Heart Rate" : "Breathing Rate" }
+    private var unit: String   { metric == .heartRate ? "bpm"        : "br/min" }
+    private var icon: String   { metric == .heartRate ? "heart.fill" : "wind" }
+
+    private var nonZero: [Double] { values.filter { $0 > 0 } }
+    private var minVal: Double  { (nonZero.min() ?? 0) * 0.92 }
+    private var maxVal: Double  { (nonZero.max() ?? 1) * 1.08 }
+    private var avgVal: Double  {
+        nonZero.isEmpty ? 0 : nonZero.reduce(0, +) / Double(nonZero.count)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+
+            // Header row
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(color)
+                Text(title)
+                    .font(Theme.titleFont(size: 17))
+                    .foregroundColor(Theme.ink)
+                Spacer()
+                if avgVal > 0 {
+                    Text("avg \(Int(avgVal.rounded())) \(unit)")
+                        .font(Theme.bodyFont(size: 13))
+                        .foregroundColor(Theme.inkMuted)
+                }
+            }
+
+            if nonZero.isEmpty {
+                // No data state
+                HStack {
+                    Spacer()
+                    Text("no data recorded")
+                        .font(Theme.bodyFont(size: 14))
+                        .foregroundColor(Theme.inkFaint)
+                    Spacer()
+                }
+                .frame(height: 120)
+            } else {
+                // Y-axis labels + canvas
+                HStack(alignment: .top, spacing: 6) {
+                    // Y labels
+                    VStack(alignment: .trailing) {
+                        Text("\(Int(maxVal.rounded()))")
+                            .font(Theme.bodyFont(size: 10))
+                            .foregroundColor(Theme.inkFaint)
+                        Spacer()
+                        Text("\(Int(minVal.rounded()))")
+                            .font(Theme.bodyFont(size: 10))
+                            .foregroundColor(Theme.inkFaint)
+                    }
+                    .frame(width: 28, height: 120)
+
+                    // Line graph canvas
+                    Canvas { ctx, size in
+                        guard values.count > 1 else { return }
+
+                        let range = maxVal - minVal
+                        guard range > 0 else { return }
+
+                        // Draw gridlines
+                        for fraction in [0.25, 0.5, 0.75] {
+                            let y = size.height * (1 - fraction)
+                            var path = Path()
+                            path.move(to: CGPoint(x: 0, y: y))
+                            path.addLine(to: CGPoint(x: size.width, y: y))
+                            ctx.stroke(path, with: .color(Theme.ink.opacity(0.08)), lineWidth: 1)
+                        }
+
+                        // Build line path (skip zero values — bridge over gaps)
+                        var linePath = Path()
+                        var started = false
+                        let step = size.width / CGFloat(values.count - 1)
+
+                        for (i, v) in values.enumerated() {
+                            guard v > 0 else { started = false; continue }
+                            let x = CGFloat(i) * step
+                            let y = size.height * CGFloat(1 - (v - minVal) / range)
+                            let pt = CGPoint(x: x, y: y)
+                            if !started { linePath.move(to: pt); started = true }
+                            else { linePath.addLine(to: pt) }
+                        }
+                        ctx.stroke(linePath, with: .color(color), style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+
+                        // Fill area under line
+                        var fillPath = linePath
+                        // Close fill down to baseline
+                        let enumerated = Array(values.enumerated())
+                        if let last = enumerated.last(where: { $0.element > 0 }) {
+                            let x = CGFloat(last.offset) * step
+                            fillPath.addLine(to: CGPoint(x: x, y: size.height))
+                        }
+                        if let first = enumerated.first(where: { $0.element > 0 }) {
+                            let x = CGFloat(first.offset) * step
+                            fillPath.addLine(to: CGPoint(x: x, y: size.height))
+                        }
+                        fillPath.closeSubpath()
+                        ctx.fill(fillPath, with: .color(color.opacity(0.12)))
+
+                        // Dots on data points
+                        for (i, v) in values.enumerated() where v > 0 {
+                            let x = CGFloat(i) * step
+                            let y = size.height * CGFloat(1 - (v - minVal) / range)
+                            let rect = CGRect(x: x - 3, y: y - 3, width: 6, height: 6)
+                            ctx.fill(Path(ellipseIn: rect), with: .color(color))
+                        }
+                    }
+                    .frame(height: 120)
+                    .background(Theme.card.opacity(0.3))
+                    .cornerRadius(6)
+                }
+
+                // X-axis time labels
+                HStack {
+                    if let first = snapshots.first(where: { metric == .heartRate ? $0.heartRate > 0 : $0.breathingRate > 0 }) {
+                        Text(timeLabel(first.timestamp))
+                            .font(Theme.bodyFont(size: 10))
+                            .foregroundColor(Theme.inkFaint)
+                    }
+                    Spacer()
+                    if let last = snapshots.last(where: { metric == .heartRate ? $0.heartRate > 0 : $0.breathingRate > 0 }) {
+                        Text(timeLabel(last.timestamp))
+                            .font(Theme.bodyFont(size: 10))
+                            .foregroundColor(Theme.inkFaint)
+                    }
+                }
+                .padding(.leading, 34)
+            }
+        }
+        .padding(16)
+        .parchmentCard(cornerRadius: Theme.radiusMD)
+    }
+
+    private func timeLabel(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f.string(from: date)
     }
 }
 

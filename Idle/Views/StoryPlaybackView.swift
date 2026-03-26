@@ -142,13 +142,6 @@ struct StoryPlaybackView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 32)
             }
-
-            // Transparent SmartSpectra vitals tracker — zero visual footprint
-            VitalsOverlayView(
-                tracker: vitalsTracker,
-                storyId: story.id,
-                childId: story.childId
-            )
         }
         .onAppear {
             startStory()
@@ -169,15 +162,22 @@ struct StoryPlaybackView: View {
             Button("Cancel", role: .cancel) {}
         }
     }
-    
+
     private func startStory() {
         vitalsManager.startMonitoring(childId: story.childId)
-        
+
+        // Start SmartSpectra continuous vitals tracking
+        vitalsTracker.startTracking(
+            storyId: story.id,
+            childId: story.childId,
+            vitalsManager: vitalsManager
+        )
+
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             if isPlaying {
                 elapsedTime += 1
                 driftHistory.append(vitalsManager.driftScore)
-                
+
                 // Check if child is asleep (drift > 90%)
                 if vitalsManager.driftScore >= 90 {
                     completeStory()
@@ -192,15 +192,18 @@ struct StoryPlaybackView: View {
                 // END DEBUG
             }
         }
-        
+
         playCurrentParagraph()
     }
-    
+
     private func stopStory() {
         timer?.invalidate()
         timer = nil
         audioPlayer?.stop()
         vitalsManager.stopMonitoring()
+
+        // Stop SmartSpectra and persist vitals summary
+        vitalsTracker.stopTracking()
     }
     
     private func togglePlayback() {

@@ -47,15 +47,13 @@ struct StoryVitalsSummary: Codable {
 }
 
 // MARK: - StoryVitalsStore
-/// Persists StoryVitalsSummary objects locally using UserDefaults (lightweight, no backend schema change required).
-/// Keyed by childId so each child has their own list.
+/// Persists StoryVitalsSummary objects locally using UserDefaults.
 class StoryVitalsStore {
     static let shared = StoryVitalsStore()
     private let key = "storyVitalsSummaries_v1"
 
     func save(_ summary: StoryVitalsSummary) {
         var all = loadAll()
-        // Replace if same storyId already exists
         all.removeAll { $0.storyId == summary.storyId }
         all.append(summary)
         if let data = try? JSONEncoder().encode(all) {
@@ -79,14 +77,12 @@ class StoryVitalsStore {
 }
 
 // MARK: - StoryVitalsTracker
-/// Observable service that wraps SmartSpectra headless vitals processing during a story session.
-/// Uses the existing VitalsManager as the downstream sink for DriftMeter integration.
-/// All SmartSpectra SDK calls are wrapped in compiler guards so the project compiles
-/// even before the SPM package has been added in Xcode.
+/// Wraps SmartSpectra in continuous headless mode during a story session.
+/// Call startTracking() when the story begins playing and stopTracking() when it ends.
+/// Works identically for normal storytime and the DEBUG 2-minute mode.
 class StoryVitalsTracker: ObservableObject {
     static let shared = StoryVitalsTracker()
 
-    // Forwarded from SmartSpectra / VitalsManager
     @Published var currentHeartRate: Double = 0
     @Published var currentBreathingRate: Double = 0
     @Published var isTracking: Bool = false
@@ -96,7 +92,6 @@ class StoryVitalsTracker: ObservableObject {
     private var snapshotTimer: Timer?
     private var storyId: String?
     private var childId: String?
-
     private var cancellables = Set<AnyCancellable>()
 
 #if canImport(SmartSpectraSwiftSDK)
@@ -104,9 +99,9 @@ class StoryVitalsTracker: ObservableObject {
     private let processor = SmartSpectraVitalsProcessor.shared
 #endif
 
-    // MARK: - Lifecycle
+    // MARK: - Start
 
-    /// Call when the story screen appears. Starts the SmartSpectra headless processor.
+    /// Call this the moment the story begins playing (normal or debug mode).
     func startTracking(storyId: String, childId: String, vitalsManager: VitalsManager) {
         guard !isTracking else { return }
 
@@ -116,37 +111,44 @@ class StoryVitalsTracker: ObservableObject {
         self.isTracking = true
 
 #if canImport(SmartSpectraSwiftSDK)
-        // Configure SDK — skip if API key not yet set
         guard let apiKey = Secrets.smartSpectraAPIKey else {
             statusHint = "SmartSpectra API key not configured"
             print("[StoryVitalsTracker] ⚠️  Set SMARTSPECTRA_API_KEY in Config.xcconfig to enable vitals tracking.")
+            isTracking = false
             return
         }
+
+        // Configure SDK for continuous background monitoring
         sdk.setApiKey(apiKey)
         sdk.setSmartSpectraMode(.continuous)
         sdk.setCameraPosition(.front)
+        sdk.setRecordingDelay(0)              // no countdown — start immediately
+        sdk.setImageOutputEnabled(false)      // disable camera preview output for performance
 
         // Start headless processing
         processor.startProcessing()
         processor.startRecording()
 
-        // Observe vitals from the SDK and forward to VitalsManager
+        statusHint = processor.statusHint
+
+        // Observe metrics buffer — fires whenever SmartSpectra produces new measurements
         sdk.$metricsBuffer
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak vitalsManager] buffer in
                 guard let self, let buffer, let vitalsManager else { return }
 
-                // Latest pulse rate
-                let hr = buffer.pulse.rate.last.map { Double($0.value) } ?? 0
+                // Pull the latest pulse rate measurement
+                let hr    = buffer.pulse.rate.last.map { Double($0.value) } ?? 0
                 let hrConf = buffer.pulse.rate.last.map { $0.confidence } ?? 0
-                // Latest breathing rate
-                let br = buffer.breathing.rate.last.map { Double($0.value) } ?? 0
 
-                self.currentHeartRate = hr
+                // Pull the latest breathing rate measurement
+                let br    = buffer.breathing.rate.last.map { Double($0.value) } ?? 0
+
+                self.currentHeartRate    = hr
                 self.currentBreathingRate = br
-                self.statusHint = self.processor.statusHint
+                self.statusHint           = self.processor.statusHint
 
-                // Forward into existing VitalsManager for DriftMeter
+                // Forward live values into VitalsManager so DriftMeter stays in sync
                 vitalsManager.updateVitals(
                     heartRate: hr,
                     breathingRate: br,
@@ -154,23 +156,27 @@ class StoryVitalsTracker: ObservableObject {
                 )
             }
             .store(in: &cancellables)
+
+        print("[StoryVitalsTracker] ▶️  Started — continuous mode, story: \(storyId)")
 #else
-        // Simulator / SDK not yet linked — emit a log so developer knows
-        statusHint = "SmartSpectra SDK not linked (simulator mode)"
-        print("[StoryVitalsTracker] SmartSpectraSwiftSDK not available — running without vitals.")
+        statusHint = "SmartSpectra SDK not linked"
+        print("[StoryVitalsTracker] ⚠️  SmartSpectraSwiftSDK not found. Add the package via File → Add Package Dependencies in Xcode.")
 #endif
 
-        // Snapshot every 10 seconds
+        // Snapshot every 10 seconds regardless of SDK availability
         snapshotTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             self?.recordSnapshot()
         }
     }
 
-    /// Call when the story ends (completed or dismissed). Stops SmartSpectra and persists summary.
+    // MARK: - Stop
+
+    /// Call this when the story finishes or is dismissed (normal or debug mode).
     @discardableResult
     func stopTracking() -> StoryVitalsSummary? {
         guard isTracking else { return nil }
         isTracking = false
+
         snapshotTimer?.invalidate()
         snapshotTimer = nil
         cancellables.removeAll()
@@ -178,17 +184,17 @@ class StoryVitalsTracker: ObservableObject {
 #if canImport(SmartSpectraSwiftSDK)
         processor.stopRecording()
         processor.stopProcessing()
+        print("[StoryVitalsTracker] ⏹  Stopped")
 #endif
 
         guard let storyId, let childId else { return nil }
 
-        // Record a final snapshot before summarising
+        // Capture a final snapshot at the exact moment the story ends
         recordSnapshot()
 
         let summary = StoryVitalsSummary.compute(storyId: storyId, childId: childId, snapshots: snapshots)
         StoryVitalsStore.shared.save(summary)
 
-        // Fire-and-forget: post to backend if token available
         if let token = UserDefaults.standard.string(forKey: "accessToken") {
             Task { await postToBackend(summary: summary, token: token) }
         }
@@ -198,6 +204,7 @@ class StoryVitalsTracker: ObservableObject {
         self.currentHeartRate = 0
         self.currentBreathingRate = 0
         self.statusHint = "Not started"
+
         return summary
     }
 

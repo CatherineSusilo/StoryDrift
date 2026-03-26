@@ -20,6 +20,7 @@ import sleepRoutes from './routes/sleep';
 import statisticsRoutes from './routes/statistics';
 import audioRoutes from './routes/audio';
 import generateRoutes from './routes/generate';
+import vitalsRoutes from './routes/vitals';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -51,6 +52,7 @@ app.use('/api/sleep', authMiddleware, sleepRoutes);
 app.use('/api/statistics', authMiddleware, statisticsRoutes);
 app.use('/api/audio', authMiddleware, audioRoutes);
 app.use('/api/generate', authMiddleware, generateRoutes);
+app.use('/api/vitals', authMiddleware, vitalsRoutes);
 
 // Error handling
 app.use(errorHandler);
