@@ -12,17 +12,21 @@ struct LoginView: View {
                 Spacer()
 
                 // ── Logo & title ──
-                VStack(spacing: 18) {
-                    Text("🌙")
-                        .font(.system(size: 72))
+                VStack(spacing: 12) {
+                    Image("StoryDriftLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 180, height: 180)
 
                     Text("StoryDrift")
-                        .font(Theme.titleFont(size: 52))
-                        .foregroundColor(Theme.ink)
-
-                    Text("adaptive bedtime stories")
+                        .font(Theme.bodyFont(size: 24))
+                        .foregroundColor(Theme.inkMuted)
+                        .italic()
+                    
+                    Text("dream keeper's log")
                         .font(Theme.bodyFont(size: 18))
                         .foregroundColor(Theme.inkMuted)
+                        .italic()
                 }
 
                 Spacer()
@@ -37,7 +41,7 @@ struct LoginView: View {
                             } else {
                                 Image(systemName: "person.circle.fill")
                                     .font(.system(size: 20))
-                                Text("continue with auth0")
+                                Text("Log In / Sign In")
                                     .font(Theme.bodyFont(size: 19))
                                     .fontWeight(.bold)
                             }

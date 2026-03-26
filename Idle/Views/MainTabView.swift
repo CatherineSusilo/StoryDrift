@@ -128,11 +128,14 @@ struct MainTabView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // App title in drawer header
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("🌙")
-                        .font(.system(size: 36))
-                    Text("StoryDrift")
-                        .font(Theme.titleFont(size: 26))
-                        .foregroundColor(Theme.ink)
+                    Image("StoryDriftLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 80, height: 80)
+                    Text("dream keeper's log")
+                        .font(Theme.bodyFont(size: 13))
+                        .foregroundColor(Theme.inkMuted)
+                        .italic()
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 64)

@@ -59,6 +59,11 @@
 	<string>$(ELEVENLABS_API_KEY)</string>
 	<key>SmartSpectraAPIKey</key>
 	<string>$(SMARTSPECTRA_API_KEY)</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>IndieFlower-Regular.ttf</string>
+		<string>PatrickHand-Regular.ttf</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Idle uses your camera to monitor vital signs contactlessly during bedtime stories.</string>
 	<key>CFBundleURLTypes</key>

@@ -33,6 +33,9 @@
 		CC0000022F6CD78F001DBFE5 /* StoryVitalsTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000032F6CD78F001DBFE5 /* StoryVitalsTracker.swift */; };
 		CC0000042F6CD78F001DBFE5 /* VitalsOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000052F6CD78F001DBFE5 /* VitalsOverlayView.swift */; };
 		CF8857BC2F747891005678AE /* SmartSpectraSwiftSDK in Frameworks */ = {isa = PBXBuildFile; productRef = CF8857BB2F747891005678AE /* SmartSpectraSwiftSDK */; };
+		FF0000012F6CD78F001DBFE5 /* IndieFlower-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FF0000022F6CD78F001DBFE5 /* IndieFlower-Regular.ttf */; };
+		FF0000032F6CD78F001DBFE5 /* PatrickHand-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FF0000042F6CD78F001DBFE5 /* PatrickHand-Regular.ttf */; };
+		FF0000052F6CD78F001DBFE5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FF0000062F6CD78F001DBFE5 /* Assets.xcassets */; };
 		DD0000012F6CD78F001DBFE5 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000022F6CD78F001DBFE5 /* AISettingsView.swift */; };
 		DD0000032F6CD78F001DBFE5 /* DrawingsManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000042F6CD78F001DBFE5 /* DrawingsManagerView.swift */; };
 		DD0000052F6CD78F001DBFE5 /* StoryRoadmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000062F6CD78F001DBFE5 /* StoryRoadmapView.swift */; };
@@ -72,6 +75,9 @@
 		DD0000042F6CD78F001DBFE5 /* DrawingsManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawingsManagerView.swift; sourceTree = "<group>"; };
 		DD0000062F6CD78F001DBFE5 /* StoryRoadmapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryRoadmapView.swift; sourceTree = "<group>"; };
 		EE0000022F6CD78F001DBFE5 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		FF0000022F6CD78F001DBFE5 /* IndieFlower-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IndieFlower-Regular.ttf"; sourceTree = "<group>"; };
+		FF0000042F6CD78F001DBFE5 /* PatrickHand-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "PatrickHand-Regular.ttf"; sourceTree = "<group>"; };
+		FF0000062F6CD78F001DBFE5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -166,8 +172,19 @@
 				AA00001B2F6CD78F001DBFE5 /* Info.plist */,
 				CC0000012F6CD78F001DBFE5 /* Config.xcconfig */,
 				EE0000022F6CD78F001DBFE5 /* Theme.swift */,
+				FF0000062F6CD78F001DBFE5 /* Assets.xcassets */,
+				FF0000072F6CD78F001DBFE5 /* Fonts */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		FF0000072F6CD78F001DBFE5 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				FF0000022F6CD78F001DBFE5 /* IndieFlower-Regular.ttf */,
+				FF0000042F6CD78F001DBFE5 /* PatrickHand-Regular.ttf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		BB0000152F6CD78F001DBFE5 /* Components */ = {
@@ -241,6 +258,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FF0000012F6CD78F001DBFE5 /* IndieFlower-Regular.ttf in Resources */,
+				FF0000032F6CD78F001DBFE5 /* PatrickHand-Regular.ttf in Resources */,
+				FF0000052F6CD78F001DBFE5 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
