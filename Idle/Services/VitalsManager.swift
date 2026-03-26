@@ -7,6 +7,8 @@ class VitalsManager: ObservableObject {
     @Published var currentBreathingRate: Double = 0
     @Published var signalQuality: Int = 0
     @Published var driftScore: Double = 0
+    /// 0.0 = wide awake eyes, 1.0 = fully drowsy/closed eyes. Fed from SmartSpectra edgeMetrics.
+    @Published var eyeDrowsinessScore: Double = 0
 
     private var cancellables = Set<AnyCancellable>()
     private var monitoringTask: Task<Void, Never>?
@@ -24,11 +26,12 @@ class VitalsManager: ObservableObject {
     }
 
     // MARK: - Public API for feeding vitals data from any SDK
-    func updateVitals(heartRate: Double, breathingRate: Double, signalQuality: Int) {
+    func updateVitals(heartRate: Double, breathingRate: Double, signalQuality: Int, eyeDrowsiness: Double = 0) {
         DispatchQueue.main.async {
             self.currentHeartRate = heartRate
             self.currentBreathingRate = breathingRate
             self.signalQuality = signalQuality
+            self.eyeDrowsinessScore = eyeDrowsiness
             self.calculateDriftScore()
 
             let metrics = VitalsMetrics(
@@ -77,17 +80,25 @@ class VitalsManager: ObservableObject {
         let elapsed = Date().timeIntervalSince(startTime)
         let timeProgress = min(elapsed / 1200, 1.0)
 
-        var score = timeProgress * 100
+        // Time-based baseline: up to 100 points over 20 min (normalised below)
+        var score = timeProgress * 55
 
+        // Heart rate: lower HR = more relaxed/sleepy — up to 20 pts
         if currentHeartRate > 0 {
             let hrFactor = max(0, (80 - currentHeartRate) / 30)
             score += hrFactor * 20
         }
 
+        // Breathing rate: slower breathing = sleepier — up to 15 pts
         if currentBreathingRate > 0 {
             let brFactor = max(0, (16 - currentBreathingRate) / 8)
             score += brFactor * 15
         }
+
+        // Eye drowsiness from SmartSpectra edgeMetrics:
+        // slow blink rate + reduced eye openness → score 0–1 → up to 30 pts
+        // This is the strongest single signal of imminent sleep onset.
+        score += eyeDrowsinessScore * 30
 
         driftScore = min(max(score, 0), 100)
     }
