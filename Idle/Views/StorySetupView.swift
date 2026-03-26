@@ -7,8 +7,9 @@ struct StorySetupView: View {
     let onStartStory: (StoryConfig) -> Void
     let onBack: () -> Void
 
-    // MARK: - ThemeStore
+    // MARK: - ThemeStore + CharacterStore
     @StateObject private var themeStore = ThemeStore.shared
+    @StateObject private var characterStore = CharacterStore.shared
 
     // MARK: - Form state
     @State private var selectedTheme: StoryThemeItem? = nil
@@ -17,6 +18,9 @@ struct StorySetupView: View {
     @State private var initialState: InitialState = .normal
     @State private var storyLength: StoryLength = .medium
     @State private var isGenerating = false
+
+    // MARK: - Characters state
+    @State private var selectedCharacterIds: Set<String> = []
 
     // MARK: - Drawings state
     @State private var savedDrawings: [ChildDrawing] = []
@@ -109,6 +113,17 @@ struct StorySetupView: View {
                                         .padding(.horizontal, 14)
                                         .padding(.top, 18)
                                         .allowsHitTesting(false)
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Characters (optional) ────────────────────────────
+                    if !characterStore.characters.isEmpty {
+                        sectionCard(title: "add characters  ✦ optional") {
+                            VStack(spacing: 8) {
+                                ForEach(characterStore.characters) { character in
+                                    characterPickerRow(character)
                                 }
                             }
                         }
@@ -402,6 +417,55 @@ struct StorySetupView: View {
         }
     }
 
+    // MARK: - Character picker row
+    @ViewBuilder
+    private func characterPickerRow(_ character: StoryCharacter) -> some View {
+        let isActive = selectedCharacterIds.contains(character.id)
+        Button {
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                if isActive { selectedCharacterIds.remove(character.id) }
+                else { selectedCharacterIds.insert(character.id) }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Text(character.emoji)
+                    .font(.system(size: 24))
+                    .frame(width: 36, height: 36)
+                    .background(isActive ? activeCardBg : bg.opacity(0.5))
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(isActive ? activeBorder : borderClr, lineWidth: isActive ? 1.5 : 1))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(character.name)
+                        .font(.custom("PatrickHand-Regular", size: 15))
+                        .fontWeight(isActive ? .bold : .regular)
+                        .foregroundColor(ink)
+                    if !character.description.trimmingCharacters(in: .whitespaces).isEmpty {
+                        Text(character.description)
+                            .font(.custom("PatrickHand-Regular", size: 12))
+                            .foregroundColor(ink.opacity(0.55))
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                if isActive {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(ink.opacity(0.7))
+                }
+            }
+            .padding(10)
+            .background(isActive ? activeCardBg : cardBg.opacity(0.5))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isActive ? activeBorder : borderClr, lineWidth: isActive ? 2 : 1)
+            )
+            .cornerRadius(6)
+        }
+    }
+
     // MARK: - Tone row
     @ViewBuilder
     private func toneRow(_ tone: StorytellingTone) -> some View {
@@ -524,6 +588,13 @@ struct StorySetupView: View {
         return fromLibrary + fromCustom
     }
 
+    // MARK: - Build character prompt fragments for chosen characters
+    private func selectedCharacterPrompts() -> [String] {
+        characterStore.characters
+            .filter { selectedCharacterIds.contains($0.id) }
+            .map { $0.promptFragment }
+    }
+
     // MARK: - Start story
     private func handleStartStory() {
         isGenerating = true
@@ -541,6 +612,8 @@ struct StorySetupView: View {
         )
         let drawings = selectedDrawingBase64()
         if !drawings.isEmpty { config.drawingPrompts = drawings }
+        let chars = selectedCharacterPrompts()
+        if !chars.isEmpty { config.characters = chars }
 
         isGenerating = false
         onStartStory(config)
@@ -561,6 +634,8 @@ struct StorySetupView: View {
         )
         let drawings = selectedDrawingBase64()
         if !drawings.isEmpty { config.drawingPrompts = drawings }
+        let chars = selectedCharacterPrompts()
+        if !chars.isEmpty { config.characters = chars }
         isGenerating = false
         onStartStory(config)
     }

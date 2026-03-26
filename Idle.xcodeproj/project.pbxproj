@@ -38,6 +38,8 @@
         DD0000052F6CD78F001DBFE5 /* StoryRoadmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0000062F6CD78F001DBFE5 /* StoryRoadmapView.swift */; };
         EE0000012F6CD78F001DBFE5 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE0000022F6CD78F001DBFE5 /* Theme.swift */; };
         FF0000012F6CD78F001DBFE5 /* ThemeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0000022F6CD78F001DBFE5 /* ThemeStore.swift */; };
+        FC0000012F6CD78F001DBFE5 /* CharacterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0000022F6CD78F001DBFE5 /* CharacterStore.swift */; };
+        FC0000032F6CD78F001DBFE5 /* CharactersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0000042F6CD78F001DBFE5 /* CharactersView.swift */; };
         FA0000012F6CD78F001DBFE5 /* IndieFlower-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA0000022F6CD78F001DBFE5 /* IndieFlower-Regular.ttf */; };
         FA0000032F6CD78F001DBFE5 /* PatrickHand-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA0000042F6CD78F001DBFE5 /* PatrickHand-Regular.ttf */; };
         FA0000052F6CD78F001DBFE5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA0000062F6CD78F001DBFE5 /* Assets.xcassets */; };
@@ -77,6 +79,8 @@
         DD0000062F6CD78F001DBFE5 /* StoryRoadmapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryRoadmapView.swift; sourceTree = "<group>"; };
         EE0000022F6CD78F001DBFE5 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
         FF0000022F6CD78F001DBFE5 /* ThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeStore.swift; sourceTree = "<group>"; };
+        FC0000022F6CD78F001DBFE5 /* CharacterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterStore.swift; sourceTree = "<group>"; };
+        FC0000042F6CD78F001DBFE5 /* CharactersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharactersView.swift; sourceTree = "<group>"; };
         FA0000022F6CD78F001DBFE5 /* IndieFlower-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IndieFlower-Regular.ttf"; sourceTree = "<group>"; };
         FA0000042F6CD78F001DBFE5 /* PatrickHand-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "PatrickHand-Regular.ttf"; sourceTree = "<group>"; };
         FA0000062F6CD78F001DBFE5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -141,6 +145,7 @@
                 BB1000001A2B3C4D001EEFF0 /* Secrets.swift */,
                 CC0000032F6CD78F001DBFE5 /* StoryVitalsTracker.swift */,
                 FF0000022F6CD78F001DBFE5 /* ThemeStore.swift */,
+                FC0000022F6CD78F001DBFE5 /* CharacterStore.swift */,
             );
             path = Services;
             sourceTree = "<group>";
@@ -165,6 +170,7 @@
                 DD0000042F6CD78F001DBFE5 /* DrawingsManagerView.swift */,
                 DD0000062F6CD78F001DBFE5 /* StoryRoadmapView.swift */,
                 CC0000052F6CD78F001DBFE5 /* VitalsOverlayView.swift */,
+                FC0000042F6CD78F001DBFE5 /* CharactersView.swift */,
             );
             path = Views;
             sourceTree = "<group>";
@@ -304,6 +310,8 @@
                 CC0000022F6CD78F001DBFE5 /* StoryVitalsTracker.swift in Sources */,
                 CC0000042F6CD78F001DBFE5 /* VitalsOverlayView.swift in Sources */,
                 FF0000012F6CD78F001DBFE5 /* ThemeStore.swift in Sources */,
+                FC0000012F6CD78F001DBFE5 /* CharacterStore.swift in Sources */,
+                FC0000032F6CD78F001DBFE5 /* CharactersView.swift in Sources */,
             );
             runOnlyForDeploymentPostprocessing = 0;
         };

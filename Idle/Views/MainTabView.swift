@@ -2,29 +2,31 @@ import SwiftUI
 
 // MARK: - Nav destination enum
 enum NavDestination: Int, CaseIterable {
-    case home, journey, analytics, stories, drawings, themes, settings
+    case home, journey, analytics, stories, drawings, themes, characters, settings
 
     var label: String {
         switch self {
-        case .home:      return "home"
-        case .journey:   return "journey"
-        case .analytics: return "behavioral insights"
-        case .stories:   return "story archive"
-        case .drawings:  return "drawings collection"
-        case .themes:    return "story themes"
-        case .settings:  return "settings"
+        case .home:       return "home"
+        case .journey:    return "journey"
+        case .analytics:  return "behavioral insights"
+        case .stories:    return "story archive"
+        case .drawings:   return "drawings collection"
+        case .themes:     return "story themes"
+        case .characters: return "characters"
+        case .settings:   return "settings"
         }
     }
 
     var icon: String {
         switch self {
-        case .home:      return "house.fill"
-        case .journey:   return "map.fill"
-        case .analytics: return "chart.bar.fill"
-        case .stories:   return "book.fill"
-        case .drawings:  return "photo.on.rectangle.angled"
-        case .themes:    return "sparkles"
-        case .settings:  return "gearshape.fill"
+        case .home:       return "house.fill"
+        case .journey:    return "map.fill"
+        case .analytics:  return "chart.bar.fill"
+        case .stories:    return "book.fill"
+        case .drawings:   return "photo.on.rectangle.angled"
+        case .themes:     return "sparkles"
+        case .characters: return "person.2.fill"
+        case .settings:   return "gearshape.fill"
         }
     }
 }
@@ -225,6 +227,8 @@ struct MainTabView: View {
             DrawingsManagerView(onBack: { withAnimation { selectedDest = .home } })
         case .themes:
             StoryThemesView()
+        case .characters:
+            CharactersView()
         case .settings:
             SettingsView(children: $children, selectedChild: $selectedChild)
         }

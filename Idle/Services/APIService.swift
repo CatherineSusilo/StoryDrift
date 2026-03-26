@@ -161,6 +161,8 @@ struct StoryConfig: Codable {
     let initialState: String
     /// Optional base64-encoded drawing images chosen by the parent to inspire the story.
     var drawingPrompts: [String]?
+    /// Optional character prompt fragments, e.g. ["Bearie (a fluffy bear; brave, gentle)"]
+    var characters: [String]?
 }
 
 // MARK: - API Errors
