@@ -347,7 +347,7 @@ struct BedtimeStorySessionView: View {
     private func runTick() async {
         guard let sid = sessionId, let token = authManager.accessToken else { return }
 
-        let cameraEnabled = vitalsManager.isCameraEnabled && vitalsManager.signalQuality > 0.2
+        let cameraEnabled = vitalsManager.isCameraEnabled && vitalsManager.signalQuality > 20
         let biometrics: [String: Any] = cameraEnabled ? [
             "pulse_rate":     vitalsManager.heartRate > 0 ? vitalsManager.heartRate : NSNull(),
             "breathing_rate": vitalsManager.breathingRate > 0 ? vitalsManager.breathingRate : NSNull(),
@@ -373,7 +373,6 @@ struct BedtimeStorySessionView: View {
             currentImageUrl = resp.imageUrl
             driftScore      = resp.score
             driftTrajectory = resp.trajectory
-            arcPosition     = resp.arcPosition ?? arcPosition
         }
 
         if let audioUrl = resp.audioUrl,
