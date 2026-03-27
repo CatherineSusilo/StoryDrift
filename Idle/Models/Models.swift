@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // MARK: - Child (matches backend Prisma schema)
 struct Child: Codable, Identifiable {
@@ -375,6 +376,24 @@ struct DeleteResponse: Codable {
 }
 
 struct EmptyResponse: Codable {}
+
+// MARK: - Lesson Models
+struct LessonCategory: Identifiable {
+    let id: String
+    let title: String
+    let emoji: String
+    let color: Color
+    let lessons: [LessonDefinition]
+}
+
+struct LessonDefinition: Identifiable {
+    let id: String
+    let name: String
+    let description: String
+    let emoji: String
+    let ageMin: Int
+    let ageMax: Int
+}
 
 // Matches paginated responses like GET /api/stories/child/:id → { data: [...], total, limit, offset }
 struct PaginatedResponse<T: Codable>: Codable {

@@ -2,23 +2,6 @@ import SwiftUI
 
 // MARK: - Lesson Catalogue
 
-struct LessonCategory: Identifiable {
-    let id: String
-    let title: String
-    let emoji: String
-    let color: Color
-    let lessons: [LessonDefinition]
-}
-
-struct LessonDefinition: Identifiable {
-    let id: String
-    let name: String
-    let description: String
-    let emoji: String
-    let ageMin: Int
-    let ageMax: Int
-}
-
 let lessonCatalogue: [LessonCategory] = [
     LessonCategory(id: "math", title: "Numbers & Maths", emoji: "🔢", color: Color(red: 0.3, green: 0.7, blue: 0.9),
         lessons: [

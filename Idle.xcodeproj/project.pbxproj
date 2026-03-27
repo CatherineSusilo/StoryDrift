@@ -214,6 +214,18 @@
             path = Components;
             sourceTree = "<group>";
         };
+        M10000112F6CD78F001DBFE5 /* Minigames */ = {
+            isa = PBXGroup;
+            children = (
+                M10000082F6CD78F001DBFE5 /* DrawingMinigame.swift */,
+                M100000A2F6CD78F001DBFE5 /* MinigameOverlay.swift */,
+                M100000C2F6CD78F001DBFE5 /* MultipleChoiceMinigame.swift */,
+                M100000E2F6CD78F001DBFE5 /* ShapeSortingMinigame.swift */,
+                M10000102F6CD78F001DBFE5 /* VoiceMinigame.swift */,
+            );
+            path = Minigames;
+            sourceTree = "<group>";
+        };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -320,6 +332,14 @@
                 FF0000012F6CD78F001DBFE5 /* ThemeStore.swift in Sources */,
                 FC0000012F6CD78F001DBFE5 /* CharacterStore.swift in Sources */,
                 FC0000032F6CD78F001DBFE5 /* CharactersView.swift in Sources */,
+                M10000012F6CD78F001DBFE5 /* BedtimeStorySessionView.swift in Sources */,
+                M10000032F6CD78F001DBFE5 /* EducationalStorySessionView.swift in Sources */,
+                M10000052F6CD78F001DBFE5 /* LessonRoadmapView.swift in Sources */,
+                M10000072F6CD78F001DBFE5 /* DrawingMinigame.swift in Sources */,
+                M10000092F6CD78F001DBFE5 /* MinigameOverlay.swift in Sources */,
+                M100000B2F6CD78F001DBFE5 /* MultipleChoiceMinigame.swift in Sources */,
+                M100000D2F6CD78F001DBFE5 /* ShapeSortingMinigame.swift in Sources */,
+                M100000F2F6CD78F001DBFE5 /* VoiceMinigame.swift in Sources */,
             );
             runOnlyForDeploymentPostprocessing = 0;
         };
