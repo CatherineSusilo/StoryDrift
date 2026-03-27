@@ -114,7 +114,8 @@ class APIService: ObservableObject {
             "age": config.age,
             "storytellingTone": config.storytellingTone,
             "parentPrompt": config.parentPrompt,
-            "initialState": config.initialState
+            "initialState": config.initialState,
+            "targetDuration": config.targetDuration ?? 15
         ]]
 
         guard let url = URL(string: "\(Self.baseURL)/api/generate/story") else { throw APIError.invalidURL }
@@ -148,7 +149,8 @@ class APIService: ObservableObject {
             "storytellingTone": config.storytellingTone,
             "initialState": config.initialState,
             "initialDriftScore": 0,
-            "modelUsed": modelUsed
+            "modelUsed": modelUsed,
+            "targetDuration": config.targetDuration ?? 15
         ]
 
         let story: Story = try await request(endpoint: "/api/stories", method: "POST", body: AnyCodable(saveBody), token: token)
@@ -181,6 +183,10 @@ struct StoryConfig: Codable {
     var drawingPrompts: [String]?
     /// Optional character prompt fragments, e.g. ["Bearie (a fluffy bear; brave, gentle)"]
     var characters: [String]?
+    /// How often interactive minigames appear during the story.
+    var minigameFrequency: String?
+    /// Target story duration in minutes (10 = short, 15 = medium, 20 = long).
+    var targetDuration: Int?
 }
 
 // MARK: - API Errors

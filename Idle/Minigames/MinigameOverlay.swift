@@ -1,45 +1,5 @@
 import SwiftUI
 
-// MARK: - Minigame Data Models
-
-enum MinigameType: String, Codable {
-    case drawing, voice, shape_sorting, multiple_choice
-}
-
-struct MinigameChoice: Codable, Identifiable {
-    let id: String
-    let label: String
-    let emoji: String?
-    let isCorrect: Bool
-}
-
-struct ShapeSlot: Codable, Identifiable {
-    let id: String
-    let shape: String      // circle | square | triangle | star | heart
-    let color: String      // hex
-    let targetSlotId: String
-}
-
-struct MinigameTrigger: Codable {
-    let type: MinigameType
-    let narratorPrompt: String
-    let drawingTheme: String?
-    let drawingDarkBackground: Bool?
-    let voiceTarget: String?
-    let voiceHint: String?
-    let choices: [MinigameChoice]?
-    let shapes: [ShapeSlot]?
-    let timeoutSeconds: Int?
-}
-
-struct MinigameResult {
-    let type: MinigameType
-    let completed: Bool
-    let correct: Bool?
-    let skipped: Bool
-    let responseData: String?   // base64 image / transcribed word / choice id
-}
-
 // MARK: - MinigameOverlay
 
 /// Full-screen overlay that wraps whichever minigame type was triggered.

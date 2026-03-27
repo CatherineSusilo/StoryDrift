@@ -27,8 +27,10 @@ struct SessionStartResponse: Codable {
 struct EducationalStorySessionView: View {
     let child: ChildProfile
     let lesson: LessonDefinition
+    let minigameFrequency: MinigameFrequency
     let onComplete: (EducationalSummary) -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var vitalsManager: VitalsManager
 
@@ -96,37 +98,7 @@ struct EducationalStorySessionView: View {
     // MARK: - Background
 
     private var backgroundView: some View {
-        ZStack {
-            if let url = currentImageUrl.flatMap({ URL(string: $0) }) {
-                AsyncImage(url: url) { img in
-                    img.resizable().aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    learningGradient
-                }
-                .ignoresSafeArea()
-                .overlay(Color.black.opacity(0.45).ignoresSafeArea())
-            } else {
-                learningGradient.ignoresSafeArea()
-            }
-        }
-        .animation(.easeInOut(duration: 1.5), value: currentImageUrl)
-    }
-
-    private var learningGradient: some View {
-        LinearGradient(
-            colors: engagementColor.map { [$0.opacity(0.8), $0.opacity(0.4)] } ?? [
-                Color(red: 0.05, green: 0.15, blue: 0.35),
-                Color(red: 0.1, green: 0.3, blue: 0.5),
-            ],
-            startPoint: .top, endPoint: .bottom
-        )
-    }
-
-    private var engagementColor: Color? {
-        if engagementScore <= 30 { return Color(red: 0.4, green: 0.4, blue: 0.5) }
-        if engagementScore <= 60 { return Color(red: 0.2, green: 0.45, blue: 0.7) }
-        if engagementScore <= 85 { return Color(red: 0.1, green: 0.6, blue: 0.5) }
-        return Color(red: 0.6, green: 0.3, blue: 0.1)
+        StoryImageView.educational(imageUrl: currentImageUrl, engagementScore: engagementScore)
     }
 
     // MARK: - Loading overlay
@@ -136,7 +108,7 @@ struct EducationalStorySessionView: View {
             ProgressView()
                 .tint(.white)
                 .scaleEffect(1.5)
-            Text("Preparing "\(lesson.name)"…")
+            Text("Preparing \"\(lesson.name)\"…")
                 .font(.custom("Georgia", size: 18))
                 .foregroundColor(.white)
         }
@@ -179,6 +151,18 @@ struct EducationalStorySessionView: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
+            // Close button
+            Button {
+                tearDown()
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white.opacity(0.85))
+                    .padding(10)
+                    .background(Circle().fill(Color.black.opacity(0.35)))
+            }
+
             // Lesson pill
             HStack(spacing: 6) {
                 Text(lesson.emoji)
@@ -294,10 +278,11 @@ struct EducationalStorySessionView: View {
                     "childId": child.id,
                     "name": child.name,
                     "age": child.age,
-                    "favoriteCharacter": (child as? ChildProfile)?.name ?? "a curious animal",
+                    "favoriteCharacter": child.name,
                 ],
                 "lessonName": lesson.name,
                 "lessonDescription": lesson.description,
+                "minigameFrequency": minigameFrequency.rawValue,
             ]
 
             let data = try await APIService.shared.post(
@@ -330,7 +315,7 @@ struct EducationalStorySessionView: View {
     private func runTick() async {
         guard let sid = sessionId, let token = authManager.accessToken else { return }
 
-        let cameraEnabled = vitalsManager.isCameraEnabled && vitalsManager.signalQuality > 0.2
+        let cameraEnabled = vitalsManager.isCameraEnabled && vitalsManager.signalQuality > 20
         let biometrics: [String: Any] = cameraEnabled ? [
             "pulse_rate":     vitalsManager.heartRate > 0 ? vitalsManager.heartRate : NSNull(),
             "breathing_rate": vitalsManager.breathingRate > 0 ? vitalsManager.breathingRate : NSNull(),
@@ -436,9 +421,12 @@ struct EducationalStorySessionView: View {
     private func playAudio(data: Data) {
         DispatchQueue.main.async {
             do {
-                try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-                audioPlayer = try AVAudioPlayer(data: data)
-                audioPlayer?.play()
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playback, mode: .default, options: [])
+                try session.setActive(true)
+                self.audioPlayer = try AVAudioPlayer(data: data)
+                self.audioPlayer?.prepareToPlay()
+                self.audioPlayer?.play()
             } catch {
                 print("Audio error: \(error)")
             }

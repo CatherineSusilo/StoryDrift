@@ -59,7 +59,7 @@ struct VoiceMinigame: View {
 
             // Transcript readout
             if !transcript.isEmpty {
-                Text(""\(transcript)"")
+                Text("\"\(transcript)\"")
                     .font(.system(size: 17, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.85))
                     .padding(.horizontal, 24)

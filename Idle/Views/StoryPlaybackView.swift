@@ -13,9 +13,18 @@ struct StoryPlaybackView: View {
     @State private var audioPlayer: AVAudioPlayer?
     @State private var timer: Timer?
     @State private var driftHistory: [Double] = []
+    @State private var paragraphElapsed: TimeInterval = 0  // seconds on current paragraph
 
     // SmartSpectra vitals tracker — one instance per playback session
     @StateObject private var vitalsTracker = StoryVitalsTracker()
+
+    /// Minimum seconds each paragraph is shown before auto-advancing.
+    /// Distributes the full target duration evenly across all paragraphs.
+    private var minSecondsPerParagraph: TimeInterval {
+        let targetSeconds = TimeInterval((story.targetDuration ?? 15) * 60)
+        let count = max(1, story.paragraphs.count)
+        return targetSeconds / TimeInterval(count)
+    }
     
     private var currentParagraph: StoryParagraph? {
         guard currentParagraphIndex < story.paragraphs.count else { return nil }
@@ -68,35 +77,32 @@ struct StoryPlaybackView: View {
                 )
                 .ignoresSafeArea()
             }
-            
+
             VStack(spacing: 0) {
                 // Top Bar
                 HStack {
-                    Button(action: { showMenu = true }) {
+                    Button(action: { withAnimation(.spring(response: 0.3)) { showMenu = true } }) {
                         Image(systemName: "line.3.horizontal")
                             .font(.system(size: 20))
                             .foregroundColor(.white)
                             .padding()
                             .background(Circle().fill(Color.black.opacity(0.3)))
                     }
-                    
+
                     Spacer()
-                    
+
                     // Time elapsed
                     Text(formatTime(elapsedTime))
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(.white)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.3))
-                        )
+                        .background(Capsule().fill(Color.black.opacity(0.3)))
                 }
                 .padding()
-                
+
                 Spacer()
-                
+
                 // Story Text
                 VStack(spacing: 24) {
                     if let paragraph = currentParagraph {
@@ -111,29 +117,24 @@ struct StoryPlaybackView: View {
                     }
                 }
                 .frame(maxHeight: 300)
-                
+
                 Spacer()
-                
+
                 // Drift Meter
-                DriftMeterView(
-                    driftScore: vitalsManager.driftScore,
-                    isCompact: true
-                )
-                .padding(.horizontal)
-                
+                DriftMeterView(driftScore: vitalsManager.driftScore, isCompact: true)
+                    .padding(.horizontal)
+
                 // Progress Bar
                 VStack(spacing: 12) {
                     ProgressView(value: progress)
                         .tint(.cyan)
                         .scaleEffect(y: 2)
-                    
+
                     HStack {
                         Text("Paragraph \(currentParagraphIndex + 1) of \(story.paragraphs.count)")
                             .font(.system(size: 14))
                             .foregroundColor(.white.opacity(0.7))
-                        
                         Spacer()
-                        
                         Text(vitalsManager.getDriftStatus())
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.cyan)
@@ -142,24 +143,92 @@ struct StoryPlaybackView: View {
                 .padding(.horizontal)
                 .padding(.bottom, 32)
             }
-        }
-        .onAppear {
-            startStory()
-        }
-        .onDisappear {
-            stopStory()
-        }
-        .confirmationDialog("Story Menu", isPresented: $showMenu) {
-            Button(isPlaying ? "Pause" : "Resume") {
-                togglePlayback()
+
+            // ── Custom menu overlay ──────────────────────────────────────────
+            if showMenu {
+                Color.black.opacity(0.55)
+                    .ignoresSafeArea()
+                    .onTapGesture { withAnimation(.spring(response: 0.3)) { showMenu = false } }
+                    .transition(.opacity)
+
+                VStack(spacing: 0) {
+                    Spacer()
+
+                    VStack(spacing: 0) {
+                        // Handle
+                        Capsule()
+                            .fill(Color.white.opacity(0.3))
+                            .frame(width: 40, height: 4)
+                            .padding(.top, 14)
+                            .padding(.bottom, 20)
+
+                        menuButton(
+                            icon: isPlaying ? "pause.fill" : "play.fill",
+                            label: isPlaying ? "Pause" : "Resume",
+                            color: .white
+                        ) {
+                            togglePlayback()
+                            withAnimation { showMenu = false }
+                        }
+
+                        Divider().background(Color.white.opacity(0.15))
+
+                        menuButton(
+                            icon: "forward.fill",
+                            label: "Next Paragraph",
+                            color: .white
+                        ) {
+                            paragraphElapsed = 0
+                            nextParagraph()
+                            withAnimation { showMenu = false }
+                        }
+
+                        Divider().background(Color.white.opacity(0.15))
+
+                        menuButton(
+                            icon: "xmark.circle.fill",
+                            label: "End Story",
+                            color: Color(red: 1, green: 0.35, blue: 0.35)
+                        ) {
+                            showMenu = false
+                            completeStory()
+                        }
+
+                        // Safe-area spacer
+                        Color.clear.frame(height: 34)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color(red: 0.1, green: 0.1, blue: 0.18).opacity(0.97))
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(100)
             }
-            Button("Next Paragraph") {
-                nextParagraph()
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showMenu)
+        .onAppear { startStory() }
+        .onDisappear { stopStory() }
+    }
+
+    // MARK: - Menu button helper
+
+    private func menuButton(icon: String, label: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(color)
+                    .frame(width: 28)
+                Text(label)
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundColor(color)
+                Spacer()
             }
-            Button("End Story", role: .destructive) {
-                completeStory()
-            }
-            Button("Cancel", role: .cancel) {}
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
         }
     }
 
@@ -176,20 +245,27 @@ struct StoryPlaybackView: View {
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             if isPlaying {
                 elapsedTime += 1
+                paragraphElapsed += 1
                 driftHistory.append(vitalsManager.driftScore)
 
-                // Check if child is asleep (drift > 90%)
+                // Sleep detected
                 if vitalsManager.driftScore >= 90 {
                     completeStory()
+                    return
                 }
 
-                // MARK: - ⚠️ DEBUG ONLY — remove before release
+                // Auto-advance when the paragraph has been shown for its minimum time
+                if paragraphElapsed >= minSecondsPerParagraph {
+                    paragraphElapsed = 0
+                    nextParagraph()
+                }
+
+                // DEBUG: end after 2 min when using debug prompt
                 #if DEBUG
                 if story.parentPrompt.hasPrefix("DEBUG_2MIN:") && elapsedTime >= 120 {
                     completeStory()
                 }
                 #endif
-                // END DEBUG
             }
         }
 
@@ -220,11 +296,12 @@ struct StoryPlaybackView: View {
             completeStory()
             return
         }
-        
+
+        paragraphElapsed = 0
         withAnimation {
             currentParagraphIndex += 1
         }
-        
+
         playCurrentParagraph()
     }
     
@@ -242,40 +319,30 @@ struct StoryPlaybackView: View {
     }
     
     private func playAudio(url: URL) {
-        // Download and play audio
         URLSession.shared.dataTask(with: url) { data, _, error in
             guard let data = data, error == nil else { return }
-            
             DispatchQueue.main.async {
                 do {
-                    audioPlayer = try AVAudioPlayer(data: data)
-                    audioPlayer?.delegate = AudioPlayerDelegate(onFinish: nextParagraph)
-                    audioPlayer?.play()
+                    self.audioPlayer = try AVAudioPlayer(data: data)
+                    self.audioPlayer?.play()
+                    // Paragraph advancement is handled by the timer (minSecondsPerParagraph)
                 } catch {
                     print("Error playing audio: \(error)")
-                    speakText(currentParagraph?.text ?? "")
+                    self.speakText(self.currentParagraph?.text ?? "")
                 }
             }
         }.resume()
     }
     
     private func speakText(_ text: String) {
-        // Use AVSpeechSynthesizer for text-to-speech
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = 0.4 // Slower for bedtime
+        utterance.rate = 0.4
         utterance.pitchMultiplier = 0.9
-        
+
         let synthesizer = AVSpeechSynthesizer()
         synthesizer.speak(utterance)
-        
-        // Auto-advance after speaking
-        let estimatedDuration = Double(text.count) / 10 // ~10 chars per second
-        DispatchQueue.main.asyncAfter(deadline: .now() + estimatedDuration) {
-            if isPlaying {
-                nextParagraph()
-            }
-        }
+        // Paragraph advancement is handled by the timer (minSecondsPerParagraph)
     }
     
     private func completeStory() {

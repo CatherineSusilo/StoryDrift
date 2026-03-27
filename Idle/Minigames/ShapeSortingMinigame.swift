@@ -142,14 +142,13 @@ struct ShapeSortingMinigame: View {
             .fill(colorFromHex(shape.color).opacity(opacity))
     }
 
-    @ViewBuilder
-    private func shapeOutline(_ shape: ShapeSlot) -> some Shape {
+    private func shapeOutline(_ shape: ShapeSlot) -> AnyShape {
         switch shape.shape {
-        case "circle":   AnyShape(Circle())
-        case "square":   AnyShape(Rectangle().cornerRadius(6))
-        case "triangle": AnyShape(Triangle())
-        case "star":     AnyShape(Star(points: 5, innerRatio: 0.45))
-        default:         AnyShape(Heart())
+        case "circle":   return AnyShape(Circle())
+        case "square":   return AnyShape(RoundedRectangle(cornerRadius: 6))
+        case "triangle": return AnyShape(Triangle())
+        case "star":     return AnyShape(Star(points: 5, innerRatio: 0.45))
+        default:         return AnyShape(Heart())
         }
     }
 

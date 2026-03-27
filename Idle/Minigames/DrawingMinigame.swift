@@ -28,7 +28,7 @@ struct DrawingMinigame: View {
             }
 
             // Canvas
-            DrawingCanvasView(
+            MinigameCanvasView(
                 canvasView: $canvasView,
                 toolPicker: $toolPicker,
                 strokeCount: $strokeCount,
@@ -131,7 +131,7 @@ struct DrawingMinigame: View {
 
 // MARK: - PKCanvasView SwiftUI wrapper
 
-struct DrawingCanvasView: UIViewRepresentable {
+struct MinigameCanvasView: UIViewRepresentable {
     @Binding var canvasView: PKCanvasView
     @Binding var toolPicker: PKToolPicker
     @Binding var strokeCount: Int

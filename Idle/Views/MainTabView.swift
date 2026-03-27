@@ -46,6 +46,7 @@ struct MainTabView: View {
     // Educational lesson selection
     @State private var selectedLesson: LessonDefinition? = nil
     @State private var completedLessonIds: Set<String> = []
+    @State private var pendingMinigameFrequency: MinigameFrequency = .every5th
 
     // Bedtime session sheet
     @State private var showBedtimeSession = false
@@ -96,7 +97,11 @@ struct MainTabView: View {
         }
         .fullScreenCover(item: $selectedLesson) { lesson in
             if let child = selectedChild ?? children.first.map({ $0 }) {
-                EducationalStorySessionView(child: child, lesson: lesson) { summary in
+                EducationalStorySessionView(
+                    child: child,
+                    lesson: lesson,
+                    minigameFrequency: pendingMinigameFrequency
+                ) { summary in
                     selectedLesson = nil
                     if summary.lessonProgress >= 100 {
                         completedLessonIds.insert(lesson.id)
@@ -227,12 +232,12 @@ struct MainTabView: View {
                 }
             )
         case .journey:
-            StoryRoadmapView(
+            LessonRoadmapView(
                 child: child,
-                onBack: { withAnimation { selectedDest = .home } },
-                onStartStory: { _ in
+                completedLessonIds: completedLessonIds,
+                onStartLesson: { lesson in
                     selectedChild = child
-                    currentView = .setup
+                    selectedLesson = lesson
                 }
             )
         case .analytics:

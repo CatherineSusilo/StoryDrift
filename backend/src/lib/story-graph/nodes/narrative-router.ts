@@ -20,7 +20,7 @@ export function routeNarrativeStrategy(state: BedtimeState): {
       strategy: 'engagement',
       prompt_directive:
         'Write a vivid, engaging scene. Introduce a small problem or mystery for the character to solve. ' +
-        'Use active, sensory language. Keep the child's attention with something unexpected or delightful.',
+        'Use active, sensory language. Keep the child\'s attention with something unexpected or delightful.',
     };
     if (arc_position === 'opening' && session_minutes >= 3) next_arc = 'rising';
   } else if (drift_score <= 50) {

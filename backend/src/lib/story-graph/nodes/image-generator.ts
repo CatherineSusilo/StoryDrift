@@ -2,19 +2,21 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuid } from 'uuid';
+import Anthropic from '@anthropic-ai/sdk';
 
 // ── Local storage setup ────────────────────────────────────────────────────────
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'story-images');
 
-// Ensure directory exists at import time
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
+const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
 interface ImageResult {
-  imageUrl: string;      // permanent local URL  — e.g. /images/abc123.webp
-  falUrl: string;        // temporary Fal.ai CDN URL — valid ~1h, use for next image-to-image
+  imageUrl: string;
+  falUrl: string;
   prompt: string;
 }
 
@@ -27,21 +29,66 @@ function getVisualTone(score: number, mode: 'bedtime' | 'educational'): string {
     if (score <= 75) return 'dusk, cool blues and soft purples, dreamy and hazy';
     return 'moonlit night, near-darkness, minimal detail, deep indigo, very quiet and still';
   }
-  // Educational
   if (score <= 30) return 'muted calm colors, simple clean composition, low distraction';
   if (score <= 60) return 'warm clear inviting light, friendly and open scene';
   if (score <= 85) return 'bright rich colors, detailed and vibrant, peak visual energy';
   return 'soft simplified colors, reduced visual complexity, gentle and calm';
 }
 
-// Consistent style suffix applied to every prompt — maintains visual cohesion across segments
 const STYLE_SUFFIX =
   "children's storybook illustration, painterly watercolor style, " +
-  'no text, no words, no letters, no UI elements, soft edges';
+  'no text, no words, no letters, no UI elements, soft edges, wide aspect ratio';
 
-function extractSceneDescription(segment: string): string {
-  const sentences = segment.match(/[^.!?]+[.!?]+/g) || [segment];
-  return sentences.slice(0, 2).join(' ').trim();
+/**
+ * Uses Claude to extract a rich, specific, visual image prompt from the paragraph.
+ * Returns a single descriptive sentence focused on scene, characters, lighting,
+ * and mood — everything Flux needs to paint a beautiful storybook illustration.
+ */
+async function buildImagePrompt(
+  segment: string,
+  score: number,
+  mode: 'bedtime' | 'educational',
+  lessonConcept?: string,
+): Promise<string> {
+  const visualTone = getVisualTone(score, mode);
+  const conceptHint = lessonConcept ? ` Make sure the concept "${lessonConcept}" is clearly visible.` : '';
+
+  try {
+    const response = await claude.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 120,
+      messages: [
+        {
+          role: 'user',
+          content: `Extract a single vivid image prompt from this story paragraph for a children's storybook illustration.
+
+PARAGRAPH:
+"${segment}"
+
+VISUAL TONE: ${visualTone}${conceptHint}
+
+Rules:
+- One sentence only, max 40 words
+- Describe the exact scene: specific characters, their actions, the setting, foreground objects
+- Include the visual tone naturally (lighting, palette, atmosphere)
+- End with: ${STYLE_SUFFIX}
+- No quotes, no preamble, just the prompt itself`,
+        },
+      ],
+    });
+
+    const text = (response.content[0] as { type: string; text: string }).text.trim();
+    // Strip any accidental leading quotes
+    return text.replace(/^["']|["']$/g, '');
+  } catch (err) {
+    // Fallback: first two sentences + tone
+    console.warn('⚠️ Claude prompt extraction failed, using fallback:', err);
+    const sentences = segment.match(/[^.!?]+[.!?]+/g) || [segment];
+    const base = sentences.slice(0, 2).join(' ').trim();
+    let prompt = `${base} ${visualTone}, ${STYLE_SUFFIX}`;
+    if (lessonConcept) prompt += `, clearly showing ${lessonConcept}`;
+    return prompt;
+  }
 }
 
 // ── Main export ────────────────────────────────────────────────────────────────
@@ -61,22 +108,19 @@ export async function generateSceneImage(
   segment: string,
   score: number,
   mode: 'bedtime' | 'educational',
-  recentFalUrls: string[] = [],    // Fal.ai CDN URLs from last 2 segments (still fresh)
+  recentFalUrls: string[] = [],
   lessonConcept?: string,
 ): Promise<ImageResult> {
-  const sceneDesc  = extractSceneDescription(segment);
-  const visualTone = getVisualTone(score, mode);
-
-  let imagePrompt = `${sceneDesc} ${visualTone}, ${STYLE_SUFFIX}`;
-  if (lessonConcept) imagePrompt += `, clearly showing ${lessonConcept}`;
-
   const apiKey = process.env.FAL_API_KEY;
   if (!apiKey) {
     console.warn('⚠️ FAL_API_KEY not configured — skipping image generation');
-    return { imageUrl: '', falUrl: '', prompt: imagePrompt };
+    return { imageUrl: '', falUrl: '', prompt: '' };
   }
 
-  // Pick the most recent valid Fal.ai CDN URL for image-to-image reference
+  // Claude extracts a rich, specific visual prompt from the paragraph
+  const imagePrompt = await buildImagePrompt(segment, score, mode, lessonConcept);
+  console.log(`🎨 Image prompt: ${imagePrompt.slice(0, 80)}…`);
+
   const refUrl = recentFalUrls.at(-1);
 
   try {

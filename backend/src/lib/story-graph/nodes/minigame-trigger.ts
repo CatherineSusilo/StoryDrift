@@ -9,26 +9,46 @@ import {
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Only fire a minigame when engagement is in active range and enough segments have passed
-const MIN_SEGMENTS_BETWEEN_MINIGAMES = 3;
-const MINIGAME_ENGAGEMENT_MIN = 40;
-const MINIGAME_ENGAGEMENT_MAX = 92;
+// How many segments must pass between minigames, per frequency setting
+function minSegmentsBetween(frequency: string): number {
+  switch (frequency) {
+    case 'every_paragraph': return 1;
+    case 'every_3rd':       return 3;
+    case 'every_5th':       return 5;
+    case 'none':
+    default:                return Infinity;
+  }
+}
 
-/**
- * Decides whether to trigger a minigame after the current segment,
- * and if so, what type with what content.
- *
- * Returns null if no minigame should fire.
- */
+// Child is too drowsy / disengaged to participate — suppress minigames.
+// Below this threshold engagement is so low the child may be drifting off.
+const DRIFT_SUPPRESSION_THRESHOLD = 25;
+
 export async function decidMinigame(
   state: EducationalState,
   segment: string,
 ): Promise<MinigameTrigger | null> {
-  const { engagement_score, segments_since_last_minigame, lesson_name, lesson_description, childProfile } = state;
+  const { segments_since_last_minigame, engagement_score, lesson_name, lesson_description, childProfile } = state;
 
-  // Gate conditions
-  if (engagement_score < MINIGAME_ENGAGEMENT_MIN || engagement_score > MINIGAME_ENGAGEMENT_MAX) return null;
-  if (segments_since_last_minigame < MIN_SEGMENTS_BETWEEN_MINIGAMES) return null;
+  const freq = state.minigame_frequency ?? 'every_5th';
+  const minGap = minSegmentsBetween(freq);
+
+  // frequency = none → never fire
+  if (minGap === Infinity) return null;
+
+  // Child is drifting / drowsy → suppress minigames
+  if (engagement_score < DRIFT_SUPPRESSION_THRESHOLD) {
+    console.log(`🎮 Minigame suppressed: engagement ${engagement_score} < ${DRIFT_SUPPRESSION_THRESHOLD} (child drifting)`);
+    return null;
+  }
+
+  // Not enough segments since last minigame
+  if (segments_since_last_minigame < minGap) {
+    console.log(`🎮 Minigame gated: ${segments_since_last_minigame}/${minGap} segments since last (freq=${freq})`);
+    return null;
+  }
+
+  console.log(`🎮 Firing minigame! engagement=${engagement_score}, segments_since_last=${segments_since_last_minigame}, freq=${freq}`);
 
   // Ask Claude to generate an appropriate minigame for the current story moment
   const prompt = `You are designing a fun, age-appropriate minigame for a child aged ${childProfile.age} inside an educational story.

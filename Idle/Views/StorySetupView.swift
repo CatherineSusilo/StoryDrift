@@ -18,6 +18,7 @@ struct StorySetupView: View {
     @State private var initialState: InitialState = .normal
     @State private var storyLength: StoryLength = .medium
     @State private var isGenerating = false
+    @State private var minigameFrequency: MinigameFrequency = .none
 
     // MARK: - Characters state
     @State private var selectedCharacterIds: Set<String> = []
@@ -153,7 +154,7 @@ struct StorySetupView: View {
                                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(borderClr, lineWidth: 1.5))
                                 .cornerRadius(6)
                             }
-                            .onChange(of: pickerItems) { _ in
+                            .onChange(of: pickerItems) { _, _ in
                                 Task { await loadPickerItems() }
                             }
 
@@ -194,6 +195,18 @@ struct StorySetupView: View {
                                     .font(.custom("PatrickHand-Regular", size: 14))
                                     .foregroundColor(ink.opacity(0.4))
                                     .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+
+                    // ── Interactive Learning Moments ─────────────────────
+                    sectionCard(title: "interactive learning moments") {
+                        LazyVGrid(
+                            columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                            spacing: 10
+                        ) {
+                            ForEach(MinigameFrequency.allCases, id: \.self) { freq in
+                                minigameFrequencyCard(freq)
                             }
                         }
                     }
@@ -297,9 +310,7 @@ struct StorySetupView: View {
         }
         .navigationBarHidden(true)
         .onAppear { loadDrawings() }
-        .onChange(of: selectedTheme) { theme in
-            // When a theme card is tapped, prefill the prompt with the theme name
-            // but keep any custom text the parent has typed.
+        .onChange(of: selectedTheme) { _, theme in
             if let theme, parentPrompt.isEmpty {
                 parentPrompt = theme.name
             }
@@ -523,6 +534,42 @@ struct StorySetupView: View {
         }
     }
 
+    // MARK: - Minigame frequency card
+    @ViewBuilder
+    private func minigameFrequencyCard(_ freq: MinigameFrequency) -> some View {
+        let isActive = minigameFrequency == freq
+        Button {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                minigameFrequency = freq
+            }
+        } label: {
+            VStack(spacing: 10) {
+                if freq.usesSFSymbol {
+                    Image(systemName: freq.icon)
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundColor(ink.opacity(0.55))
+                        .frame(height: 30)
+                } else {
+                    Text(freq.icon)
+                        .font(.system(size: 26))
+                        .frame(height: 30)
+                }
+                Text(freq.displayName)
+                    .font(.custom("PatrickHand-Regular", size: 14))
+                    .foregroundColor(ink.opacity(isActive ? 1.0 : 0.7))
+                    .fontWeight(isActive ? .bold : .regular)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(isActive ? activeCardBg : cardBg.opacity(0.5))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isActive ? activeBorder : borderClr, lineWidth: isActive ? 2 : 1)
+            )
+            .cornerRadius(8)
+        }
+    }
+
     // MARK: - Custom drawing thumbnail (with remove button)
     @ViewBuilder
     private func customDrawingThumbnail(_ upload: CustomUpload) -> some View {
@@ -614,6 +661,8 @@ struct StorySetupView: View {
         if !drawings.isEmpty { config.drawingPrompts = drawings }
         let chars = selectedCharacterPrompts()
         if !chars.isEmpty { config.characters = chars }
+        if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
+        config.targetDuration = storyLength.duration
 
         isGenerating = false
         onStartStory(config)
@@ -636,6 +685,7 @@ struct StorySetupView: View {
         if !drawings.isEmpty { config.drawingPrompts = drawings }
         let chars = selectedCharacterPrompts()
         if !chars.isEmpty { config.characters = chars }
+        if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
         isGenerating = false
         onStartStory(config)
     }

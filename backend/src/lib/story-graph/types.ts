@@ -135,6 +135,7 @@ export interface EducationalState {
   segments: StorySegment[];
   minigame_events: MinigameEvent[];
   segments_since_last_minigame: number;
+  minigame_frequency: 'none' | 'every_5th' | 'every_3rd' | 'every_paragraph';
   session_complete: boolean;
 }
 

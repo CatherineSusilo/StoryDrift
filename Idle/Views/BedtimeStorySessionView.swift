@@ -12,6 +12,7 @@ struct BedtimeStorySessionView: View {
     let child: ChildProfile
     let onComplete: ([Double], TimeInterval) -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var vitalsManager: VitalsManager
 
@@ -212,8 +213,8 @@ struct BedtimeStorySessionView: View {
 
     private var storyView: some View {
         ZStack {
-            // Scene background
-            sceneBackground
+            // Scene background — smooth crossfade on each new image
+            StoryImageView.bedtime(imageUrl: currentImageUrl, driftScore: driftScore)
 
             VStack(spacing: 0) {
                 Spacer()
@@ -237,35 +238,29 @@ struct BedtimeStorySessionView: View {
                 // Bottom: drift meter only — no controls, no buttons
                 driftBar
             }
-        }
-    }
 
-    private var sceneBackground: some View {
-        ZStack {
-            if let url = currentImageUrl.flatMap({ URL(string: $0) }) {
-                AsyncImage(url: url) { img in
-                    img.resizable().aspectRatio(contentMode: .fill)
-                } placeholder: { nightGradient }
-                .ignoresSafeArea()
-            } else {
-                nightGradient.ignoresSafeArea()
+            // Close button — top left, fades with drift
+            VStack {
+                HStack {
+                    Button {
+                        tearDown()
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.white.opacity(0.6))
+                            .padding(10)
+                            .background(Circle().fill(Color.black.opacity(0.25)))
+                    }
+                    .padding(.leading, 20)
+                    .padding(.top, 56)
+                    .opacity(max(0.05, 1.0 - Double(driftScore) / 80))
+                    .animation(.easeInOut(duration: 3), value: driftScore)
+                    Spacer()
+                }
+                Spacer()
             }
-
-            // Dark overlay intensifies as drift score rises
-            let overlayOpacity = 0.4 + Double(driftScore) / 100 * 0.45
-            Color.black.opacity(overlayOpacity).ignoresSafeArea()
-                .animation(.easeInOut(duration: 4), value: driftScore)
         }
-    }
-
-    private var nightGradient: some View {
-        LinearGradient(
-            colors: [
-                Color(red: 0.03, green: 0.03, blue: 0.12),
-                Color(red: 0.06, green: 0.02, blue: 0.18),
-            ],
-            startPoint: .top, endPoint: .bottom
-        )
     }
 
     private var driftBar: some View {
@@ -409,8 +404,11 @@ struct BedtimeStorySessionView: View {
 
     private func playAudio(data: Data) {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [])
+            try session.setActive(true)
             audioPlayer = try AVAudioPlayer(data: data)
+            audioPlayer?.prepareToPlay()
             audioPlayer?.play()
         } catch {
             print("Audio error: \(error)")

@@ -30,6 +30,17 @@ import { decidMinigame } from './nodes/minigame-trigger';
 // In-memory session store (persisted to DB via routes)
 const sessions = new Map<string, GraphState>();
 
+// Returns the segment gap for a given frequency — used to initialise the
+// counter so the first minigame fires on tick 2 (one story segment shown first).
+function minGapForFrequency(freq: string): number {
+  switch (freq) {
+    case 'every_paragraph': return 1;
+    case 'every_3rd':       return 3;
+    case 'every_5th':       return 5;
+    default:                return 5;
+  }
+}
+
 // ── Session initialisation ─────────────────────────────────────────────────────
 
 export function createBedtimeSession(childProfile: ChildProfile): BedtimeState {
@@ -58,6 +69,7 @@ export async function createEducationalSession(
   childProfile: ChildProfile,
   lessonName: string,
   lessonDescription: string,
+  minigameFrequency: 'none' | 'every_5th' | 'every_3rd' | 'every_paragraph' = 'every_5th',
 ): Promise<EducationalState> {
   const sessionId = uuid();
 
@@ -86,7 +98,8 @@ export async function createEducationalSession(
     guard_failures: 0,
     segments: [],
     minigame_events: [],
-    segments_since_last_minigame: 0,
+    segments_since_last_minigame: minGapForFrequency(minigameFrequency),   // fires on tick 2
+    minigame_frequency: minigameFrequency,
     session_complete: false,
   };
   sessions.set(sessionId, state);

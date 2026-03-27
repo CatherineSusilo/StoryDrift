@@ -46,6 +46,7 @@ const StartEducationalSchema = z.object({
   childProfile: ChildProfileSchema,
   lessonName: z.string().min(1),
   lessonDescription: z.string().min(1),
+  minigameFrequency: z.enum(['none', 'every_5th', 'every_3rd', 'every_paragraph']).optional(),
 });
 
 const StartSchema = z.discriminatedUnion('mode', [StartBedtimeSchema, StartEducationalSchema]);
@@ -82,6 +83,7 @@ router.post('/start', async (req: AuthRequest, res: Response) => {
         childProfile as ChildProfile,
         body.lessonName,
         body.lessonDescription,
+        body.minigameFrequency ?? 'every_5th',
       );
     }
 
