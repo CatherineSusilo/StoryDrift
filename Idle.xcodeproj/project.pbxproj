@@ -41,6 +41,14 @@
         FC0000012F6CD78F001DBFE5 /* CharacterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0000022F6CD78F001DBFE5 /* CharacterStore.swift */; };
         FC0000032F6CD78F001DBFE5 /* CharactersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC0000042F6CD78F001DBFE5 /* CharactersView.swift */; };
         FA0000012F6CD78F001DBFE5 /* IndieFlower-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA0000022F6CD78F001DBFE5 /* IndieFlower-Regular.ttf */; };
+        M10000012F6CD78F001DBFE5 /* BedtimeStorySessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = M10000022F6CD78F001DBFE5 /* BedtimeStorySessionView.swift */; };
+        M10000032F6CD78F001DBFE5 /* EducationalStorySessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = M10000042F6CD78F001DBFE5 /* EducationalStorySessionView.swift */; };
+        M10000052F6CD78F001DBFE5 /* LessonRoadmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = M10000062F6CD78F001DBFE5 /* LessonRoadmapView.swift */; };
+        M10000072F6CD78F001DBFE5 /* DrawingMinigame.swift in Sources */ = {isa = PBXBuildFile; fileRef = M10000082F6CD78F001DBFE5 /* DrawingMinigame.swift */; };
+        M10000092F6CD78F001DBFE5 /* MinigameOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = M100000A2F6CD78F001DBFE5 /* MinigameOverlay.swift */; };
+        M100000B2F6CD78F001DBFE5 /* MultipleChoiceMinigame.swift in Sources */ = {isa = PBXBuildFile; fileRef = M100000C2F6CD78F001DBFE5 /* MultipleChoiceMinigame.swift */; };
+        M100000D2F6CD78F001DBFE5 /* ShapeSortingMinigame.swift in Sources */ = {isa = PBXBuildFile; fileRef = M100000E2F6CD78F001DBFE5 /* ShapeSortingMinigame.swift */; };
+        M100000F2F6CD78F001DBFE5 /* VoiceMinigame.swift in Sources */ = {isa = PBXBuildFile; fileRef = M10000102F6CD78F001DBFE5 /* VoiceMinigame.swift */; };
         FA0000032F6CD78F001DBFE5 /* PatrickHand-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA0000042F6CD78F001DBFE5 /* PatrickHand-Regular.ttf */; };
         FA0000052F6CD78F001DBFE5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA0000062F6CD78F001DBFE5 /* Assets.xcassets */; };
 /* End PBXBuildFile section */

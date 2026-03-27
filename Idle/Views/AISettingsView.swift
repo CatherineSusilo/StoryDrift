@@ -35,6 +35,8 @@ struct AISettingsView: View {
     private let btnBg      = Color(red: 0.824, green: 0.706, blue: 0.549).opacity(0.5)
     private let ink        = Color(red: 0.078, green: 0.059, blue: 0.039)
 
+    @EnvironmentObject var vitalsManager: VitalsManager
+
     var body: some View {
         ZStack {
             bg.ignoresSafeArea()
@@ -57,6 +59,28 @@ struct AISettingsView: View {
                         Color.clear.frame(width: 24) // balance chevron
                     }
                     .padding(.top, 20)
+
+                    // MARK: Camera toggle
+                    VStack(alignment: .leading, spacing: 10) {
+                        Toggle(isOn: $vitalsManager.isCameraEnabled) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Label("Biometric Camera", systemImage: "camera.fill")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(ink)
+                                Text(vitalsManager.isCameraEnabled
+                                     ? "Pulse & breathing tracked — story adapts in real time"
+                                     : "Camera off — story adapts from session time & child profile")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(ink.opacity(0.6))
+                            }
+                        }
+                        .tint(Color(red: 0.3, green: 0.6, blue: 0.3))
+                        .padding(14)
+                        .background(cardBg)
+                        .cornerRadius(12)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderClr, lineWidth: 1))
+                    }
+                    .padding(.top, 8)
 
                     // MARK: Tab Row
                     HStack(spacing: 10) {

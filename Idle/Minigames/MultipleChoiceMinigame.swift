@@ -1,0 +1,164 @@
+import SwiftUI
+
+// MARK: - MultipleChoiceMinigame
+
+/// Child taps the correct button. Gives animated feedback then auto-advances.
+struct MultipleChoiceMinigame: View {
+    let choices: [MinigameChoice]
+    let onComplete: (MinigameResult) -> Void
+
+    @State private var selectedId: String? = nil
+    @State private var revealed = false
+
+    var body: some View {
+        VStack(spacing: 16) {
+            // Choice grid — 2 columns for 4+ options, single column for ≤ 3
+            let columns = choices.count > 3
+                ? [GridItem(.flexible()), GridItem(.flexible())]
+                : [GridItem(.flexible())]
+
+            LazyVGrid(columns: columns, spacing: 14) {
+                ForEach(choices) { choice in
+                    choiceButton(choice)
+                }
+            }
+
+            if revealed {
+                continueButton
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: revealed)
+    }
+
+    // MARK: - Choice button
+
+    @ViewBuilder
+    private func choiceButton(_ choice: MinigameChoice) -> some View {
+        let state = buttonState(for: choice)
+
+        Button {
+            guard selectedId == nil else { return }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                selectedId = choice.id
+                revealed = true
+            }
+            // Haptic
+            let gen = UIImpactFeedbackGenerator(style: choice.isCorrect ? .heavy : .light)
+            gen.impactOccurred()
+        } label: {
+            HStack(spacing: 14) {
+                // Emoji badge
+                if let emoji = choice.emoji {
+                    Text(emoji)
+                        .font(.system(size: 32))
+                        .frame(width: 44, height: 44)
+                        .background(Circle().fill(state.badgeBackground))
+                }
+
+                Text(choice.label)
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundColor(state.textColor)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+
+                Spacer()
+
+                // Result indicator
+                if revealed && selectedId == choice.id {
+                    Image(systemName: choice.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(choice.isCorrect ? .green : .red)
+                        .transition(.scale)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(state.background)
+            .cornerRadius(14)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(state.borderColor, lineWidth: 2)
+            )
+            .scaleEffect(selectedId == choice.id ? 1.03 : 1.0)
+            .animation(.spring(response: 0.25), value: selectedId)
+        }
+        .disabled(revealed)
+    }
+
+    // MARK: - Continue button
+
+    private var continueButton: some View {
+        Button {
+            let correct = choices.first { $0.id == selectedId }?.isCorrect ?? false
+            onComplete(MinigameResult(
+                type: .multiple_choice,
+                completed: true,
+                correct: correct,
+                skipped: false,
+                responseData: selectedId
+            ))
+        } label: {
+            Text("Continue →")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color.cyan)
+                .cornerRadius(14)
+        }
+        .padding(.top, 8)
+    }
+
+    // MARK: - Button state helper
+
+    struct ButtonState {
+        let background: Color
+        let borderColor: Color
+        let textColor: Color
+        let badgeBackground: Color
+    }
+
+    private func buttonState(for choice: MinigameChoice) -> ButtonState {
+        guard revealed, let sid = selectedId else {
+            return ButtonState(
+                background: Color.white.opacity(0.1),
+                borderColor: Color.white.opacity(0.2),
+                textColor: .white,
+                badgeBackground: Color.white.opacity(0.15)
+            )
+        }
+
+        if choice.id == sid {
+            // This is what the child tapped
+            return choice.isCorrect
+                ? ButtonState(background: Color.green.opacity(0.25), borderColor: .green,
+                              textColor: .white, badgeBackground: Color.green.opacity(0.3))
+                : ButtonState(background: Color.red.opacity(0.2), borderColor: .red,
+                              textColor: .white, badgeBackground: Color.red.opacity(0.25))
+        } else if choice.isCorrect && selectedId != nil {
+            // Reveal the correct answer if child was wrong
+            return ButtonState(background: Color.green.opacity(0.15), borderColor: Color.green.opacity(0.5),
+                               textColor: .white.opacity(0.9), badgeBackground: Color.green.opacity(0.2))
+        } else {
+            return ButtonState(background: Color.white.opacity(0.05), borderColor: Color.white.opacity(0.1),
+                               textColor: .white.opacity(0.4), badgeBackground: Color.white.opacity(0.08))
+        }
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    ZStack {
+        Color.black.ignoresSafeArea()
+        MultipleChoiceMinigame(choices: [
+            MinigameChoice(id: "a", label: "Moo", emoji: "🐄", isCorrect: true),
+            MinigameChoice(id: "b", label: "Woof", emoji: "🐕", isCorrect: false),
+            MinigameChoice(id: "c", label: "Meow", emoji: "🐱", isCorrect: false),
+            MinigameChoice(id: "d", label: "Baa", emoji: "🐑", isCorrect: false),
+        ]) { result in print(result) }
+        .padding()
+    }
+}

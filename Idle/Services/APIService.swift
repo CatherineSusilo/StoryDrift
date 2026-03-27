@@ -64,6 +64,24 @@ class APIService: ObservableObject {
         return try decoder.decode(T.self, from: data)
     }
 
+    // MARK: - Raw POST helper (returns Data for manual decoding)
+
+    func post(path: String, body: [String: Any], token: String) async throws -> Data {
+        guard let url = URL(string: "\(Self.baseURL)\(path)") else { throw APIError.invalidURL }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.httpError(statusCode: http.statusCode)
+        }
+        return data
+    }
+
     // MARK: - Children
     func getChildren(token: String) async throws -> [Child] {
         return try await request(endpoint: "/api/children", token: token)

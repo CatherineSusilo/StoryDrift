@@ -36,15 +36,22 @@ struct MainTabView: View {
     @Binding var currentView: AppView
     @Binding var selectedChild: Child?
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var vitalsManager: VitalsManager
 
     @State private var children: [ChildProfile] = []
     @State private var isLoading = true
     @State private var selectedDest: NavDestination = .home
     @State private var menuOpen = false
 
+    // Educational lesson selection
+    @State private var selectedLesson: LessonDefinition? = nil
+    @State private var completedLessonIds: Set<String> = []
+
+    // Bedtime session sheet
+    @State private var showBedtimeSession = false
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            // ── Main content ──
             Group {
                 if isLoading {
                     LoadingView()
@@ -57,35 +64,48 @@ struct MainTabView: View {
                 } else {
                     let child = selectedChild ?? children[0]
                     ZStack(alignment: .topTrailing) {
-                        // Page content
                         pageContent(for: selectedDest, child: child)
-                            // dim/blur when menu is open
                             .scaleEffect(menuOpen ? 0.96 : 1.0)
                             .brightness(menuOpen ? -0.04 : 0)
                             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: menuOpen)
                             .allowsHitTesting(!menuOpen)
                             .onTapGesture { if menuOpen { withAnimation { menuOpen = false } } }
-
-                        // Hamburger button (always visible in top-left)
                         hamburgerButton
                     }
                 }
             }
 
-            // ── Sidebar drawer ──
             if menuOpen {
-                // Tap-outside dismissal overlay
                 Color.black.opacity(0.35)
                     .ignoresSafeArea()
                     .onTapGesture { withAnimation(.spring(response: 0.3)) { menuOpen = false } }
                     .transition(.opacity)
-
-                // Drawer panel
                 sidebarDrawer
                     .transition(.move(edge: .trailing))
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: menuOpen)
+        .fullScreenCover(isPresented: $showBedtimeSession) {
+            if let child = selectedChild ?? children.first.map({ $0 }) {
+                BedtimeStorySessionView(child: child) { _, _ in
+                    showBedtimeSession = false
+                }
+                .environmentObject(authManager)
+                .environmentObject(vitalsManager)
+            }
+        }
+        .fullScreenCover(item: $selectedLesson) { lesson in
+            if let child = selectedChild ?? children.first.map({ $0 }) {
+                EducationalStorySessionView(child: child, lesson: lesson) { summary in
+                    selectedLesson = nil
+                    if summary.lessonProgress >= 100 {
+                        completedLessonIds.insert(lesson.id)
+                    }
+                }
+                .environmentObject(authManager)
+                .environmentObject(vitalsManager)
+            }
+        }
     }
 
     // MARK: - Hamburger button
@@ -111,7 +131,7 @@ struct MainTabView: View {
             )
             .shadow(color: Theme.cardShadow, radius: 3, x: 0, y: 2)
         }
-        .padding(.top, 56)   // below status bar
+        .padding(.top, 56)
         .padding(.trailing, 16)
         .zIndex(10)
     }
@@ -119,7 +139,6 @@ struct MainTabView: View {
     // MARK: - Sidebar drawer
     private var sidebarDrawer: some View {
         ZStack(alignment: .topTrailing) {
-            // Parchment panel
             Theme.card
                 .frame(width: 280)
                 .ignoresSafeArea()
@@ -132,7 +151,6 @@ struct MainTabView: View {
                 .shadow(color: .black.opacity(0.15), radius: 20, x: -8, y: 0)
 
             VStack(alignment: .leading, spacing: 0) {
-                // App title in drawer header
                 VStack(alignment: .leading, spacing: 4) {
                     Image("StoryDriftLogo")
                         .resizable()
@@ -152,7 +170,6 @@ struct MainTabView: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
 
-                // Nav items
                 ForEach(NavDestination.allCases, id: \.self) { dest in
                     navRow(dest)
                 }
@@ -164,7 +181,7 @@ struct MainTabView: View {
         .zIndex(20)
     }
 
-    // MARK: - Single nav row
+    // MARK: - Nav row
     @ViewBuilder
     private func navRow(_ dest: NavDestination) -> some View {
         let isActive = selectedDest == dest
@@ -195,7 +212,6 @@ struct MainTabView: View {
                     : nil
             )
         }
-        .padding(.horizontal, isActive ? 0 : 0)
     }
 
     // MARK: - Page content router
@@ -248,6 +264,12 @@ struct MainTabView: View {
             isLoading = false
         }
     }
+}
+
+// MARK: - LessonDefinition Identifiable for .fullScreenCover(item:)
+extension LessonDefinition: Hashable {
+    static func == (lhs: LessonDefinition, rhs: LessonDefinition) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 #Preview {

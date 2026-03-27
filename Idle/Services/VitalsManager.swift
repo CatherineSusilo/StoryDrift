@@ -10,12 +10,27 @@ class VitalsManager: ObservableObject {
     /// 0.0 = wide awake eyes, 1.0 = fully drowsy/closed eyes. Fed from SmartSpectra edgeMetrics.
     @Published var eyeDrowsinessScore: Double = 0
 
+    /// Persisted setting — user can disable camera in Settings.
+    /// When false the backend uses synthetic biometrics derived from
+    /// session time + child profile so stories still adapt naturally.
+    @Published var isCameraEnabled: Bool {
+        didSet { UserDefaults.standard.set(isCameraEnabled, forKey: "cameraEnabled") }
+    }
+
+    // Convenience aliases used by session views
+    var heartRate: Double    { currentHeartRate }
+    var breathingRate: Double { currentBreathingRate }
+
     private var cancellables = Set<AnyCancellable>()
     private var monitoringTask: Task<Void, Never>?
     private var childId: String?
     private var startTime: Date?
 
     let metricsPublisher = PassthroughSubject<VitalsMetrics, Never>()
+
+    init() {
+        self.isCameraEnabled = UserDefaults.standard.object(forKey: "cameraEnabled") as? Bool ?? true
+    }
 
     struct VitalsMetrics {
         let heartRate: Double
