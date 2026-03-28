@@ -14,16 +14,15 @@ interface VoiceResult {
 
 // Map drift/engagement score to ElevenLabs voice parameters
 function getBedtimeVoiceParams(driftScore: number): { params: VoiceParams; speed: number } {
-  // As score rises toward 100, speech slows, volume drops, pauses extend
   const t = driftScore / 100;
   return {
     params: {
-      stability: 0.6 + t * 0.3,          // more stable / consistent as child nears sleep
-      similarity_boost: 0.8,
-      style: Math.max(0, 0.4 - t * 0.3), // less expressive as child winds down
-      use_speaker_boost: true,
+      stability:        0.75 + t * 0.20,  // very stable, consistent lull
+      similarity_boost: 0.80,
+      style:            Math.max(0, 0.25 - t * 0.25), // near-flat delivery as child nears sleep
+      use_speaker_boost: false,            // keep volume gentle
     },
-    speed: 1.0 - t * 0.35,               // 1.0 → 0.65 as score rises
+    speed: 0.75 - t * 0.20,              // 0.75 → 0.55 — always slow, gets slower
   };
 }
 
@@ -78,9 +77,9 @@ export async function generateVoice(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
       {
         text,
-        model_id: 'eleven_flash_v2_5',
+        model_id: 'eleven_turbo_v2_5',   // best prosody for narration
         voice_settings: params,
-        speed,
+        speed,                            // top-level — controls overall pace
       },
       {
         headers: {

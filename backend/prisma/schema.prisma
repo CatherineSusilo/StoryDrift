@@ -76,8 +76,11 @@ model StorySession {
 
   imagePrompts      String?  // JSON stored as string
   generatedImages   String   @default("[]") // JSON array stored as string
+  audioUrls         String   @default("[]") // JSON array of per-paragraph MP3 URLs
 
   modelUsed         String?
+  targetDuration    Int?     // minutes: 10 short / 15 medium / 20 long
+  minigameFrequency String?  // none | every_5th | every_3rd | every_paragraph
 
   // Vitals summary for this story session (populated when story ends)
   avgHeartRate      Float?

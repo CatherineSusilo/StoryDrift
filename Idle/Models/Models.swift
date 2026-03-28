@@ -115,8 +115,14 @@ struct Story: Codable, Identifiable {
     var driftScoreHistory: [Int]
     var generatedImages: [String]
     var modelUsed: String?
+    /// Per-paragraph MP3 URLs from ElevenLabs (parallel array to generatedImages).
+    var audioUrls: [String]?
     /// Target duration in minutes chosen by the parent (10 / 15 / 20).
     var targetDuration: Int?
+    /// Job ID for background Gemini image generation — poll /api/generate/story-images/:id
+    var imageJobId: String?
+    /// Minigame frequency selected at story setup.
+    var minigameFrequency: String?
     let createdAt: Date
     let updatedAt: Date
 
@@ -127,12 +133,18 @@ struct Story: Codable, Identifiable {
     var generatedAt: Date { startTime }
     var completedAt: Date? { endTime }
     var driftScores: [Double] { driftScoreHistory.map { Double($0) } }
-    /// Split storyContent into paragraphs for playback
+    /// Split storyContent into paragraphs, attaching per-paragraph image and audio URLs.
     var paragraphs: [StoryParagraph] {
-        storyContent
+        let texts = storyContent
             .components(separatedBy: "\n\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            .map { StoryParagraph(text: $0.trimmingCharacters(in: .whitespaces)) }
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        return texts.enumerated().map { idx, text in
+            let audio = (audioUrls ?? []).indices.contains(idx)
+                ? (audioUrls![idx].isEmpty ? nil : audioUrls![idx])
+                : nil
+            return StoryParagraph(text: text, audioUrl: audio)
+        }
     }
 }
 

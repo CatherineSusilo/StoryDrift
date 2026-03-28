@@ -11,8 +11,10 @@ function deserializeStory(story: any) {
   return {
     ...story,
     driftScoreHistory: JSON.parse(story.driftScoreHistory || '[]'),
-    generatedImages: JSON.parse(story.generatedImages || '[]'),
-    imagePrompts: story.imagePrompts ? JSON.parse(story.imagePrompts) : null,
+    generatedImages:   JSON.parse(story.generatedImages   || '[]'),
+    audioUrls:         JSON.parse(story.audioUrls         || '[]'),
+    imagePrompts:      story.imagePrompts ? JSON.parse(story.imagePrompts) : null,
+    targetDuration:    story.targetDuration ?? null,
   };
 }
 
@@ -25,9 +27,12 @@ const createStorySchema = z.object({
   storytellingTone: z.enum(['calming', 'energetic', 'sad', 'adventurous', 'none']),
   initialState: z.enum(['wound-up', 'normal', 'almost-there']),
   initialDriftScore: z.number().int().min(0).max(100),
-  imagePrompts: z.any().optional(),
+  imagePrompts:    z.any().optional(),
   generatedImages: z.array(z.string()).optional(),
-  modelUsed: z.string().optional(),
+  audioUrls:       z.array(z.string()).optional(),
+  modelUsed:       z.string().optional(),
+  targetDuration:  z.number().int().optional(),
+  minigameFrequency: z.string().optional(),
 });
 
 // Schema for updating/completing a story session
@@ -176,7 +181,10 @@ router.post('/', async (req: AuthRequest, res) => {
         initialDriftScore: body.initialDriftScore,
         imagePrompts: body.imagePrompts ? JSON.stringify(body.imagePrompts) : undefined,
         generatedImages: JSON.stringify(body.generatedImages || []),
-        modelUsed: body.modelUsed,
+        audioUrls:       JSON.stringify(body.audioUrls       || []),
+        modelUsed:       body.modelUsed,
+        targetDuration:  body.targetDuration,
+        minigameFrequency: body.minigameFrequency,
         driftScoreHistory: JSON.stringify([body.initialDriftScore]),
       },
     });

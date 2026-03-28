@@ -137,23 +137,30 @@ class APIService: ObservableObject {
             throw APIError.invalidResponse
         }
 
-        let modelUsed = genJson["modelUsed"] as? String ?? "gemini"
-        print("✅ Story generated (\(storyText.count) chars), saving to backend...")
+        let modelUsed        = genJson["modelUsed"]        as? String   ?? "claude"
+        let generatedImages  = genJson["generatedImages"]  as? [String] ?? []
+        let audioUrls        = genJson["audioUrls"]        as? [String] ?? []
+        let imageJobId       = genJson["imageJobId"]       as? String   ?? ""
+        print("✅ Story generated (\(storyText.count) chars, \(audioUrls.count) audio clips, imageJobId: \(imageJobId))")
 
-        // Step 2: Save the story session to the backend
         let saveBody: [String: Any] = [
-            "childId": config.childId,
-            "storyTitle": "Bedtime Story",
-            "storyContent": storyText,
-            "parentPrompt": config.parentPrompt,
+            "childId":          config.childId,
+            "storyTitle":       "Bedtime Story",
+            "storyContent":     storyText,
+            "parentPrompt":     config.parentPrompt,
             "storytellingTone": config.storytellingTone,
-            "initialState": config.initialState,
+            "initialState":     config.initialState,
             "initialDriftScore": 0,
-            "modelUsed": modelUsed,
-            "targetDuration": config.targetDuration ?? 15
+            "modelUsed":        modelUsed,
+            "targetDuration":   config.targetDuration ?? 15,
+            "generatedImages":  generatedImages,
+            "audioUrls":        audioUrls,
+            "minigameFrequency": config.minigameFrequency ?? "none",
         ]
 
-        let story: Story = try await request(endpoint: "/api/stories", method: "POST", body: AnyCodable(saveBody), token: token)
+        var story: Story = try await request(endpoint: "/api/stories", method: "POST", body: AnyCodable(saveBody), token: token)
+        // Attach the background image job ID so StoryPlaybackView can poll for images
+        if !imageJobId.isEmpty { story.imageJobId = imageJobId }
         return story
     }
 
