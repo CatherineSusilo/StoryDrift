@@ -16,7 +16,7 @@ struct StoryPlaybackView: View {
     @State private var driftHistory: [Double] = []
     @State private var paragraphElapsed: TimeInterval = 0
 
-    // Live per-paragraph image URLs — starts from story.images, filled by polling
+    // Live per-paragraph image URLs — filled by polling
     @State private var paragraphImages: [String] = []
     @State private var imagePollingTimer: Timer? = nil
 
@@ -28,20 +28,20 @@ struct StoryPlaybackView: View {
 
     @StateObject private var vitalsTracker = StoryVitalsTracker()
 
-    // How many paragraphs between minigames based on story.minigameFrequency
+    // MARK: - Computed
+
     private var minigameGap: Int {
         switch story.minigameFrequency {
         case "every_paragraph": return 1
         case "every_3rd":       return 3
         case "every_5th":       return 5
-        default:                return Int.max  // none
+        default:                return Int.max
         }
     }
 
     private var minSecondsPerParagraph: TimeInterval {
         let targetSeconds = TimeInterval((story.targetDuration ?? 15) * 60)
-        let count = max(1, story.paragraphs.count)
-        return targetSeconds / TimeInterval(count)
+        return targetSeconds / TimeInterval(max(1, story.paragraphs.count))
     }
 
     private var currentParagraph: StoryParagraph? {
@@ -49,17 +49,13 @@ struct StoryPlaybackView: View {
         return story.paragraphs[currentParagraphIndex]
     }
 
-    /// Live image for the current paragraph — from polled results or story.images fallback.
     private var currentImage: String? {
         let idx = currentParagraphIndex
-        // Use live polled image if available
         if paragraphImages.indices.contains(idx), !paragraphImages[idx].isEmpty {
             return paragraphImages[idx]
         }
-        // Fall back to pre-baked story images
         guard !story.images.isEmpty else { return nil }
-        let clamped = min(idx, story.images.count - 1)
-        let raw = story.images[clamped]
+        let raw = story.images[min(idx, story.images.count - 1)]
         return raw.isEmpty ? nil : raw
     }
 
@@ -68,15 +64,16 @@ struct StoryPlaybackView: View {
         return Double(currentParagraphIndex) / Double(story.paragraphs.count)
     }
 
+    // MARK: - Body
+
     var body: some View {
         ZStack {
-            // Per-paragraph background with smooth 1.5s crossfade
+            // Background image with crossfade
             StoryImageView.bedtime(imageUrl: currentImage, driftScore: Int(progress * 100))
 
+            // Main content
             VStack(spacing: 0) {
-
-            VStack(spacing: 0) {
-                // Top Bar
+                // Top bar
                 HStack {
                     Button(action: { withAnimation(.spring(response: 0.3)) { showMenu = true } }) {
                         Image(systemName: "line.3.horizontal")
@@ -85,10 +82,7 @@ struct StoryPlaybackView: View {
                             .padding()
                             .background(Circle().fill(Color.black.opacity(0.3)))
                     }
-
                     Spacer()
-
-                    // Time elapsed
                     Text(formatTime(elapsedTime))
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(.white)
@@ -100,7 +94,7 @@ struct StoryPlaybackView: View {
 
                 Spacer()
 
-                // Story Text
+                // Story text
                 VStack(spacing: 24) {
                     if let paragraph = currentParagraph {
                         Text(paragraph.text)
@@ -117,16 +111,15 @@ struct StoryPlaybackView: View {
 
                 Spacer()
 
-                // Drift Meter
+                // Drift meter
                 DriftMeterView(driftScore: vitalsManager.driftScore, isCompact: true)
                     .padding(.horizontal)
 
-                // Progress Bar
+                // Progress bar
                 VStack(spacing: 12) {
                     ProgressView(value: progress)
                         .tint(.cyan)
                         .scaleEffect(y: 2)
-
                     HStack {
                         Text("Paragraph \(currentParagraphIndex + 1) of \(story.paragraphs.count)")
                             .font(.system(size: 14))
@@ -150,7 +143,7 @@ struct StoryPlaybackView: View {
                 .zIndex(50)
             }
 
-            // ── Custom menu overlay ──────────────────────────────────────────
+            // ── Burger menu overlay ──────────────────────────────────────────
             if showMenu {
                 Color.black.opacity(0.55)
                     .ignoresSafeArea()
@@ -159,48 +152,34 @@ struct StoryPlaybackView: View {
 
                 VStack(spacing: 0) {
                     Spacer()
-
                     VStack(spacing: 0) {
-                        // Handle
                         Capsule()
                             .fill(Color.white.opacity(0.3))
                             .frame(width: 40, height: 4)
                             .padding(.top, 14)
                             .padding(.bottom, 20)
 
-                        menuButton(
-                            icon: isPlaying ? "pause.fill" : "play.fill",
-                            label: isPlaying ? "Pause" : "Resume",
-                            color: .white
-                        ) {
+                        menuButton(icon: isPlaying ? "pause.fill" : "play.fill",
+                                   label: isPlaying ? "Pause" : "Resume",
+                                   color: .white) {
                             togglePlayback()
                             withAnimation { showMenu = false }
                         }
-
                         Divider().background(Color.white.opacity(0.15))
 
-                        menuButton(
-                            icon: "forward.fill",
-                            label: "Next Paragraph",
-                            color: .white
-                        ) {
+                        menuButton(icon: "forward.fill", label: "Next Paragraph", color: .white) {
                             paragraphElapsed = 0
                             nextParagraph()
                             withAnimation { showMenu = false }
                         }
-
                         Divider().background(Color.white.opacity(0.15))
 
-                        menuButton(
-                            icon: "xmark.circle.fill",
-                            label: "End Story",
-                            color: Color(red: 1, green: 0.35, blue: 0.35)
-                        ) {
+                        menuButton(icon: "xmark.circle.fill", label: "End Story",
+                                   color: Color(red: 1, green: 0.35, blue: 0.35)) {
                             showMenu = false
                             completeStory()
                         }
 
-                        // Safe-area spacer
                         Color.clear.frame(height: 34)
                     }
                     .background(
@@ -220,9 +199,10 @@ struct StoryPlaybackView: View {
         .onDisappear { stopStory() }
     }
 
-    // MARK: - Menu button helper
+    // MARK: - Menu button
 
-    private func menuButton(icon: String, label: String, color: Color, action: @escaping () -> Void) -> some View {
+    private func menuButton(icon: String, label: String, color: Color,
+                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 16) {
                 Image(systemName: icon)
@@ -239,42 +219,73 @@ struct StoryPlaybackView: View {
         }
     }
 
+    // MARK: - Story lifecycle
+
     private func startStory() {
-        // Pre-fill paragraphImages from any already-available story images
         paragraphImages = Array(repeating: "", count: story.paragraphs.count)
         for (i, url) in story.images.enumerated() where i < paragraphImages.count {
             paragraphImages[i] = url
         }
 
         vitalsManager.startMonitoring(childId: story.childId)
-        vitalsTracker.startTracking(storyId: story.id, childId: story.childId, vitalsManager: vitalsManager)
+        vitalsTracker.startTracking(storyId: story.id, childId: story.childId,
+                                    vitalsManager: vitalsManager)
 
-        // Poll for background Gemini images if the story has a pending imageJobId
         if let jobId = story.imageJobId, !jobId.isEmpty {
             startImagePolling(jobId: jobId)
         }
 
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            if isPlaying && !showMinigame {
-                elapsedTime += 1
-                paragraphElapsed += 1
-                driftHistory.append(vitalsManager.driftScore)
+            guard self.isPlaying && !self.showMinigame else { return }
+            self.elapsedTime += 1
+            self.paragraphElapsed += 1
+            self.driftHistory.append(self.vitalsManager.driftScore)
 
-                if vitalsManager.driftScore >= 90 { completeStory(); return }
+            if self.vitalsManager.driftScore >= 90 { self.completeStory(); return }
 
-                if paragraphElapsed >= minSecondsPerParagraph {
-                    paragraphElapsed = 0
-                    nextParagraph()
-                }
-
-                #if DEBUG
-                if story.parentPrompt.hasPrefix("DEBUG_2MIN:") && elapsedTime >= 120 { completeStory() }
-                #endif
+            if self.paragraphElapsed >= self.minSecondsPerParagraph {
+                self.paragraphElapsed = 0
+                self.nextParagraph()
             }
         }
 
         playCurrentParagraph()
     }
+
+    private func stopStory() {
+        timer?.invalidate(); timer = nil
+        stopImagePolling()
+        audioPlayer?.stop()
+        vitalsManager.stopMonitoring()
+        vitalsTracker.stopTracking()
+    }
+
+    private func togglePlayback() {
+        isPlaying.toggle()
+        if isPlaying { audioPlayer?.play() } else { audioPlayer?.pause() }
+    }
+
+    private func nextParagraph() {
+        guard currentParagraphIndex < story.paragraphs.count - 1 else {
+            completeStory(); return
+        }
+        paragraphElapsed = 0
+        paragraphsSinceLastMinigame += 1
+        withAnimation { currentParagraphIndex += 1 }
+        playCurrentParagraph()
+        checkAndTriggerMinigame()
+    }
+
+    private func completeStory() {
+        stopStory()
+        onComplete(driftHistory, elapsedTime)
+    }
+
+    private func formatTime(_ seconds: TimeInterval) -> String {
+        String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+    }
+
+    // MARK: - Image polling
 
     private func startImagePolling(jobId: String) {
         guard let token = authManager.accessToken else { return }
@@ -287,10 +298,10 @@ struct StoryPlaybackView: View {
                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let images = json["images"] as? [String] else { return }
                 await MainActor.run {
-                    for (i, imgUrl) in images.enumerated() where i < paragraphImages.count && !imgUrl.isEmpty {
-                        if paragraphImages[i].isEmpty { paragraphImages[i] = imgUrl }
+                    for (i, imgUrl) in images.enumerated() where i < self.paragraphImages.count && !imgUrl.isEmpty {
+                        if self.paragraphImages[i].isEmpty { self.paragraphImages[i] = imgUrl }
                     }
-                    if json["complete"] as? Bool == true { stopImagePolling() }
+                    if json["complete"] as? Bool == true { self.stopImagePolling() }
                 }
             }
         }
@@ -301,41 +312,7 @@ struct StoryPlaybackView: View {
         imagePollingTimer = nil
     }
 
-    private func stopStory() {
-        timer?.invalidate(); timer = nil
-        stopImagePolling()
-        audioPlayer?.stop()
-        vitalsManager.stopMonitoring()
-        vitalsTracker.stopTracking()
-    }
-    
-    private func togglePlayback() {
-        isPlaying.toggle()
-        if isPlaying {
-            audioPlayer?.play()
-        } else {
-            audioPlayer?.pause()
-        }
-    }
-    
-    private func nextParagraph() {
-        guard currentParagraphIndex < story.paragraphs.count - 1 else {
-            completeStory()
-            return
-        }
-
-        paragraphElapsed = 0
-        paragraphsSinceLastMinigame += 1
-
-        withAnimation {
-            currentParagraphIndex += 1
-        }
-
-        playCurrentParagraph()
-
-        // Check if a minigame should fire after this paragraph
-        checkAndTriggerMinigame()
-    }
+    // MARK: - Minigame
 
     private func checkAndTriggerMinigame() {
         guard !showMinigame,
@@ -346,7 +323,6 @@ struct StoryPlaybackView: View {
               let token = authManager.accessToken else { return }
 
         isGeneratingMinigame = true
-
         Task {
             do {
                 let body: [String: Any] = [
@@ -356,67 +332,53 @@ struct StoryPlaybackView: View {
                     "paragraphIndex": currentParagraphIndex,
                 ]
                 let data = try await APIService.shared.post(
-                    path: "/api/generate/minigame",
-                    body: body,
-                    token: token
-                )
+                    path: "/api/generate/minigame", body: body, token: token)
                 let trigger = try JSONDecoder().decode(MinigameTrigger.self, from: data)
                 await MainActor.run {
-                    activeTrigger  = trigger
-                    showMinigame   = true
-                    paragraphsSinceLastMinigame = 0
-                    isGeneratingMinigame = false
-                    audioPlayer?.pause()
+                    self.activeTrigger = trigger
+                    self.showMinigame  = true
+                    self.paragraphsSinceLastMinigame = 0
+                    self.isGeneratingMinigame = false
+                    self.audioPlayer?.pause()
                 }
             } catch {
                 print("⚠️ Minigame generation failed: \(error)")
-                await MainActor.run { isGeneratingMinigame = false }
+                await MainActor.run { self.isGeneratingMinigame = false }
             }
         }
     }
 
     private func handleMinigameComplete(_ result: MinigameResult) {
-        showMinigame   = false
-        activeTrigger  = nil
+        showMinigame  = false
+        activeTrigger = nil
         audioPlayer?.play()
     }
-    
+
+    // MARK: - Audio
+
     private func playCurrentParagraph() {
         audioPlayer?.stop()
         guard let paragraph = currentParagraph else { return }
 
         if let rawUrl = paragraph.audioUrl, !rawUrl.isEmpty {
-            // Resolve relative /images/... paths to full server URL
-            let fullUrl: URL?
-            if rawUrl.hasPrefix("http") {
-                fullUrl = URL(string: rawUrl)
-            } else {
-                fullUrl = URL(string: "\(APIService.baseURL)\(rawUrl)")
-            }
-            if let url = fullUrl {
-                playAudio(url: url)
-                return
-            }
+            let fullUrl = rawUrl.hasPrefix("http")
+                ? URL(string: rawUrl)
+                : URL(string: "\(APIService.baseURL)\(rawUrl)")
+            if let url = fullUrl { playAudio(url: url); return }
         }
-        // No audio URL — fall back to slow AVSpeechSynthesizer
         speakText(paragraph.text)
     }
 
     private func playAudio(url: URL) {
-        // Activate audio session before fetching/playing
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
             try session.setActive(true)
-        } catch {
-            print("⚠️ AVAudioSession setup failed: \(error)")
-        }
+        } catch { print("⚠️ AVAudioSession: \(error)") }
 
-        // Use URLCache so repeated plays don't re-download
         let request = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad, timeoutInterval: 30)
         URLSession.shared.dataTask(with: request) { data, _, error in
             guard let data, error == nil else {
-                print("⚠️ Audio download failed: \(error?.localizedDescription ?? "unknown")")
                 DispatchQueue.main.async { self.speakText(self.currentParagraph?.text ?? "") }
                 return
             }
@@ -424,11 +386,10 @@ struct StoryPlaybackView: View {
                 do {
                     self.audioPlayer = try AVAudioPlayer(data: data)
                     self.audioPlayer?.enableRate = true
-                    self.audioPlayer?.rate = 1.0  // ElevenLabs already slowed at generation time
+                    self.audioPlayer?.rate = 1.0
                     self.audioPlayer?.prepareToPlay()
                     self.audioPlayer?.play()
                 } catch {
-                    print("⚠️ AVAudioPlayer error: \(error)")
                     self.speakText(self.currentParagraph?.text ?? "")
                 }
             }
@@ -436,59 +397,25 @@ struct StoryPlaybackView: View {
     }
 
     private func speakText(_ text: String) {
-        // Slow, gentle TTS fallback (used when no ElevenLabs audio available)
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = 0.35        // slower than default 0.5
+        utterance.rate = 0.35
         utterance.pitchMultiplier = 0.85
         utterance.volume = 0.9
-        let synthesizer = AVSpeechSynthesizer()
-        synthesizer.speak(utterance)
-    }
-    
-    private func completeStory() {
-        stopStory()
-        onComplete(driftHistory, elapsedTime)
-    }
-    
-    private func formatTime(_ seconds: TimeInterval) -> String {
-        let mins = Int(seconds) / 60
-        let secs = Int(seconds) % 60
-        return String(format: "%d:%02d", mins, secs)
+        AVSpeechSynthesizer().speak(utterance)
     }
 }
 
-class AudioPlayerDelegate: NSObject, AVAudioPlayerDelegate {
-    let onFinish: () -> Void
-    
-    init(onFinish: @escaping () -> Void) {
-        self.onFinish = onFinish
-    }
-    
-    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        onFinish()
-    }
-}
+// MARK: - Preview
 
 #Preview {
-    StoryPlaybackView(
-        story: Story(
-            id: "1", childId: "child1",
-            storyTitle: "The Magical Forest",
-            storyContent: "Once upon a time, in a magical forest...",
-            parentPrompt: "Loves unicorns",
-            storytellingTone: "calming",
-            initialState: "normal",
-            startTime: Date(),
-            endTime: nil, duration: nil, sleepOnsetTime: nil,
-            completed: false,
-            initialDriftScore: 0, finalDriftScore: 0,
-            driftScoreHistory: [], generatedImages: [],
-            modelUsed: nil,
-            createdAt: Date(), updatedAt: Date()
-        ),
-        onComplete: { _, _ in }
-    )
-    .environmentObject(VitalsManager())
-    .environmentObject(AuthManager())
+    let json = """
+    {"id":"1","childId":"c1","storyTitle":"Test","storyContent":"Once upon a time.\\n\\nA little fox walked.\\n\\nShe fell asleep.","parentPrompt":"Loves foxes","storytellingTone":"calming","initialState":"normal","startTime":"2026-01-01T00:00:00Z","completed":false,"initialDriftScore":0,"finalDriftScore":0,"driftScoreHistory":[],"generatedImages":[],"minigameFrequency":"every_paragraph","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}
+    """.data(using: .utf8)!
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let story = try! decoder.decode(Story.self, from: json)
+    return StoryPlaybackView(story: story, onComplete: { _, _ in })
+        .environmentObject(VitalsManager())
+        .environmentObject(AuthManager())
 }
