@@ -21,6 +21,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@fal-ai/client": "^1.4.0",
+    "@google-cloud/vertexai": "^1.10.3",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.8.0",
     "axios": "^1.13.6",
@@ -30,6 +31,7 @@
     "express": "^4.18.2",
     "express-oauth2-jwt-bearer": "^1.6.0",
     "express-rate-limit": "^7.5.1",
+    "google-auth-library": "^10.6.2",
     "helmet": "^7.1.0",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"

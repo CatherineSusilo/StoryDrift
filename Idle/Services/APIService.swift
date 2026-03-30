@@ -156,11 +156,11 @@ class APIService: ObservableObject {
             "generatedImages":  generatedImages,
             "audioUrls":        audioUrls,
             "minigameFrequency": config.minigameFrequency ?? "none",
+            "imageJobId":       imageJobId.isEmpty ? nil : imageJobId,
+            "cameraEnabled":    config.cameraEnabled ?? true,
         ]
 
-        var story: Story = try await request(endpoint: "/api/stories", method: "POST", body: AnyCodable(saveBody), token: token)
-        // Attach the background image job ID so StoryPlaybackView can poll for images
-        if !imageJobId.isEmpty { story.imageJobId = imageJobId }
+        let story: Story = try await request(endpoint: "/api/stories", method: "POST", body: AnyCodable(saveBody), token: token)
         return story
     }
 
@@ -194,6 +194,8 @@ struct StoryConfig: Codable {
     var minigameFrequency: String?
     /// Target story duration in minutes (10 = short, 15 = medium, 20 = long).
     var targetDuration: Int?
+    /// Whether Presage face detection camera is enabled for drift score tracking.
+    var cameraEnabled: Bool?
 }
 
 // MARK: - API Errors

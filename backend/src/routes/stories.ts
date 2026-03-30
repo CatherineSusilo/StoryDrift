@@ -33,6 +33,8 @@ const createStorySchema = z.object({
   modelUsed:       z.string().optional(),
   targetDuration:  z.number().int().optional(),
   minigameFrequency: z.string().optional(),
+  imageJobId:      z.string().optional(),
+  cameraEnabled:   z.boolean().optional(),
 });
 
 // Schema for updating/completing a story session
@@ -185,6 +187,8 @@ router.post('/', async (req: AuthRequest, res) => {
         modelUsed:       body.modelUsed,
         targetDuration:  body.targetDuration,
         minigameFrequency: body.minigameFrequency,
+        imageJobId:      body.imageJobId,
+        cameraEnabled:   body.cameraEnabled,
         driftScoreHistory: JSON.stringify([body.initialDriftScore]),
       },
     });

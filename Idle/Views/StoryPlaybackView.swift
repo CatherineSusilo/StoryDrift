@@ -227,7 +227,13 @@ struct StoryPlaybackView: View {
             paragraphImages[i] = url
         }
 
-        vitalsManager.startMonitoring(childId: story.childId)
+        // Initialize minigame counter so first minigame can fire on first eligible paragraph
+        paragraphsSinceLastMinigame = minigameGap
+
+        // Start vitals monitoring with synthetic mode if camera is disabled
+        let useSynthetic = !(story.cameraEnabled ?? true)
+        let targetDuration = TimeInterval((story.targetDuration ?? 15) * 60)
+        vitalsManager.startMonitoring(childId: story.childId, useSynthetic: useSynthetic, targetDuration: targetDuration)
         vitalsTracker.startTracking(storyId: story.id, childId: story.childId,
                                     vitalsManager: vitalsManager)
 
@@ -270,7 +276,12 @@ struct StoryPlaybackView: View {
             completeStory(); return
         }
         paragraphElapsed = 0
-        paragraphsSinceLastMinigame += 1
+        
+        // Only increment if minigames are enabled (avoid Int.max overflow)
+        if minigameGap < Int.max {
+            paragraphsSinceLastMinigame += 1
+        }
+        
         withAnimation { currentParagraphIndex += 1 }
         playCurrentParagraph()
         checkAndTriggerMinigame()

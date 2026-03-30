@@ -25,6 +25,11 @@ class VitalsManager: ObservableObject {
     private var monitoringTask: Task<Void, Never>?
     private var childId: String?
     private var startTime: Date?
+    
+    // Synthetic drift score state (when camera is disabled)
+    private var syntheticTimer: Timer?
+    private var targetDuration: TimeInterval = 900 // default 15 min
+    private var useSyntheticDrift = false
 
     let metricsPublisher = PassthroughSubject<VitalsMetrics, Never>()
 
@@ -60,21 +65,64 @@ class VitalsManager: ObservableObject {
         }
     }
 
-    func startMonitoring(childId: String) {
+    func startMonitoring(childId: String, useSynthetic: Bool = false, targetDuration: TimeInterval = 900) {
         self.childId = childId
         self.startTime = Date()
         self.isMonitoring = true
-
-        monitoringTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 5_000_000_000)
-
-                guard let self = self,
-                      let childId = self.childId,
-                      self.isMonitoring else { break }
-
-                await self.postVitals(childId: childId)
+        self.useSyntheticDrift = useSynthetic
+        self.targetDuration = targetDuration
+        
+        if useSynthetic {
+            // Start synthetic drift timer that updates every second
+            syntheticTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+                self?.updateSyntheticDrift()
             }
+        } else {
+            // Normal camera-based monitoring
+            monitoringTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+
+                    guard let self = self,
+                          let childId = self.childId,
+                          self.isMonitoring else { break }
+
+                    await self.postVitals(childId: childId)
+                }
+            }
+        }
+    }
+    
+    private func updateSyntheticDrift() {
+        guard let startTime = startTime else { return }
+        
+        let elapsed = Date().timeIntervalSince(startTime)
+        let progress = min(elapsed / targetDuration, 1.0)
+        
+        // Steady linear increase from 0 to 100 over the target duration
+        // Add slight randomness for natural variation (±2%)
+        let randomVariation = Double.random(in: -2...2)
+        let baseScore = progress * 100
+        let newScore = min(max(baseScore + randomVariation, 0), 100)
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.driftScore = newScore
+            
+            // Set synthetic vitals that look realistic
+            self.currentHeartRate = 80 - (progress * 17) // 80 → 63 BPM
+            self.currentBreathingRate = 17 - (progress * 6) // 17 → 11 breaths/min
+            self.signalQuality = 0 // No camera signal
+            self.eyeDrowsinessScore = progress
+            
+            let metrics = VitalsMetrics(
+                heartRate: self.currentHeartRate,
+                breathingRate: self.currentBreathingRate,
+                signalQuality: self.signalQuality,
+                driftScore: self.driftScore,
+                timestamp: Date()
+            )
+            self.metricsPublisher.send(metrics)
         }
     }
 
@@ -82,8 +130,11 @@ class VitalsManager: ObservableObject {
         isMonitoring = false
         monitoringTask?.cancel()
         monitoringTask = nil
+        syntheticTimer?.invalidate()
+        syntheticTimer = nil
         childId = nil
         startTime = nil
+        useSyntheticDrift = false
     }
 
     private func calculateDriftScore() {

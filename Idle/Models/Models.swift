@@ -123,6 +123,8 @@ struct Story: Codable, Identifiable {
     var imageJobId: String?
     /// Minigame frequency selected at story setup.
     var minigameFrequency: String?
+    /// Whether Presage face detection camera was enabled for this story.
+    var cameraEnabled: Bool?
     let createdAt: Date
     let updatedAt: Date
 

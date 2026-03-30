@@ -6,12 +6,22 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuid } from 'uuid';
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleAuth } from 'google-auth-library';
 
 const router = Router();
 const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'story-images');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+// Google Auth for Vertex AI REST API
+const auth = new GoogleAuth({
+  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS || './vertex-ai-key.json',
+  scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+});
+
+const VERTEX_PROJECT = process.env.VERTEX_AI_PROJECT || 'hackcanada-489602';
+const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION || 'us-central1';
 
 interface ChildProfile {
   childId: string;
@@ -27,69 +37,74 @@ function paragraphCountForDuration(minutes: number): number {
   return Math.round((minutes * 60) / 30);
 }
 
-// ── Gemini 2.5 Flash image generation ────────────────────────────────────────
-
-const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash-image';
-const GEMINI_IMAGE_URL   = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent`;
+// ── Vertex AI Imagen via REST API ───────────────────────────────────────────
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 /**
- * Call Gemini image API with exponential backoff on 429 / 5xx.
- * Max 4 attempts: 0s, 8s, 16s, 32s delay between retries.
+ * Generate storybook illustration using Vertex AI Imagen via REST API.
+ * Uses service account authentication for proper quota.
  */
-async function callGeminiWithRetry(apiKey: string, body: object, attempt = 0): Promise<any> {
-  try {
-    return await axios.post(`${GEMINI_IMAGE_URL}?key=${apiKey}`, body, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 90_000,
-    });
-  } catch (err: any) {
-    const status = err.response?.status;
-    if ((status === 429 || status >= 500) && attempt < 3) {
-      const wait = 8_000 * Math.pow(2, attempt); // 8s, 16s, 32s
-      console.warn(`  ⏳ Gemini ${status} — retrying in ${wait / 1000}s (attempt ${attempt + 1}/3)`);
-      await delay(wait);
-      return callGeminiWithRetry(apiKey, body, attempt + 1);
-    }
-    throw err;
-  }
-}
-
 async function generateParagraphImage(
   paragraphText: string,
   storyContext: string,
   driftPercent: number,
 ): Promise<string> {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) throw new Error('GOOGLE_API_KEY not configured');
+  try {
+    const palette =
+      driftPercent < 0.33 ? 'warm golden light, soft amber tones, cozy' :
+      driftPercent < 0.66 ? 'soft twilight, muted purples and blues, dreamy' :
+                            'cool moonlit night, deep indigo, silver glow, tranquil';
 
-  const palette =
-    driftPercent < 0.33 ? 'warm golden light, soft amber tones, cozy and inviting' :
-    driftPercent < 0.66 ? 'soft twilight, muted purples and blues, dreamy atmosphere' :
-                          'cool moonlit night, deep indigo, gentle silver glow, tranquil';
+    const prompt =
+      `Children's bedtime storybook illustration. ` +
+      `Story: ${storyContext.slice(0, 150)}. Scene: ${paragraphText.slice(0, 250)}. ` +
+      `Watercolor style, ${palette}, soft edges, no text, 4:3 landscape, dreamy calming atmosphere.`;
 
-  const prompt =
-    `Children's storybook illustration. ` +
-    `Overall story: ${storyContext.slice(0, 200)}. ` +
-    `Current scene: ${paragraphText.slice(0, 300)}. ` +
-    `Style: watercolor painting, ${palette}, soft edges, ` +
-    `no text, no words, no letters, wide landscape format, 4:3 aspect ratio.`;
+    // Get access token from service account
+    const client = await auth.getClient();
+    const accessToken = await client.getAccessToken();
+    
+    if (!accessToken.token) throw new Error('Failed to get access token');
 
-  const resp = await callGeminiWithRetry(apiKey, {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
-  });
+    // Call Vertex AI Imagen 3 predict API with current model version
+    const endpoint = `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}/locations/${VERTEX_LOCATION}/publishers/google/models/imagen-3.0-fast-generate-001:predict`;
+    
+    const response = await axios.post(endpoint, {
+      instances: [{ prompt }],
+      parameters: {
+        sampleCount: 1,
+        aspectRatio: '4:3',
+        safetyFilterLevel: 'block_some',
+        personGeneration: 'dont_allow',
+      },
+    }, {
+      headers: {
+        'Authorization': `Bearer ${accessToken.token}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 60_000,
+    });
 
-  const parts = resp.data?.candidates?.[0]?.content?.parts ?? [];
-  const imgPart = parts.find((p: any) => p.inlineData);
-  if (!imgPart) throw new Error('No image in Gemini response');
+    const predictions = response.data?.predictions || [];
+    if (predictions.length === 0) throw new Error('No image generated');
 
-  const { mimeType, data: b64 } = imgPart.inlineData;
-  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-  const filename = `${uuid()}.${ext}`;
-  fs.writeFileSync(path.join(UPLOADS_DIR, filename), Buffer.from(b64, 'base64'));
-  return `/images/${filename}`;
+    const base64Data = predictions[0].bytesBase64Encoded;
+    if (!base64Data) throw new Error('No image data in response');
+
+    const mimeType = predictions[0].mimeType || 'image/png';
+    const ext = mimeType.includes('jpeg') ? 'jpg' : 'png';
+    const filename = `${uuid()}.${ext}`;
+    
+    const buffer = Buffer.from(base64Data, 'base64');
+    fs.writeFileSync(path.join(UPLOADS_DIR, filename), buffer);
+    
+    return `/images/${filename}`;
+  } catch (err: any) {
+    console.error('⚠️ Vertex AI image error:', err.message);
+    if (err.response?.data) console.error('Response:', JSON.stringify(err.response.data).slice(0, 300));
+    throw err;
+  }
 }
 
 // ── ElevenLabs paragraph audio generation ────────────────────────────────────
@@ -235,34 +250,30 @@ router.post('/story', async (req: AuthRequest, res: Response) => {
     }, 3);
     console.log(`✅ Audio: ${audioUrls.filter(Boolean).length}/${paragraphs.length}`);
 
-    // ── Phase 3: Gemini images — background, non-blocking ─────────────────────
-    // Use a temporary storyId so iOS can poll for progress
+    // ── Phase 3: Vertex AI Imagen 3 — background generation ───────────────────
     const tempStoryId = uuid();
     const pending = new Array(paragraphs.length).fill('');
     imageProgress.set(tempStoryId, pending);
 
-    if (process.env.GOOGLE_API_KEY) {
-      console.log(`🎨 Starting background image generation for ${tempStoryId}…`);
-      (async () => {
-        for (let i = 0; i < paragraphs.length; i++) {
-          if (i > 0) await delay(3_000);
-          try {
-            const url = await generateParagraphImage(paragraphs[i], storyContext, i / total);
-            pending[i] = url;
-            console.log(`  🖼  Image ${i + 1}/${paragraphs.length}: ${url}`);
-          } catch (err: any) {
-            console.warn(`  ⚠️  Image ${i + 1} failed: ${err.message}`);
-          }
+    console.log(`🎨 Starting Vertex AI image generation for ${tempStoryId}…`);
+    (async () => {
+      for (let i = 0; i < paragraphs.length; i++) {
+        if (i > 0) await delay(2_000); // 2s between requests
+        try {
+          const url = await generateParagraphImage(paragraphs[i], storyContext, i / total);
+          pending[i] = url;
+          console.log(`  🖼  Image ${i + 1}/${paragraphs.length}: ${url}`);
+        } catch (err: any) {
+          console.warn(`  ⚠️  Image ${i + 1} failed: ${err.message}`);
         }
-        console.log(`✅ All images done for ${tempStoryId}`);
-        // Clean up after 1 hour
-        setTimeout(() => imageProgress.delete(tempStoryId), 60 * 60 * 1000);
-      })();
-    }
+      }
+      console.log(`✅ All images done for ${tempStoryId}`);
+      setTimeout(() => imageProgress.delete(tempStoryId), 60 * 60 * 1000);
+    })();
 
     res.json({
       story: storyText,
-      generatedImages: [],    // empty — iOS polls /story-images/:id
+      generatedImages: [],
       audioUrls,
       imageJobId: tempStoryId,
       modelUsed: 'claude-sonnet-4-5',

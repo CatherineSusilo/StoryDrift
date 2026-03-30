@@ -81,6 +81,8 @@ model StorySession {
   modelUsed         String?
   targetDuration    Int?     // minutes: 10 short / 15 medium / 20 long
   minigameFrequency String?  // none | every_5th | every_3rd | every_paragraph
+  imageJobId        String?  // Background Vertex AI job ID for image polling
+  cameraEnabled     Boolean? // Whether Presage camera was enabled for drift tracking
 
   // Vitals summary for this story session (populated when story ends)
   avgHeartRate      Float?
