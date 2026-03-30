@@ -19,79 +19,79 @@ struct ShapeSortingMinigame: View {
     }
 
     var body: some View {
-        VStack(spacing: 24) {
-            Text("Sort the shapes!")
-                .font(.custom("Georgia", size: 18))
-                .foregroundColor(.white)
+        GeometryReader { geo in
+            let compact = geo.size.height < 340
+            let slotSize: CGFloat  = compact ? 60 : 90
+            let shapeSize: CGFloat = compact ? 44 : 64
 
-            // Drop zone slots
-            HStack(spacing: 16) {
-                ForEach(shapes, id: \.id) { shape in
-                    dropSlot(for: shape)
-                }
-            }
-            .frame(height: 120)
+            VStack(spacing: compact ? 6 : 16) {
+                Text("Sort the shapes!")
+                    .font(.custom("Georgia", size: compact ? 14 : 18))
+                    .foregroundColor(.white)
 
-            Divider()
-                .background(Color.white.opacity(0.2))
-
-            // Shape tray — unplaced shapes
-            HStack(spacing: 20) {
-                ForEach(shapes, id: \.id) { shape in
-                    if placements[shape.id] == nil {
-                        draggableShape(shape)
-                    } else {
-                        // Placeholder so tray keeps its size
-                        shapeView(shape, opacity: 0.15)
-                            .frame(width: 64, height: 64)
+                // Drop zone slots
+                HStack(spacing: compact ? 10 : 16) {
+                    ForEach(shapes, id: \.id) { shape in
+                        dropSlot(for: shape, slotSize: slotSize, shapeSize: shapeSize)
                     }
                 }
-            }
-            .frame(height: 100)
 
-            if allPlaced {
-                Button {
-                    celebrating = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        onComplete(MinigameResult(type: .shape_sorting, completed: true,
-                                                  correct: true, skipped: false, responseData: nil))
+                Divider().background(Color.white.opacity(0.2))
+
+                // Shape tray
+                HStack(spacing: compact ? 14 : 20) {
+                    ForEach(shapes, id: \.id) { shape in
+                        if placements[shape.id] == nil {
+                            draggableShape(shape, size: shapeSize)
+                        } else {
+                            shapeView(shape, opacity: 0.15)
+                                .frame(width: shapeSize, height: shapeSize)
+                        }
                     }
-                } label: {
-                    Text("Great job! Continue 🎉")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.green)
-                        .cornerRadius(14)
                 }
-                .transition(.scale.combined(with: .opacity))
+
+                if allPlaced {
+                    Button {
+                        celebrating = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            onComplete(MinigameResult(type: .shape_sorting, completed: true,
+                                                      correct: true, skipped: false, responseData: nil))
+                        }
+                    } label: {
+                        Text("Great job! Continue 🎉")
+                            .font(.system(size: compact ? 14 : 17, weight: .semibold))
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, compact ? 8 : 12)
+                            .background(Color.green)
+                            .cornerRadius(12)
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .animation(.spring(response: 0.4, dampingFraction: 0.75), value: allPlaced)
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: allPlaced)
     }
 
     // MARK: - Drop slot
 
     @ViewBuilder
-    private func dropSlot(for shape: ShapeSlot) -> some View {
-        let isOccupied = placements.values.contains(shape.targetSlotId)
+    private func dropSlot(for shape: ShapeSlot, slotSize: CGFloat, shapeSize: CGFloat) -> some View {
         let placedShape = shapes.first { placements[$0.id] == shape.targetSlotId }
 
         ZStack {
-            // Outline
             shapeOutline(shape)
                 .foregroundColor(colorFromHex(shape.color).opacity(0.3))
-                .frame(width: 90, height: 90)
+                .frame(width: slotSize, height: slotSize)
                 .overlay(
                     shapeOutline(shape)
                         .stroke(colorFromHex(shape.color).opacity(0.7), lineWidth: 2.5)
-                        .frame(width: 90, height: 90)
+                        .frame(width: slotSize, height: slotSize)
                 )
-
             if let placed = placedShape {
                 shapeView(placed, opacity: 1.0)
-                    .frame(width: 60, height: 60)
+                    .frame(width: shapeSize * 0.75, height: shapeSize * 0.75)
                     .transition(.scale.combined(with: .opacity))
             }
         }
@@ -110,9 +110,9 @@ struct ShapeSortingMinigame: View {
     // MARK: - Draggable shape
 
     @ViewBuilder
-    private func draggableShape(_ shape: ShapeSlot) -> some View {
+    private func draggableShape(_ shape: ShapeSlot, size: CGFloat) -> some View {
         shapeView(shape, opacity: 1.0)
-            .frame(width: 64, height: 64)
+            .frame(width: size, height: size)
             .scaleEffect(dragging == shape.id ? 1.15 : 1.0)
             .shadow(color: colorFromHex(shape.color).opacity(0.5), radius: dragging == shape.id ? 12 : 0)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragging)

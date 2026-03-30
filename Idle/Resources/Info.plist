@@ -4,8 +4,6 @@
 <dict>
 	<key>CFBundleDisplayName</key>
 	<string>Idle</string>
-	<key>NS Speech Recognition Usage Description</key>
-	<string>StoryDrift uses speech recognition for minigames for child learning</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -70,6 +68,10 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Idle uses your camera to monitor vital signs contactlessly during bedtime stories.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>StoryDrift uses the microphone for voice minigames during bedtime stories.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>StoryDrift uses speech recognition so your child can answer voice prompts during story minigames.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

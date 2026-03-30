@@ -292,7 +292,8 @@ struct EducationalStorySessionView: View {
             )
             let resp = try JSONDecoder().decode(SessionStartResponse.self, from: data)
             sessionId = resp.sessionId
-            vitalsManager.startMonitoring(childId: child.id)
+            let useSynthetic = !vitalsManager.isCameraEnabled
+            vitalsManager.startMonitoring(childId: child.id, useSynthetic: useSynthetic)
             phase = .story
             startTickTimer()
         } catch {

@@ -70,198 +70,213 @@ struct StoryPlaybackView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack {
-            // ── Full-screen background ───────────────────────────────────────
-            StoryImageView.bedtime(imageUrl: currentImage, driftScore: Int(progress * 100))
+        GeometryReader { geo in
+            let safeBottom = geo.safeAreaInsets.bottom
+            let safeTop    = geo.safeAreaInsets.top
+            let safeLeft   = geo.safeAreaInsets.leading
+            let safeRight  = geo.safeAreaInsets.trailing
+            let btnPad: CGFloat = 16   // padding from safe-area edge to button centre
 
-            // ── Timer — top right, always visible ───────────────────────────
-            VStack {
-                HStack {
+            ZStack {
+                // ── Full-screen background ───────────────────────────────────
+                StoryImageView.bedtime(imageUrl: currentImage, driftScore: Int(progress * 100))
+                    .frame(width: geo.size.width + safeLeft + safeRight,
+                           height: geo.size.height + safeTop + safeBottom)
+                    .offset(x: -safeLeft, y: -safeTop)
+                    .zIndex(0)
+
+                // ── Timer — top right, inside safe area ─────────────────────
+                VStack {
+                    HStack {
+                        Spacer()
+                        Text(formatTime(elapsedTime))
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(Color.black.opacity(0.45)))
+                            .padding(.top, max(safeTop, 12))
+                            .padding(.trailing, max(safeRight, 12) + btnPad)
+                    }
                     Spacer()
-                    Text(formatTime(elapsedTime))
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color.black.opacity(0.45)))
-                        .padding(.top, 16)
-                        .padding(.trailing, 20)
                 }
-                Spacer()
-            }
+                .zIndex(1)
 
-            // ── Caption text — bottom centre, movie-subtitle style ───────────
-            VStack {
-                Spacer()
-                if let paragraph = currentParagraph {
-                    Text(paragraph.text)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(4)
-                        .padding(.horizontal, 80)   // clear the two corner buttons
-                        .padding(.vertical, 10)
-                        .background(
-                            LinearGradient(
-                                colors: [Color.black.opacity(0), Color.black.opacity(0.6)],
-                                startPoint: .top, endPoint: .bottom
+                // ── Caption — bottom centre, movie-subtitle style ────────────
+                VStack {
+                    Spacer()
+                    if let paragraph = currentParagraph {
+                        Text(paragraph.text)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(4)
+                            .padding(.horizontal, max(safeLeft, safeRight) + 70)
+                            .padding(.vertical, 8)
+                            .background(
+                                LinearGradient(
+                                    colors: [.clear, Color.black.opacity(0.65)],
+                                    startPoint: .top, endPoint: .bottom
+                                )
                             )
-                            .ignoresSafeArea()
-                        )
+                            .transition(.opacity)
+                            .id(currentParagraphIndex)
+                    }
+                    // Bottom spacer = safe area + button height so text sits above buttons
+                    Color.clear.frame(height: safeBottom + 52)
+                }
+                .zIndex(1)
+
+                // ── Bottom-left: menu button ─────────────────────────────────
+                VStack {
+                    Spacer()
+                    HStack {
+                        Button(action: { withAnimation(.spring(response: 0.3)) { showMenu.toggle() } }) {
+                            Image(systemName: "line.3.horizontal")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(Color.black.opacity(0.55)))
+                                .shadow(color: .black.opacity(0.5), radius: 6, x: 0, y: 3)
+                        }
+                        .padding(.leading, max(safeLeft, 8) + btnPad)
+                        .padding(.bottom, max(safeBottom, 8) + btnPad)
+                        Spacer()
+                    }
+                }
+                .zIndex(2)
+
+                // ── Bottom-right: stats button ───────────────────────────────
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button(action: { withAnimation(.spring(response: 0.3)) { showStats.toggle() } }) {
+                            Image(systemName: "waveform.path.ecg")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(Color.black.opacity(0.55)))
+                                .shadow(color: .black.opacity(0.5), radius: 6, x: 0, y: 3)
+                        }
+                        .padding(.trailing, max(safeRight, 8) + btnPad)
+                        .padding(.bottom, max(safeBottom, 8) + btnPad)
+                    }
+                }
+                .zIndex(2)
+
+                // ── Minigame overlay ─────────────────────────────────────────
+                if showMinigame, let trigger = activeTrigger {
+                    MinigameOverlay(trigger: trigger) { result in
+                        handleMinigameComplete(result)
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                    .zIndex(50)
+                }
+
+                // ── Menu sheet (bottom-up) ───────────────────────────────────
+                if showMenu {
+                    Color.black.opacity(0.45)
+                        .ignoresSafeArea()
+                        .onTapGesture { withAnimation(.spring(response: 0.3)) { showMenu = false } }
                         .transition(.opacity)
-                        .id(currentParagraphIndex)
-                }
-                Color.clear.frame(height: 60)  // space for the corner buttons
-            }
+                        .zIndex(90)
 
-            // ── Bottom-left: menu button ─────────────────────────────────────
-            VStack {
-                Spacer()
-                HStack {
-                    Button(action: { withAnimation(.spring(response: 0.3)) { showMenu.toggle() } }) {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Circle().fill(Color.black.opacity(0.55)))
-                            .shadow(color: .black.opacity(0.5), radius: 6, x: 0, y: 3)
-                    }
-                    .padding(.leading, 20)
-                    .padding(.bottom, 20)
-                    Spacer()
-                }
-            }
-
-            // ── Bottom-right: stats button ───────────────────────────────────
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Button(action: { withAnimation(.spring(response: 0.3)) { showStats.toggle() } }) {
-                        Image(systemName: "waveform.path.ecg")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Circle().fill(Color.black.opacity(0.55)))
-                            .shadow(color: .black.opacity(0.5), radius: 6, x: 0, y: 3)
-                    }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 20)
-                }
-            }
-
-            // ── Minigame overlay ─────────────────────────────────────────────
-            if showMinigame, let trigger = activeTrigger {
-                MinigameOverlay(trigger: trigger) { result in
-                    handleMinigameComplete(result)
-                }
-                .transition(.opacity.combined(with: .scale(scale: 0.97)))
-                .zIndex(50)
-            }
-
-            // ── Menu sheet (bottom-up) ───────────────────────────────────────
-            if showMenu {
-                Color.black.opacity(0.45)
-                    .ignoresSafeArea()
-                    .onTapGesture { withAnimation(.spring(response: 0.3)) { showMenu = false } }
-                    .transition(.opacity)
-                    .zIndex(90)
-
-                VStack(spacing: 0) {
-                    Spacer()
                     VStack(spacing: 0) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.3))
-                            .frame(width: 36, height: 4)
-                            .padding(.top, 12)
-                            .padding(.bottom, 16)
+                        Spacer()
+                        VStack(spacing: 0) {
+                            Capsule()
+                                .fill(Color.white.opacity(0.3))
+                                .frame(width: 36, height: 4)
+                                .padding(.top, 12)
+                                .padding(.bottom, 16)
 
-                        menuButton(icon: isPlaying ? "pause.fill" : "play.fill",
-                                   label: isPlaying ? "Pause" : "Resume",
-                                   color: .white) {
-                            togglePlayback()
-                            withAnimation { showMenu = false }
-                        }
-                        Divider().background(Color.white.opacity(0.15))
+                            menuButton(icon: isPlaying ? "pause.fill" : "play.fill",
+                                       label: isPlaying ? "Pause" : "Resume",
+                                       color: .white) {
+                                togglePlayback()
+                                withAnimation { showMenu = false }
+                            }
+                            Divider().background(Color.white.opacity(0.15))
 
-                        menuButton(icon: "forward.fill", label: "Next Paragraph", color: .white) {
-                            paragraphElapsed = 0
-                            nextParagraph()
-                            withAnimation { showMenu = false }
-                        }
-                        Divider().background(Color.white.opacity(0.15))
+                            menuButton(icon: "forward.fill", label: "Next Paragraph", color: .white) {
+                                paragraphElapsed = 0
+                                nextParagraph()
+                                withAnimation { showMenu = false }
+                            }
+                            Divider().background(Color.white.opacity(0.15))
 
-                        menuButton(icon: "xmark.circle.fill", label: "End Story",
-                                   color: Color(red: 1, green: 0.35, blue: 0.35)) {
-                            showMenu = false
-                            completeStory()
+                            menuButton(icon: "xmark.circle.fill", label: "End Story",
+                                       color: Color(red: 1, green: 0.35, blue: 0.35)) {
+                                showMenu = false
+                                completeStory()
+                            }
+                            Color.clear.frame(height: max(safeBottom, 16))
                         }
-                        Color.clear.frame(height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .fill(Color(red: 0.08, green: 0.08, blue: 0.16).opacity(0.97))
+                        )
+                        .padding(.horizontal, max(safeLeft, safeRight) + 8)
+                        .padding(.bottom, 8)
                     }
-                    .background(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(Color(red: 0.08, green: 0.08, blue: 0.16).opacity(0.97))
-                    )
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(100)
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(100)
-            }
 
-            // ── Stats panel (bottom-up, from right) ─────────────────────────
-            if showStats {
-                Color.black.opacity(0.45)
-                    .ignoresSafeArea()
-                    .onTapGesture { withAnimation(.spring(response: 0.3)) { showStats = false } }
-                    .transition(.opacity)
-                    .zIndex(90)
+                // ── Stats panel (bottom-up) ──────────────────────────────────
+                if showStats {
+                    Color.black.opacity(0.45)
+                        .ignoresSafeArea()
+                        .onTapGesture { withAnimation(.spring(response: 0.3)) { showStats = false } }
+                        .transition(.opacity)
+                        .zIndex(90)
 
-                VStack(spacing: 0) {
-                    Spacer()
-                    VStack(spacing: 16) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.3))
-                            .frame(width: 36, height: 4)
-                            .padding(.top, 12)
+                    VStack(spacing: 0) {
+                        Spacer()
+                        VStack(spacing: 16) {
+                            Capsule()
+                                .fill(Color.white.opacity(0.3))
+                                .frame(width: 36, height: 4)
+                                .padding(.top, 12)
 
-                        // Drift meter
-                        DriftMeterView(driftScore: vitalsManager.driftScore, isCompact: true)
+                            DriftMeterView(driftScore: vitalsManager.driftScore, isCompact: true)
+                                .padding(.horizontal, 20)
+
+                            VStack(spacing: 8) {
+                                ProgressView(value: progress)
+                                    .tint(.cyan)
+                                    .scaleEffect(y: 2)
+                                HStack {
+                                    Text("Paragraph \(currentParagraphIndex + 1) of \(story.paragraphs.count)")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.white.opacity(0.7))
+                                    Spacer()
+                                    Text(vitalsManager.getDriftStatus())
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.cyan)
+                                }
+                            }
                             .padding(.horizontal, 20)
 
-                        // Progress bar
-                        VStack(spacing: 8) {
-                            ProgressView(value: progress)
-                                .tint(.cyan)
-                                .scaleEffect(y: 2)
-                            HStack {
-                                Text("Paragraph \(currentParagraphIndex + 1) of \(story.paragraphs.count)")
-                                    .font(.system(size: 13))
-                                    .foregroundColor(.white.opacity(0.7))
-                                Spacer()
-                                Text(vitalsManager.getDriftStatus())
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.cyan)
-                            }
+                            Color.clear.frame(height: max(safeBottom, 16))
                         }
-                        .padding(.horizontal, 20)
-
-                        Color.clear.frame(height: 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .fill(Color(red: 0.08, green: 0.08, blue: 0.16).opacity(0.97))
+                        )
+                        .padding(.horizontal, max(safeLeft, safeRight) + 8)
+                        .padding(.bottom, 8)
                     }
-                    .background(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(Color(red: 0.08, green: 0.08, blue: 0.16).opacity(0.97))
-                    )
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(100)
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(100)
             }
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showMenu)
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showStats)
+            .animation(.easeInOut(duration: 0.35), value: showMinigame)
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showMenu)
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showStats)
-        .animation(.easeInOut(duration: 0.35), value: showMinigame)
+        .ignoresSafeArea()
         .onAppear { startStory() }
         .onDisappear { stopStory() }
     }
@@ -297,13 +312,14 @@ struct StoryPlaybackView: View {
         // Initialize minigame counter so first minigame can fire on first eligible paragraph
         paragraphsSinceLastMinigame = minigameGap
 
-        // Start vitals monitoring with synthetic mode if camera is disabled
-        let useSynthetic = !(story.cameraEnabled ?? true)
+        // Start vitals monitoring — use isCameraEnabled from VitalsManager (user's current setting)
+        // story.cameraEnabled is the value at story creation time; isCameraEnabled is live setting
+        let useSynthetic = !vitalsManager.isCameraEnabled
         let targetDuration = TimeInterval((story.targetDuration ?? 15) * 60)
         vitalsManager.startMonitoring(childId: story.childId, useSynthetic: useSynthetic, targetDuration: targetDuration)
         vitalsTracker.startTracking(storyId: story.id, childId: story.childId,
                                     vitalsManager: vitalsManager,
-                                    cameraEnabled: story.cameraEnabled ?? true)
+                                    cameraEnabled: vitalsManager.isCameraEnabled)
 
         if let jobId = story.imageJobId, !jobId.isEmpty {
             startImagePolling(jobId: jobId)

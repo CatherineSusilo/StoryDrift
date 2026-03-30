@@ -37,6 +37,7 @@ struct MainTabView: View {
     @Binding var selectedChild: Child?
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var vitalsManager: VitalsManager
+    @Environment(\.horizontalSizeClass) private var hSizeClass
 
     @State private var children: [ChildProfile] = []
     @State private var isLoading = true
@@ -51,8 +52,11 @@ struct MainTabView: View {
     // Bedtime session sheet
     @State private var showBedtimeSession = false
 
+    /// True when running on iPhone (compact horizontal size class)
+    private var isCompact: Bool { hSizeClass == .compact }
+
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack {
             Group {
                 if isLoading {
                     LoadingView()
@@ -66,8 +70,9 @@ struct MainTabView: View {
                     let child = selectedChild ?? children[0]
                     ZStack(alignment: .topTrailing) {
                         pageContent(for: selectedDest, child: child)
-                            .scaleEffect(menuOpen ? 0.96 : 1.0)
-                            .brightness(menuOpen ? -0.04 : 0)
+                            // Only scale/dim on iPad sidebar — iPhone uses bottom sheet, no distortion
+                            .scaleEffect((!isCompact && menuOpen) ? 0.96 : 1.0)
+                            .brightness((!isCompact && menuOpen) ? -0.04 : 0)
                             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: menuOpen)
                             .allowsHitTesting(!menuOpen)
                             .onTapGesture { if menuOpen { withAnimation { menuOpen = false } } }
@@ -76,13 +81,28 @@ struct MainTabView: View {
                 }
             }
 
+            // ── Overlay: dim + menu content ──────────────────────────────────
             if menuOpen {
                 Color.black.opacity(0.35)
                     .ignoresSafeArea()
                     .onTapGesture { withAnimation(.spring(response: 0.3)) { menuOpen = false } }
                     .transition(.opacity)
-                sidebarDrawer
+                    .zIndex(10)
+
+                if isCompact {
+                    // iPhone: bottom sheet with scrollable grid of nav options
+                    bottomSheetMenu
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .zIndex(20)
+                } else {
+                    // iPad: side drawer from trailing edge
+                    HStack {
+                        Spacer()
+                        sidebarDrawer
+                    }
                     .transition(.move(edge: .trailing))
+                    .zIndex(20)
+                }
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: menuOpen)
@@ -141,7 +161,96 @@ struct MainTabView: View {
         .zIndex(10)
     }
 
-    // MARK: - Sidebar drawer
+    // MARK: - Bottom sheet menu (iPhone / compact)
+    private var bottomSheetMenu: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            VStack(spacing: 0) {
+                // Handle
+                Capsule()
+                    .fill(Theme.border)
+                    .frame(width: 40, height: 4)
+                    .padding(.top, 12)
+                    .padding(.bottom, 16)
+
+                // Logo + title
+                HStack(spacing: 10) {
+                    Image("StoryDriftLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 32, height: 32)
+                    Text("dream keeper's log")
+                        .font(Theme.bodyFont(size: 13))
+                        .foregroundColor(Theme.inkMuted)
+                        .italic()
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 12)
+
+                Divider()
+                    .background(Theme.border)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+
+                // 2-column grid of all nav destinations
+                LazyVGrid(
+                    columns: [GridItem(.flexible()), GridItem(.flexible())],
+                    spacing: 0
+                ) {
+                    ForEach(NavDestination.allCases, id: \.self) { dest in
+                        compactNavTile(dest)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Theme.card)
+                    .shadow(color: .black.opacity(0.18), radius: 20, x: 0, y: -6)
+            )
+            .padding(.horizontal, 0)
+        }
+        .ignoresSafeArea(edges: .bottom)
+    }
+
+    // MARK: - Compact nav tile (for bottom sheet)
+    private func compactNavTile(_ dest: NavDestination) -> some View {
+        let isActive = selectedDest == dest
+        return Button {
+            withAnimation(.spring(response: 0.3)) {
+                selectedDest = dest
+                menuOpen = false
+            }
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: dest.icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(isActive ? Theme.ink : Theme.inkMuted)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle().fill(isActive ? Theme.accent.opacity(0.4) : Color.clear)
+                    )
+                Text(dest.label)
+                    .font(Theme.bodyFont(size: 11))
+                    .foregroundColor(isActive ? Theme.ink : Theme.inkMuted)
+                    .fontWeight(isActive ? .bold : .regular)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.radiusSM)
+                    .fill(isActive ? Theme.accent.opacity(0.2) : Color.clear)
+            )
+            .padding(.horizontal, 4)
+        }
+    }
+
+    // MARK: - Sidebar drawer (iPad / regular)
     private var sidebarDrawer: some View {
         ZStack(alignment: .topTrailing) {
             Theme.card
@@ -175,8 +284,12 @@ struct MainTabView: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
 
-                ForEach(NavDestination.allCases, id: \.self) { dest in
-                    navRow(dest)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(NavDestination.allCases, id: \.self) { dest in
+                            navRow(dest)
+                        }
+                    }
                 }
 
                 Spacer()
@@ -186,7 +299,7 @@ struct MainTabView: View {
         .zIndex(20)
     }
 
-    // MARK: - Nav row
+    // MARK: - Nav row (iPad sidebar)
     @ViewBuilder
     private func navRow(_ dest: NavDestination) -> some View {
         let isActive = selectedDest == dest
@@ -282,3 +395,4 @@ extension LessonDefinition: Hashable {
         .environmentObject(AuthManager())
         .environmentObject(VitalsManager())
 }
+

@@ -19,65 +19,69 @@ struct VoiceMinigame: View {
     enum VoicePhase { case waiting, listening, processing, done }
 
     var body: some View {
-        VStack(spacing: 28) {
-            // Hint label
-            Text(hint)
-                .font(.custom("Georgia", size: 20))
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 8)
+        GeometryReader { geo in
+            let compact = geo.size.height < 340
+            let circleSize: CGFloat = compact ? 64 : 100
+            let ringMax: CGFloat    = compact ? 44 : 68
 
-            // Mic visual
-            ZStack {
-                // Pulsing rings when listening
-                if phase == .listening {
-                    ForEach(0..<3, id: \.self) { i in
-                        Circle()
-                            .stroke(Color.cyan.opacity(0.4 - Double(i) * 0.12), lineWidth: 2)
-                            .frame(width: CGFloat(100 + i * 36), height: CGFloat(100 + i * 36))
-                            .scaleEffect(phase == .listening ? 1.15 : 1.0)
-                            .animation(
-                                .easeInOut(duration: 0.9)
-                                    .repeatForever(autoreverses: true)
-                                    .delay(Double(i) * 0.25),
-                                value: phase == .listening
-                            )
+            VStack(spacing: compact ? 8 : 20) {
+                // Hint
+                Text(hint)
+                    .font(.custom("Georgia", size: compact ? 14 : 20))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 8)
+                    .lineLimit(2)
+
+                // Mic visual
+                ZStack {
+                    if phase == .listening {
+                        ForEach(0..<3, id: \.self) { i in
+                            Circle()
+                                .stroke(Color.cyan.opacity(0.4 - Double(i) * 0.12), lineWidth: 2)
+                                .frame(width: circleSize + CGFloat(i) * ringMax * 0.5,
+                                       height: circleSize + CGFloat(i) * ringMax * 0.5)
+                                .scaleEffect(phase == .listening ? 1.12 : 1.0)
+                                .animation(
+                                    .easeInOut(duration: 0.9)
+                                        .repeatForever(autoreverses: true)
+                                        .delay(Double(i) * 0.25),
+                                    value: phase == .listening
+                                )
+                        }
                     }
+                    Circle()
+                        .fill(micCircleColor)
+                        .frame(width: circleSize, height: circleSize)
+                        .shadow(color: micCircleColor.opacity(0.5), radius: 12)
+                    Image(systemName: micIcon)
+                        .font(.system(size: compact ? 24 : 38))
+                        .foregroundColor(.white)
+                }
+                .frame(height: circleSize + (phase == .listening ? ringMax : 0) + 8)
+
+                // Transcript
+                if !transcript.isEmpty {
+                    Text("\"\(transcript)\"")
+                        .font(.system(size: compact ? 13 : 17, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.85))
+                        .padding(.horizontal, 16)
+                        .lineLimit(2)
                 }
 
-                // Result circle
-                Circle()
-                    .fill(micCircleColor)
-                    .frame(width: 100, height: 100)
-                    .shadow(color: micCircleColor.opacity(0.5), radius: 16)
+                // Status
+                statusLabel(compact: compact)
 
-                Image(systemName: micIcon)
-                    .font(.system(size: 38))
-                    .foregroundColor(.white)
+                // Action button
+                actionButton(compact: compact)
             }
-            .frame(height: 170)
-
-            // Transcript readout
-            if !transcript.isEmpty {
-                Text("\"\(transcript)\"")
-                    .font(.system(size: 17, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(0.85))
-                    .padding(.horizontal, 24)
-            }
-
-            // Status label
-            statusLabel
-
-            // Action button
-            actionButton
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .onAppear { recognizer.requestPermission() }
         .onDisappear { recognizer.stop() }
         .onChange(of: recognizer.transcript) { t in
             transcript = t
-            if phase == .listening && !t.isEmpty {
-                checkAnswer(t)
-            }
+            if phase == .listening && !t.isEmpty { checkAnswer(t) }
         }
     }
 
@@ -101,59 +105,46 @@ struct VoiceMinigame: View {
         }
     }
 
-    private var statusLabel: some View {
+    private func statusLabel(compact: Bool) -> some View {
         Group {
             switch phase {
-            case .waiting:
-                Text("Tap the button and speak!")
-                    .foregroundColor(.white.opacity(0.6))
-            case .listening:
-                Text("I'm listening...")
-                    .foregroundColor(.cyan)
-            case .processing:
-                Text("Let me check...")
-                    .foregroundColor(.orange)
+            case .waiting:    Text("Tap the button and speak!").foregroundColor(.white.opacity(0.6))
+            case .listening:  Text("I'm listening...").foregroundColor(.cyan)
+            case .processing: Text("Let me check...").foregroundColor(.orange)
             case .done:
                 if resultCorrect == true {
-                    Text("Amazing! That's right! 🎉")
-                        .foregroundColor(.green)
-                        .fontWeight(.bold)
+                    Text("Amazing! That's right! 🎉").foregroundColor(.green).fontWeight(.bold)
                 } else {
-                    Text("Good try! Let's move on.")
-                        .foregroundColor(.orange)
+                    Text("Good try! Let's move on.").foregroundColor(.orange)
                 }
             }
         }
-        .font(.system(size: 16, weight: .medium))
+        .font(.system(size: compact ? 13 : 16, weight: .medium))
     }
 
-    private var actionButton: some View {
+    private func actionButton(compact: Bool) -> some View {
         Group {
             if phase == .waiting || phase == .done {
                 Button {
-                    if phase == .done {
-                        finishResult()
-                    } else {
-                        startListening()
-                    }
+                    phase == .done ? finishResult() : startListening()
                 } label: {
                     Text(phase == .done ? "Continue" : "Start Talking")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: compact ? 14 : 17, weight: .semibold))
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                        .padding(.vertical, compact ? 8 : 12)
                         .background(Color.cyan)
-                        .cornerRadius(14)
+                        .cornerRadius(12)
                 }
             } else if phase == .listening {
                 Button { stopListening() } label: {
                     Text("Done Talking")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: compact ? 14 : 17, weight: .semibold))
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                        .padding(.vertical, compact ? 8 : 12)
                         .background(Color.yellow)
-                        .cornerRadius(14)
+                        .cornerRadius(12)
                 }
             }
         }

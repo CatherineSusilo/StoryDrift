@@ -18,64 +18,66 @@ struct MinigameOverlay: View {
     }
 
     var body: some View {
-        ZStack {
-            // Backdrop — dark for drawing, semi-translucent for others
-            backdropColor
-                .ignoresSafeArea()
-                .transition(.opacity)
+        GeometryReader { geo in
+            let safeTop    = geo.safeAreaInsets.top
+            let safeBottom = geo.safeAreaInsets.bottom
 
-            VStack(spacing: 0) {
-                // Header: narrator prompt + timer
-                headerBar
+            ZStack {
+                // Backdrop
+                backdropColor
+                    .ignoresSafeArea()
+                    .transition(.opacity)
 
-                // Minigame body
-                Group {
-                    switch trigger.type {
-                    case .drawing:
-                        DrawingMinigame(
-                            theme: trigger.drawingTheme ?? "whatever you imagine",
-                            darkBackground: trigger.drawingDarkBackground ?? true,
-                            onComplete: finish
-                        )
-                    case .voice:
-                        VoiceMinigame(
-                            target: trigger.voiceTarget ?? "",
-                            hint: trigger.voiceHint ?? "Say it out loud!",
-                            onComplete: finish
-                        )
-                    case .shape_sorting:
-                        ShapeSortingMinigame(
-                            shapes: trigger.shapes ?? defaultShapes,
-                            onComplete: finish
-                        )
-                    case .multiple_choice:
-                        MultipleChoiceMinigame(
-                            choices: trigger.choices ?? [],
-                            onComplete: finish
-                        )
+                VStack(spacing: 0) {
+                    // Header: narrator prompt + timer
+                    headerBar(safeTop: safeTop)
+
+                    // Minigame body — fills remaining space
+                    Group {
+                        switch trigger.type {
+                        case .drawing:
+                            DrawingMinigame(
+                                theme: trigger.drawingTheme ?? "whatever you imagine",
+                                darkBackground: trigger.drawingDarkBackground ?? true,
+                                onComplete: finish
+                            )
+                        case .voice:
+                            VoiceMinigame(
+                                target: trigger.voiceTarget ?? "",
+                                hint: trigger.voiceHint ?? "Say it out loud!",
+                                onComplete: finish
+                            )
+                        case .shape_sorting:
+                            ShapeSortingMinigame(
+                                shapes: trigger.shapes ?? defaultShapes,
+                                onComplete: finish
+                            )
+                        case .multiple_choice:
+                            MultipleChoiceMinigame(
+                                choices: trigger.choices ?? [],
+                                onComplete: finish
+                            )
+                        }
                     }
-                }
-                .padding(.horizontal, 20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.horizontal, 20)
 
-                // Skip button
-                Button {
-                    skip()
-                } label: {
-                    Text("Skip")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
-                        .padding(.vertical, 12)
+                    // Skip button
+                    Button { skip() } label: {
+                        Text("Skip")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                            .padding(.vertical, 10)
+                    }
+                    .padding(.bottom, max(safeBottom, 12))
                 }
-                .padding(.bottom, 16)
+                .frame(width: geo.size.width, height: geo.size.height)
             }
         }
+        .ignoresSafeArea()
         .onReceive(timer) { _ in
             guard timerActive else { return }
-            if timeRemaining > 0 {
-                timeRemaining -= 1
-            } else {
-                skip()
-            }
+            if timeRemaining > 0 { timeRemaining -= 1 } else { skip() }
         }
     }
 
@@ -87,39 +89,38 @@ struct MinigameOverlay: View {
             : Color.black.opacity(0.78)
     }
 
-    private var headerBar: some View {
-        VStack(spacing: 8) {
-            // Narrator prompt pill
+    private func headerBar(safeTop: CGFloat) -> some View {
+        HStack(spacing: 16) {
+            // Narrator prompt
             Text(trigger.narratorPrompt)
-                .font(.custom("Georgia", size: 20))
+                .font(.custom("Georgia", size: 17))
                 .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 14)
-                .background(
-                    Capsule()
-                        .fill(Color.white.opacity(0.12))
-                )
-                .padding(.top, 60)
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Capsule().fill(Color.white.opacity(0.12)))
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             // Countdown ring
             ZStack {
                 Circle()
                     .stroke(Color.white.opacity(0.15), lineWidth: 3)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 40, height: 40)
                 Circle()
                     .trim(from: 0, to: CGFloat(timeRemaining) / CGFloat(trigger.timeoutSeconds ?? 30))
                     .stroke(Color.cyan, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 40, height: 40)
                     .rotationEffect(.degrees(-90))
                     .animation(.linear(duration: 1), value: timeRemaining)
                 Text("\(timeRemaining)")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.white)
             }
-            .padding(.top, 6)
+            .fixedSize()
         }
-        .padding(.bottom, 20)
+        .padding(.horizontal, 20)
+        .padding(.top, max(safeTop, 12))
+        .padding(.bottom, 12)
     }
 
     // MARK: - Actions

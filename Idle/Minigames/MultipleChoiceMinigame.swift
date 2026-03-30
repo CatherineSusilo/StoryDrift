@@ -11,76 +11,64 @@ struct MultipleChoiceMinigame: View {
     @State private var revealed = false
 
     var body: some View {
-        VStack(spacing: 16) {
-            // Choice grid — 2 columns for 4+ options, single column for ≤ 3
-            let columns = choices.count > 3
-                ? [GridItem(.flexible()), GridItem(.flexible())]
-                : [GridItem(.flexible())]
+        GeometryReader { geo in
+            let compact = geo.size.height < 340
+            let cols = [GridItem(.flexible()), GridItem(.flexible())]
 
-            LazyVGrid(columns: columns, spacing: 14) {
-                ForEach(choices) { choice in
-                    choiceButton(choice)
+            VStack(spacing: compact ? 6 : 14) {
+                LazyVGrid(columns: cols, spacing: compact ? 6 : 12) {
+                    ForEach(choices) { choice in
+                        choiceButton(choice, compact: compact)
+                    }
+                }
+                if revealed {
+                    continueButton(compact: compact)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-
-            if revealed {
-                continueButton
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: revealed)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: revealed)
     }
 
     // MARK: - Choice button
 
     @ViewBuilder
-    private func choiceButton(_ choice: MinigameChoice) -> some View {
+    private func choiceButton(_ choice: MinigameChoice, compact: Bool) -> some View {
         let state = buttonState(for: choice)
-
         Button {
             guard selectedId == nil else { return }
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                selectedId = choice.id
-                revealed = true
+                selectedId = choice.id; revealed = true
             }
-            // Haptic
             let gen = UIImpactFeedbackGenerator(style: choice.isCorrect ? .heavy : .light)
             gen.impactOccurred()
         } label: {
-            HStack(spacing: 14) {
-                // Emoji badge
+            HStack(spacing: compact ? 8 : 12) {
                 if let emoji = choice.emoji {
                     Text(emoji)
-                        .font(.system(size: 32))
-                        .frame(width: 44, height: 44)
+                        .font(.system(size: compact ? 20 : 28))
+                        .frame(width: compact ? 30 : 40, height: compact ? 30 : 40)
                         .background(Circle().fill(state.badgeBackground))
                 }
-
                 Text(choice.label)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.system(size: compact ? 13 : 16, weight: .semibold, design: .rounded))
                     .foregroundColor(state.textColor)
-                    .multilineTextAlignment(.leading)
                     .lineLimit(2)
-
                 Spacer()
-
-                // Result indicator
                 if revealed && selectedId == choice.id {
                     Image(systemName: choice.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .font(.system(size: 22))
+                        .font(.system(size: compact ? 16 : 20))
                         .foregroundColor(choice.isCorrect ? .green : .red)
                         .transition(.scale)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, compact ? 10 : 14)
+            .padding(.vertical, compact ? 8 : 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(state.background)
-            .cornerRadius(14)
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(state.borderColor, lineWidth: 2)
-            )
+            .cornerRadius(12)
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(state.borderColor, lineWidth: 2))
             .scaleEffect(selectedId == choice.id ? 1.03 : 1.0)
             .animation(.spring(response: 0.25), value: selectedId)
         }
@@ -89,26 +77,20 @@ struct MultipleChoiceMinigame: View {
 
     // MARK: - Continue button
 
-    private var continueButton: some View {
+    private func continueButton(compact: Bool) -> some View {
         Button {
             let correct = choices.first { $0.id == selectedId }?.isCorrect ?? false
-            onComplete(MinigameResult(
-                type: .multiple_choice,
-                completed: true,
-                correct: correct,
-                skipped: false,
-                responseData: selectedId
-            ))
+            onComplete(MinigameResult(type: .multiple_choice, completed: true,
+                                      correct: correct, skipped: false, responseData: selectedId))
         } label: {
             Text("Continue →")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: compact ? 14 : 17, weight: .semibold))
                 .foregroundColor(.black)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .padding(.vertical, compact ? 8 : 12)
                 .background(Color.cyan)
-                .cornerRadius(14)
+                .cornerRadius(12)
         }
-        .padding(.top, 8)
     }
 
     // MARK: - Button state helper

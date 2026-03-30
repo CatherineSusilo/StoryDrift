@@ -3,6 +3,7 @@ import PhotosUI
 
 struct StorySetupView: View {
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var vitalsManager: VitalsManager
     @Binding var child: ChildProfile
     let onStartStory: (StoryConfig) -> Void
     let onBack: () -> Void
@@ -19,7 +20,6 @@ struct StorySetupView: View {
     @State private var storyLength: StoryLength = .medium
     @State private var isGenerating = false
     @State private var minigameFrequency: MinigameFrequency = .none
-    @State private var cameraEnabled = true
 
     // MARK: - Characters state
     @State private var selectedCharacterIds: Set<String> = []
@@ -217,21 +217,21 @@ struct StorySetupView: View {
                         VStack(spacing: 12) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(cameraEnabled ? "Camera On" : "Camera Off")
+                                    Text(vitalsManager.isCameraEnabled ? "Camera On" : "Camera Off")
                                         .font(.custom("Georgia", size: 16))
                                         .fontWeight(.semibold)
                                         .foregroundColor(ink)
-                                    Text(cameraEnabled ? "Tracks drift score via face detection" : "Uses synthetic drift score")
+                                    Text(vitalsManager.isCameraEnabled ? "Tracks drift score via face detection" : "Uses synthetic drift score")
                                         .font(.custom("Georgia", size: 13))
                                         .foregroundColor(ink.opacity(0.7))
                                 }
                                 Spacer()
-                                Toggle("", isOn: $cameraEnabled)
+                                Toggle("", isOn: $vitalsManager.isCameraEnabled)
                                     .labelsHidden()
                                     .tint(Color(red: 0.824, green: 0.706, blue: 0.549))
                             }
                             
-                            if !cameraEnabled {
+                            if !vitalsManager.isCameraEnabled {
                                 HStack(spacing: 6) {
                                     Image(systemName: "info.circle.fill")
                                         .font(.system(size: 12))
@@ -698,7 +698,7 @@ struct StorySetupView: View {
         if !chars.isEmpty { config.characters = chars }
         if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
         config.targetDuration = storyLength.duration
-        config.cameraEnabled = cameraEnabled
+        config.cameraEnabled = vitalsManager.isCameraEnabled
 
         isGenerating = false
         onStartStory(config)
@@ -722,7 +722,7 @@ struct StorySetupView: View {
         let chars = selectedCharacterPrompts()
         if !chars.isEmpty { config.characters = chars }
         if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
-        config.cameraEnabled = cameraEnabled
+        config.cameraEnabled = vitalsManager.isCameraEnabled
         isGenerating = false
         onStartStory(config)
     }
