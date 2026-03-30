@@ -64,74 +64,90 @@ struct StoryPlaybackView: View {
         return Double(currentParagraphIndex) / Double(story.paragraphs.count)
     }
 
+    // MARK: - State for stats panel
+    @State private var showStats = false
+
     // MARK: - Body
 
     var body: some View {
         ZStack {
-            // Background image with crossfade
+            // ── Full-screen background ───────────────────────────────────────
             StoryImageView.bedtime(imageUrl: currentImage, driftScore: Int(progress * 100))
 
-            // Main content
-            VStack(spacing: 0) {
-                // Top bar
+            // ── Timer — top right, always visible ───────────────────────────
+            VStack {
                 HStack {
-                    Button(action: { withAnimation(.spring(response: 0.3)) { showMenu = true } }) {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 20))
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Circle().fill(Color.black.opacity(0.3)))
-                    }
                     Spacer()
                     Text(formatTime(elapsedTime))
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(Color.black.opacity(0.3)))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color.black.opacity(0.45)))
+                        .padding(.top, 16)
+                        .padding(.trailing, 20)
                 }
-                .padding()
-
                 Spacer()
+            }
 
-                // Story text
-                VStack(spacing: 24) {
-                    if let paragraph = currentParagraph {
-                        Text(paragraph.text)
-                            .font(.custom("Georgia", size: 22))
+            // ── Caption text — bottom centre, movie-subtitle style ───────────
+            VStack {
+                Spacer()
+                if let paragraph = currentParagraph {
+                    Text(paragraph.text)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                        .padding(.horizontal, 80)   // clear the two corner buttons
+                        .padding(.vertical, 10)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.black.opacity(0), Color.black.opacity(0.6)],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                            .ignoresSafeArea()
+                        )
+                        .transition(.opacity)
+                        .id(currentParagraphIndex)
+                }
+                Color.clear.frame(height: 60)  // space for the corner buttons
+            }
+
+            // ── Bottom-left: menu button ─────────────────────────────────────
+            VStack {
+                Spacer()
+                HStack {
+                    Button(action: { withAnimation(.spring(response: 0.3)) { showMenu.toggle() } }) {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(.white)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                            .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 2)
-                            .transition(.opacity)
-                            .id(currentParagraphIndex)
+                            .frame(width: 44, height: 44)
+                            .background(Circle().fill(Color.black.opacity(0.55)))
+                            .shadow(color: .black.opacity(0.5), radius: 6, x: 0, y: 3)
                     }
+                    .padding(.leading, 20)
+                    .padding(.bottom, 20)
+                    Spacer()
                 }
-                .frame(maxHeight: 300)
+            }
 
+            // ── Bottom-right: stats button ───────────────────────────────────
+            VStack {
                 Spacer()
-
-                // Drift meter
-                DriftMeterView(driftScore: vitalsManager.driftScore, isCompact: true)
-                    .padding(.horizontal)
-
-                // Progress bar
-                VStack(spacing: 12) {
-                    ProgressView(value: progress)
-                        .tint(.cyan)
-                        .scaleEffect(y: 2)
-                    HStack {
-                        Text("Paragraph \(currentParagraphIndex + 1) of \(story.paragraphs.count)")
-                            .font(.system(size: 14))
-                            .foregroundColor(.white.opacity(0.7))
-                        Spacer()
-                        Text(vitalsManager.getDriftStatus())
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.cyan)
+                HStack {
+                    Spacer()
+                    Button(action: { withAnimation(.spring(response: 0.3)) { showStats.toggle() } }) {
+                        Image(systemName: "waveform.path.ecg")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                            .background(Circle().fill(Color.black.opacity(0.55)))
+                            .shadow(color: .black.opacity(0.5), radius: 6, x: 0, y: 3)
                     }
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 20)
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 32)
             }
 
             // ── Minigame overlay ─────────────────────────────────────────────
@@ -143,21 +159,22 @@ struct StoryPlaybackView: View {
                 .zIndex(50)
             }
 
-            // ── Burger menu overlay ──────────────────────────────────────────
+            // ── Menu sheet (bottom-up) ───────────────────────────────────────
             if showMenu {
-                Color.black.opacity(0.55)
+                Color.black.opacity(0.45)
                     .ignoresSafeArea()
                     .onTapGesture { withAnimation(.spring(response: 0.3)) { showMenu = false } }
                     .transition(.opacity)
+                    .zIndex(90)
 
                 VStack(spacing: 0) {
                     Spacer()
                     VStack(spacing: 0) {
                         Capsule()
                             .fill(Color.white.opacity(0.3))
-                            .frame(width: 40, height: 4)
-                            .padding(.top, 14)
-                            .padding(.bottom, 20)
+                            .frame(width: 36, height: 4)
+                            .padding(.top, 12)
+                            .padding(.bottom, 16)
 
                         menuButton(icon: isPlaying ? "pause.fill" : "play.fill",
                                    label: isPlaying ? "Pause" : "Resume",
@@ -179,12 +196,61 @@ struct StoryPlaybackView: View {
                             showMenu = false
                             completeStory()
                         }
-
-                        Color.clear.frame(height: 34)
+                        Color.clear.frame(height: 28)
                     }
                     .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(Color(red: 0.1, green: 0.1, blue: 0.18).opacity(0.97))
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(Color(red: 0.08, green: 0.08, blue: 0.16).opacity(0.97))
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(100)
+            }
+
+            // ── Stats panel (bottom-up, from right) ─────────────────────────
+            if showStats {
+                Color.black.opacity(0.45)
+                    .ignoresSafeArea()
+                    .onTapGesture { withAnimation(.spring(response: 0.3)) { showStats = false } }
+                    .transition(.opacity)
+                    .zIndex(90)
+
+                VStack(spacing: 0) {
+                    Spacer()
+                    VStack(spacing: 16) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.3))
+                            .frame(width: 36, height: 4)
+                            .padding(.top, 12)
+
+                        // Drift meter
+                        DriftMeterView(driftScore: vitalsManager.driftScore, isCompact: true)
+                            .padding(.horizontal, 20)
+
+                        // Progress bar
+                        VStack(spacing: 8) {
+                            ProgressView(value: progress)
+                                .tint(.cyan)
+                                .scaleEffect(y: 2)
+                            HStack {
+                                Text("Paragraph \(currentParagraphIndex + 1) of \(story.paragraphs.count)")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.white.opacity(0.7))
+                                Spacer()
+                                Text(vitalsManager.getDriftStatus())
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.cyan)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+
+                        Color.clear.frame(height: 16)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(Color(red: 0.08, green: 0.08, blue: 0.16).opacity(0.97))
                     )
                     .padding(.horizontal, 16)
                     .padding(.bottom, 8)
@@ -194,6 +260,7 @@ struct StoryPlaybackView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showMenu)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showStats)
         .animation(.easeInOut(duration: 0.35), value: showMinigame)
         .onAppear { startStory() }
         .onDisappear { stopStory() }
@@ -235,7 +302,8 @@ struct StoryPlaybackView: View {
         let targetDuration = TimeInterval((story.targetDuration ?? 15) * 60)
         vitalsManager.startMonitoring(childId: story.childId, useSynthetic: useSynthetic, targetDuration: targetDuration)
         vitalsTracker.startTracking(storyId: story.id, childId: story.childId,
-                                    vitalsManager: vitalsManager)
+                                    vitalsManager: vitalsManager,
+                                    cameraEnabled: story.cameraEnabled ?? true)
 
         if let jobId = story.imageJobId, !jobId.isEmpty {
             startImagePolling(jobId: jobId)

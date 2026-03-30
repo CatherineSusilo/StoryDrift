@@ -112,7 +112,8 @@ class StoryVitalsTracker: ObservableObject {
     // MARK: - Start
 
     /// Call this the moment the story begins playing (normal or debug mode).
-    func startTracking(storyId: String, childId: String, vitalsManager: VitalsManager) {
+    /// Pass `cameraEnabled: false` to skip all SmartSpectra SDK calls (synthetic drift mode).
+    func startTracking(storyId: String, childId: String, vitalsManager: VitalsManager, cameraEnabled: Bool = true) {
         guard !isTracking else { return }
 
         self.storyId = storyId
@@ -121,6 +122,16 @@ class StoryVitalsTracker: ObservableObject {
         self.isTracking = true
 
 #if canImport(SmartSpectraSwiftSDK)
+        guard cameraEnabled else {
+            statusHint = "Camera disabled — using synthetic drift"
+            print("[StoryVitalsTracker] ℹ️  Camera disabled, skipping SmartSpectra SDK.")
+            // Still start snapshot timer for vitals history recording
+            snapshotTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+                self?.recordSnapshot()
+            }
+            return
+        }
+
         guard let apiKey = Secrets.smartSpectraAPIKey else {
             statusHint = "SmartSpectra API key not configured"
             print("[StoryVitalsTracker] ⚠️  Set SMARTSPECTRA_API_KEY in Config.xcconfig to enable vitals tracking.")
