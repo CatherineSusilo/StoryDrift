@@ -36,6 +36,8 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
@@ -66,6 +68,10 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Idle uses your camera to monitor vital signs contactlessly during bedtime stories.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>StoryDrift uses the microphone for voice minigames during bedtime stories.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>StoryDrift uses speech recognition so your child can answer voice prompts during story minigames.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -81,7 +87,7 @@
 	<dict>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>100.70.74.137</key>
+			<key>100.66.64.72</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>

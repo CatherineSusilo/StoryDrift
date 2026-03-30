@@ -64,6 +64,24 @@ class APIService: ObservableObject {
         return try decoder.decode(T.self, from: data)
     }
 
+    // MARK: - Raw POST helper (returns Data for manual decoding)
+
+    func post(path: String, body: [String: Any], token: String) async throws -> Data {
+        guard let url = URL(string: "\(Self.baseURL)\(path)") else { throw APIError.invalidURL }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.httpError(statusCode: http.statusCode)
+        }
+        return data
+    }
+
     // MARK: - Children
     func getChildren(token: String) async throws -> [Child] {
         return try await request(endpoint: "/api/children", token: token)
@@ -96,7 +114,8 @@ class APIService: ObservableObject {
             "age": config.age,
             "storytellingTone": config.storytellingTone,
             "parentPrompt": config.parentPrompt,
-            "initialState": config.initialState
+            "initialState": config.initialState,
+            "targetDuration": config.targetDuration ?? 15
         ]]
 
         guard let url = URL(string: "\(Self.baseURL)/api/generate/story") else { throw APIError.invalidURL }
@@ -118,19 +137,27 @@ class APIService: ObservableObject {
             throw APIError.invalidResponse
         }
 
-        let modelUsed = genJson["modelUsed"] as? String ?? "gemini"
-        print("✅ Story generated (\(storyText.count) chars), saving to backend...")
+        let modelUsed        = genJson["modelUsed"]        as? String   ?? "claude"
+        let generatedImages  = genJson["generatedImages"]  as? [String] ?? []
+        let audioUrls        = genJson["audioUrls"]        as? [String] ?? []
+        let imageJobId       = genJson["imageJobId"]       as? String   ?? ""
+        print("✅ Story generated (\(storyText.count) chars, \(audioUrls.count) audio clips, imageJobId: \(imageJobId))")
 
-        // Step 2: Save the story session to the backend
         let saveBody: [String: Any] = [
-            "childId": config.childId,
-            "storyTitle": "Bedtime Story",
-            "storyContent": storyText,
-            "parentPrompt": config.parentPrompt,
+            "childId":          config.childId,
+            "storyTitle":       "Bedtime Story",
+            "storyContent":     storyText,
+            "parentPrompt":     config.parentPrompt,
             "storytellingTone": config.storytellingTone,
-            "initialState": config.initialState,
+            "initialState":     config.initialState,
             "initialDriftScore": 0,
-            "modelUsed": modelUsed
+            "modelUsed":        modelUsed,
+            "targetDuration":   config.targetDuration ?? 15,
+            "generatedImages":  generatedImages,
+            "audioUrls":        audioUrls,
+            "minigameFrequency": config.minigameFrequency ?? "none",
+            "imageJobId":       imageJobId.isEmpty ? nil : imageJobId,
+            "cameraEnabled":    config.cameraEnabled ?? true,
         ]
 
         let story: Story = try await request(endpoint: "/api/stories", method: "POST", body: AnyCodable(saveBody), token: token)
@@ -163,6 +190,12 @@ struct StoryConfig: Codable {
     var drawingPrompts: [String]?
     /// Optional character prompt fragments, e.g. ["Bearie (a fluffy bear; brave, gentle)"]
     var characters: [String]?
+    /// How often interactive minigames appear during the story.
+    var minigameFrequency: String?
+    /// Target story duration in minutes (10 = short, 15 = medium, 20 = long).
+    var targetDuration: Int?
+    /// Whether Presage face detection camera is enabled for drift score tracking.
+    var cameraEnabled: Bool?
 }
 
 // MARK: - API Errors

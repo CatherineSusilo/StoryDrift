@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // MARK: - Child (matches backend Prisma schema)
 struct Child: Codable, Identifiable {
@@ -114,6 +115,16 @@ struct Story: Codable, Identifiable {
     var driftScoreHistory: [Int]
     var generatedImages: [String]
     var modelUsed: String?
+    /// Per-paragraph MP3 URLs from ElevenLabs (parallel array to generatedImages).
+    var audioUrls: [String]?
+    /// Target duration in minutes chosen by the parent (10 / 15 / 20).
+    var targetDuration: Int?
+    /// Job ID for background Gemini image generation — poll /api/generate/story-images/:id
+    var imageJobId: String?
+    /// Minigame frequency selected at story setup.
+    var minigameFrequency: String?
+    /// Whether Presage face detection camera was enabled for this story.
+    var cameraEnabled: Bool?
     let createdAt: Date
     let updatedAt: Date
 
@@ -124,12 +135,18 @@ struct Story: Codable, Identifiable {
     var generatedAt: Date { startTime }
     var completedAt: Date? { endTime }
     var driftScores: [Double] { driftScoreHistory.map { Double($0) } }
-    /// Split storyContent into paragraphs for playback
+    /// Split storyContent into paragraphs, attaching per-paragraph image and audio URLs.
     var paragraphs: [StoryParagraph] {
-        storyContent
+        let texts = storyContent
             .components(separatedBy: "\n\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            .map { StoryParagraph(text: $0.trimmingCharacters(in: .whitespaces)) }
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        return texts.enumerated().map { idx, text in
+            let audio = (audioUrls ?? []).indices.contains(idx)
+                ? (audioUrls![idx].isEmpty ? nil : audioUrls![idx])
+                : nil
+            return StoryParagraph(text: text, audioUrl: audio)
+        }
     }
 }
 
@@ -376,11 +393,110 @@ struct DeleteResponse: Codable {
 
 struct EmptyResponse: Codable {}
 
+// MARK: - Lesson Models
+struct LessonCategory: Identifiable {
+    let id: String
+    let title: String
+    let emoji: String
+    let color: Color
+    let lessons: [LessonDefinition]
+}
+
+struct LessonDefinition: Identifiable {
+    let id: String
+    let name: String
+    let description: String
+    let emoji: String
+    let ageMin: Int
+    let ageMax: Int
+}
+
 // Matches paginated responses like GET /api/stories/child/:id → { data: [...], total, limit, offset }
 struct PaginatedResponse<T: Codable>: Codable {
     let data: [T]
     let total: Int
     let limit: Int
     let offset: Int
+}
+
+// MARK: - Minigame Models
+
+enum MinigameFrequency: String, CaseIterable, Codable {
+    case none        = "none"
+    case every5th    = "every_5th"
+    case every3rd    = "every_3rd"
+    case everyParagraph = "every_paragraph"
+
+    var displayName: String {
+        switch self {
+        case .none:             return "none"
+        case .every5th:         return "every 5th"
+        case .every3rd:         return "every 3rd"
+        case .everyParagraph:   return "every paragraph"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .none:             return "minus"
+        case .every5th:         return "🧩"
+        case .every3rd:         return "✦"
+        case .everyParagraph:   return "⭐"
+        }
+    }
+
+    var usesSFSymbol: Bool { self == .none }
+}
+
+enum MinigameType: String, Codable {
+    case drawing, voice, shape_sorting, multiple_choice
+}
+
+struct MinigameChoice: Codable, Identifiable {
+    let id: String
+    let label: String
+    let emoji: String?
+    let isCorrect: Bool
+}
+
+struct ShapeSlot: Codable, Identifiable {
+    let id: String
+    let shape: String      // circle | square | triangle | star | heart
+    let color: String      // hex
+    let targetSlotId: String
+}
+
+struct MinigameTrigger: Codable {
+    let type: MinigameType
+    let narratorPrompt: String
+    let drawingTheme: String?
+    let drawingDarkBackground: Bool?
+    let voiceTarget: String?
+    let voiceHint: String?
+    let choices: [MinigameChoice]?
+    let shapes: [ShapeSlot]?
+    let timeoutSeconds: Int?
+
+    /// Returns a copy with a default set of shapes if type is shape_sorting and shapes is nil/empty.
+    func withFallbackShapes() -> MinigameTrigger {
+        guard type == .shape_sorting, (shapes ?? []).isEmpty else { return self }
+        let fallback: [ShapeSlot] = [
+            ShapeSlot(id: "s1", shape: "circle",   color: "#FF6B6B", targetSlotId: "slot_circle"),
+            ShapeSlot(id: "s2", shape: "square",   color: "#4ECDC4", targetSlotId: "slot_square"),
+            ShapeSlot(id: "s3", shape: "triangle", color: "#45B7D1", targetSlotId: "slot_triangle"),
+        ]
+        return MinigameTrigger(type: type, narratorPrompt: narratorPrompt,
+                               drawingTheme: drawingTheme, drawingDarkBackground: drawingDarkBackground,
+                               voiceTarget: voiceTarget, voiceHint: voiceHint,
+                               choices: choices, shapes: fallback, timeoutSeconds: timeoutSeconds)
+    }
+}
+
+struct MinigameResult {
+    let type: MinigameType
+    let completed: Bool
+    let correct: Bool?
+    let skipped: Bool
+    let responseData: String?   // base64 image / transcribed word / choice id
 }
 

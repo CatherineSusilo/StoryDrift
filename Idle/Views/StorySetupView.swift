@@ -3,6 +3,7 @@ import PhotosUI
 
 struct StorySetupView: View {
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var vitalsManager: VitalsManager
     @Binding var child: ChildProfile
     let onStartStory: (StoryConfig) -> Void
     let onBack: () -> Void
@@ -18,6 +19,7 @@ struct StorySetupView: View {
     @State private var initialState: InitialState = .normal
     @State private var storyLength: StoryLength = .medium
     @State private var isGenerating = false
+    @State private var minigameFrequency: MinigameFrequency = .none
 
     // MARK: - Characters state
     @State private var selectedCharacterIds: Set<String> = []
@@ -153,7 +155,7 @@ struct StorySetupView: View {
                                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(borderClr, lineWidth: 1.5))
                                 .cornerRadius(6)
                             }
-                            .onChange(of: pickerItems) { _ in
+                            .onChange(of: pickerItems) { _, _ in
                                 Task { await loadPickerItems() }
                             }
 
@@ -194,6 +196,52 @@ struct StorySetupView: View {
                                     .font(.custom("PatrickHand-Regular", size: 14))
                                     .foregroundColor(ink.opacity(0.4))
                                     .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+
+                    // ── Interactive Learning Moments ─────────────────────
+                    sectionCard(title: "interactive learning moments") {
+                        LazyVGrid(
+                            columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                            spacing: 10
+                        ) {
+                            ForEach(MinigameFrequency.allCases, id: \.self) { freq in
+                                minigameFrequencyCard(freq)
+                            }
+                        }
+                    }
+
+                    // ── Face Detection (Presage Camera) ──────────────────
+                    sectionCard(title: "face detection") {
+                        VStack(spacing: 12) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(vitalsManager.isCameraEnabled ? "Camera On" : "Camera Off")
+                                        .font(.custom("Georgia", size: 16))
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(ink)
+                                    Text(vitalsManager.isCameraEnabled ? "Tracks drift score via face detection" : "Uses synthetic drift score")
+                                        .font(.custom("Georgia", size: 13))
+                                        .foregroundColor(ink.opacity(0.7))
+                                }
+                                Spacer()
+                                Toggle("", isOn: $vitalsManager.isCameraEnabled)
+                                    .labelsHidden()
+                                    .tint(Color(red: 0.824, green: 0.706, blue: 0.549))
+                            }
+                            
+                            if !vitalsManager.isCameraEnabled {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "info.circle.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(ink.opacity(0.5))
+                                    Text("Drift score will increase steadily from 0→100 over the story duration")
+                                        .font(.custom("Georgia", size: 12))
+                                        .foregroundColor(ink.opacity(0.6))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .padding(.top, 4)
                             }
                         }
                     }
@@ -277,15 +325,20 @@ struct StorySetupView: View {
                     Button(action: handleStartStoryDebug) {
                         HStack(spacing: 8) {
                             Image(systemName: "stopwatch")
-                            Text("⚠️ Test: 2-min Story")
-                                .font(.system(size: 15, weight: .semibold))
+                            VStack(spacing: 1) {
+                                Text("2-min test story")
+                                    .font(.system(size: 15, weight: .semibold))
+                                Text("same settings · 4 paragraphs · all features enabled")
+                                    .font(.system(size: 11))
+                                    .opacity(0.7)
+                            }
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(Color.orange.opacity(0.2))
+                        .padding(.vertical, 10)
+                        .background(Color.orange.opacity(0.15))
                         .foregroundColor(.orange)
                         .cornerRadius(8)
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.5), lineWidth: 1.5))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.4), lineWidth: 1.5))
                     }
                     .disabled(isGenerating)
                     #endif
@@ -297,9 +350,7 @@ struct StorySetupView: View {
         }
         .navigationBarHidden(true)
         .onAppear { loadDrawings() }
-        .onChange(of: selectedTheme) { theme in
-            // When a theme card is tapped, prefill the prompt with the theme name
-            // but keep any custom text the parent has typed.
+        .onChange(of: selectedTheme) { _, theme in
             if let theme, parentPrompt.isEmpty {
                 parentPrompt = theme.name
             }
@@ -523,6 +574,42 @@ struct StorySetupView: View {
         }
     }
 
+    // MARK: - Minigame frequency card
+    @ViewBuilder
+    private func minigameFrequencyCard(_ freq: MinigameFrequency) -> some View {
+        let isActive = minigameFrequency == freq
+        Button {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                minigameFrequency = freq
+            }
+        } label: {
+            VStack(spacing: 10) {
+                if freq.usesSFSymbol {
+                    Image(systemName: freq.icon)
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundColor(ink.opacity(0.55))
+                        .frame(height: 30)
+                } else {
+                    Text(freq.icon)
+                        .font(.system(size: 26))
+                        .frame(height: 30)
+                }
+                Text(freq.displayName)
+                    .font(.custom("PatrickHand-Regular", size: 14))
+                    .foregroundColor(ink.opacity(isActive ? 1.0 : 0.7))
+                    .fontWeight(isActive ? .bold : .regular)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(isActive ? activeCardBg : cardBg.opacity(0.5))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isActive ? activeBorder : borderClr, lineWidth: isActive ? 2 : 1)
+            )
+            .cornerRadius(8)
+        }
+    }
+
     // MARK: - Custom drawing thumbnail (with remove button)
     @ViewBuilder
     private func customDrawingThumbnail(_ upload: CustomUpload) -> some View {
@@ -614,6 +701,9 @@ struct StorySetupView: View {
         if !drawings.isEmpty { config.drawingPrompts = drawings }
         let chars = selectedCharacterPrompts()
         if !chars.isEmpty { config.characters = chars }
+        if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
+        config.targetDuration = storyLength.duration
+        config.cameraEnabled = vitalsManager.isCameraEnabled
 
         isGenerating = false
         onStartStory(config)
@@ -623,19 +713,26 @@ struct StorySetupView: View {
     #if DEBUG
     private func handleStartStoryDebug() {
         isGenerating = true
-        let prompt = parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty ? "quick test story" : parentPrompt
+        let prompt = parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty
+            ? (selectedTheme?.name ?? "a magical bedtime adventure")
+            : parentPrompt
+
+        // Identical to handleStartStory but targetDuration = 2 (→ 4 paragraphs, ~2 min)
         var config = StoryConfig(
             childId: child.id,
             name: child.name,
             age: child.age,
             storytellingTone: storytellingTone.rawValue,
-            parentPrompt: "DEBUG_2MIN:\(prompt)",
+            parentPrompt: prompt,
             initialState: initialState.rawValue
         )
         let drawings = selectedDrawingBase64()
         if !drawings.isEmpty { config.drawingPrompts = drawings }
         let chars = selectedCharacterPrompts()
         if !chars.isEmpty { config.characters = chars }
+        if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
+        config.targetDuration = 2          // 2-minute test run
+        config.cameraEnabled = vitalsManager.isCameraEnabled
         isGenerating = false
         onStartStory(config)
     }
