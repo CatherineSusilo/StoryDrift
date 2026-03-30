@@ -32,10 +32,11 @@ model Child {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sleepSessions SleepSession[]
-  storySessions StorySession[]
-  preferences   ChildPreferences?
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sleepSessions      SleepSession[]
+  storySessions      StorySession[]
+  preferences        ChildPreferences?
+  storyGraphSessions StoryGraphSession[]
 
   @@index([userId])
 }
@@ -75,8 +76,13 @@ model StorySession {
 
   imagePrompts      String?  // JSON stored as string
   generatedImages   String   @default("[]") // JSON array stored as string
+  audioUrls         String   @default("[]") // JSON array of per-paragraph MP3 URLs
 
   modelUsed         String?
+  targetDuration    Int?     // minutes: 10 short / 15 medium / 20 long
+  minigameFrequency String?  // none | every_5th | every_3rd | every_paragraph
+  imageJobId        String?  // Background Vertex AI job ID for image polling
+  cameraEnabled     Boolean? // Whether Presage camera was enabled for drift tracking
 
   // Vitals summary for this story session (populated when story ends)
   avgHeartRate      Float?
@@ -136,4 +142,22 @@ model SleepSession {
 
   @@index([childId])
   @@index([bedtime])
+}
+
+model StoryGraphSession {
+  id         String    @id
+  childId    String
+  mode       String    // 'bedtime' | 'educational'
+  state      String    // JSON-serialised GraphState
+  lessonName String?
+  startTime  DateTime  @default(now())
+  endTime    DateTime?
+  completed  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+  @@index([startTime])
 }

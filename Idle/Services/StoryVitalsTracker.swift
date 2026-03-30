@@ -93,6 +93,8 @@ class StoryVitalsTracker: ObservableObject {
     private var storyId: String?
     private var childId: String?
     private var cancellables = Set<AnyCancellable>()
+    /// Tracks whether the SmartSpectra SDK was actually started this session.
+    private var sdkStarted = false
 
     // MARK: - Eye tracking state (fed from SmartSpectra edgeMetrics)
     /// Rolling window of blink timestamps used to compute blink rate (blinks/min).
@@ -105,22 +107,42 @@ class StoryVitalsTracker: ObservableObject {
     @Published var eyeDrowsinessScore: Double = 0
 
 #if canImport(SmartSpectraSwiftSDK)
-    private let sdk = SmartSpectraSwiftSDK.shared
-    private let processor = SmartSpectraVitalsProcessor.shared
+    private lazy var sdk = SmartSpectraSwiftSDK.shared
+    private lazy var processor = SmartSpectraVitalsProcessor.shared
 #endif
 
     // MARK: - Start
 
     /// Call this the moment the story begins playing (normal or debug mode).
-    func startTracking(storyId: String, childId: String, vitalsManager: VitalsManager) {
+    /// Pass `cameraEnabled: false` to skip all SmartSpectra SDK calls (synthetic drift mode).
+    func startTracking(storyId: String, childId: String, vitalsManager: VitalsManager, cameraEnabled: Bool = true) {
         guard !isTracking else { return }
 
         self.storyId = storyId
         self.childId = childId
         self.snapshots = []
         self.isTracking = true
+        self.sdkStarted = false
+
+        // Always cancel any lingering Combine subscriptions from a prior session
+        // BEFORE the cameraEnabled check so old sdk.$metricsBuffer / $edgeMetrics
+        // sinks are torn down even when switching camera off mid-use.
+        cancellables.removeAll()
 
 #if canImport(SmartSpectraSwiftSDK)
+        guard cameraEnabled else {
+            statusHint = "Camera disabled — using synthetic drift"
+            print("[StoryVitalsTracker] ℹ️  Camera disabled, stopping any leftover SDK session.")
+            // Force-stop any lingering SDK session from a previous story
+            processor.stopRecording()
+            processor.stopProcessing()
+            // Start snapshot timer for vitals history recording
+            snapshotTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
+                self?.recordSnapshot()
+            }
+            return
+        }
+
         guard let apiKey = Secrets.smartSpectraAPIKey else {
             statusHint = "SmartSpectra API key not configured"
             print("[StoryVitalsTracker] ⚠️  Set SMARTSPECTRA_API_KEY in Config.xcconfig to enable vitals tracking.")
@@ -138,6 +160,7 @@ class StoryVitalsTracker: ObservableObject {
         // Start headless processing
         processor.startProcessing()
         processor.startRecording()
+        sdkStarted = true
 
         statusHint = processor.statusHint
 
@@ -204,9 +227,12 @@ class StoryVitalsTracker: ObservableObject {
         cancellables.removeAll()
 
 #if canImport(SmartSpectraSwiftSDK)
-        processor.stopRecording()
-        processor.stopProcessing()
-        print("[StoryVitalsTracker] ⏹  Stopped")
+        if sdkStarted {
+            processor.stopRecording()
+            processor.stopProcessing()
+            print("[StoryVitalsTracker] ⏹  SDK stopped")
+        }
+        sdkStarted = false
 #endif
 
         guard let storyId, let childId else { return nil }
