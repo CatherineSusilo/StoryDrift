@@ -99,3 +99,6 @@ iOSInjectionProject/
 # Secret API keys - never commit
 Idle/Resources/Config.xcconfig
 backend/vertex-ai-key.json
+
+# Story images uploads - never commit
+backend/uploads/story-images/
