@@ -98,3 +98,4 @@ iOSInjectionProject/
 
 # Secret API keys - never commit
 Idle/Resources/Config.xcconfig
+backend/vertex-ai-key.json

@@ -133,9 +133,11 @@ class StoryVitalsTracker: ObservableObject {
         guard cameraEnabled else {
             statusHint = "Camera disabled — using synthetic drift"
             print("[StoryVitalsTracker] ℹ️  Camera disabled, stopping any leftover SDK session.")
-            // Force-stop any lingering SDK session from a previous story
+            // Stop any lingering SDK session asynchronously so the graph tears down cleanly
             processor.stopRecording()
-            processor.stopProcessing()
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.2) {
+                self.processor.stopProcessing()
+            }
             // Start snapshot timer for vitals history recording
             snapshotTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
                 self?.recordSnapshot()
@@ -157,12 +159,25 @@ class StoryVitalsTracker: ObservableObject {
         sdk.setRecordingDelay(0)              // no countdown — start immediately
         sdk.setImageOutputEnabled(false)      // disable camera preview output for performance
 
-        // Start headless processing
-        processor.startProcessing()
-        processor.startRecording()
-        sdkStarted = true
+        statusHint = "Starting camera…"
+        print("[StoryVitalsTracker] ▶️  Configuring SDK — will start in 0.5 s, story: \(storyId)")
 
-        statusHint = processor.statusHint
+        // Always stop any lingering session BEFORE starting a new one.
+        // stopRecording/stopProcessing are internally async (MediaPipe graph teardown).
+        // We must wait for the graph to fully shut down before calling startProcessing()
+        // otherwise packets arrive before StartRun() completes → CalculatorGraph error.
+        processor.stopRecording()
+        processor.stopProcessing()
+
+        // Delay long enough for the MediaPipe graph to complete teardown (~500 ms is sufficient).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self, self.isTracking else { return }
+            self.processor.startProcessing()
+            self.processor.startRecording()
+            self.sdkStarted = true
+            self.statusHint = self.processor.statusHint
+            print("[StoryVitalsTracker] ▶️  SDK started — continuous mode")
+        }
 
         // Observe metrics buffer — fires whenever SmartSpectra produces new measurements
         sdk.$metricsBuffer
@@ -228,8 +243,13 @@ class StoryVitalsTracker: ObservableObject {
 
 #if canImport(SmartSpectraSwiftSDK)
         if sdkStarted {
+            // Stop recording first, then processing — give the graph 200 ms to flush
+            // its final packets before tearing down, which prevents the next
+            // startProcessing() from racing with an in-flight graph shutdown.
             processor.stopRecording()
-            processor.stopProcessing()
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.2) {
+                self.processor.stopProcessing()
+            }
             print("[StoryVitalsTracker] ⏹  SDK stopped")
         }
         sdkStarted = false
