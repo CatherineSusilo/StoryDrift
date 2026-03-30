@@ -1,6 +1,16 @@
 import SwiftUI
 import AVFoundation
 
+// MARK: - Audio delegate coordinator (must be a class — AVAudioPlayerDelegate : NSObjectProtocol)
+
+final class AudioFinishDelegate: NSObject, AVAudioPlayerDelegate {
+    var onFinish: (() -> Void)?
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        guard flag else { return }
+        DispatchQueue.main.async { self.onFinish?() }
+    }
+}
+
 struct StoryPlaybackView: View {
     @EnvironmentObject var vitalsManager: VitalsManager
     @EnvironmentObject var authManager: AuthManager
@@ -25,8 +35,11 @@ struct StoryPlaybackView: View {
     @State private var showMinigame = false
     @State private var paragraphsSinceLastMinigame = 0
     @State private var isGeneratingMinigame = false
+    /// When true, advance to the next paragraph as soon as any shown minigame is dismissed
+    @State private var pendingAdvanceAfterMinigame = false
 
     @StateObject private var vitalsTracker = StoryVitalsTracker()
+    @State private var audioDelegate = AudioFinishDelegate()
 
     // MARK: - Computed
 
@@ -332,11 +345,6 @@ struct StoryPlaybackView: View {
             self.driftHistory.append(self.vitalsManager.driftScore)
 
             if self.vitalsManager.driftScore >= 90 { self.completeStory(); return }
-
-            if self.paragraphElapsed >= self.minSecondsPerParagraph {
-                self.paragraphElapsed = 0
-                self.nextParagraph()
-            }
         }
 
         playCurrentParagraph()
@@ -360,15 +368,25 @@ struct StoryPlaybackView: View {
             completeStory(); return
         }
         paragraphElapsed = 0
-        
+
         // Only increment if minigames are enabled (avoid Int.max overflow)
         if minigameGap < Int.max {
             paragraphsSinceLastMinigame += 1
         }
-        
+
         withAnimation { currentParagraphIndex += 1 }
         playCurrentParagraph()
-        checkAndTriggerMinigame()
+    }
+
+    /// Hooked up in playAudio() — called by AudioFinishDelegate when audio ends.
+    private func audioDidFinish() {
+        guard isPlaying else { return }
+        if shouldTriggerMinigame() {
+            pendingAdvanceAfterMinigame = true
+            triggerMinigame()
+        } else {
+            nextParagraph()
+        }
     }
 
     private func completeStory() {
@@ -409,12 +427,15 @@ struct StoryPlaybackView: View {
 
     // MARK: - Minigame
 
-    private func checkAndTriggerMinigame() {
-        guard !showMinigame,
-              !isGeneratingMinigame,
-              minigameGap < Int.max,
-              paragraphsSinceLastMinigame >= minigameGap,
-              let paragraph = currentParagraph,
+    private func shouldTriggerMinigame() -> Bool {
+        return !showMinigame
+            && !isGeneratingMinigame
+            && minigameGap < Int.max
+            && paragraphsSinceLastMinigame >= minigameGap
+    }
+
+    private func triggerMinigame() {
+        guard let paragraph = currentParagraph,
               let token = authManager.accessToken else { return }
 
         isGeneratingMinigame = true
@@ -428,7 +449,9 @@ struct StoryPlaybackView: View {
                 ]
                 let data = try await APIService.shared.post(
                     path: "/api/generate/minigame", body: body, token: token)
-                let trigger = try JSONDecoder().decode(MinigameTrigger.self, from: data)
+                var trigger = try JSONDecoder().decode(MinigameTrigger.self, from: data)
+                // Ensure shape_sorting always has shapes
+                trigger = trigger.withFallbackShapes()
                 await MainActor.run {
                     self.activeTrigger = trigger
                     self.showMinigame  = true
@@ -438,15 +461,35 @@ struct StoryPlaybackView: View {
                 }
             } catch {
                 print("⚠️ Minigame generation failed: \(error)")
-                await MainActor.run { self.isGeneratingMinigame = false }
+                await MainActor.run {
+                    self.isGeneratingMinigame = false
+                    // If we were pending advance, still advance
+                    if self.pendingAdvanceAfterMinigame {
+                        self.pendingAdvanceAfterMinigame = false
+                        self.nextParagraph()
+                    }
+                }
             }
+        }
+    }
+
+    private func checkAndTriggerMinigame() {
+        if shouldTriggerMinigame() {
+            pendingAdvanceAfterMinigame = false
+            triggerMinigame()
         }
     }
 
     private func handleMinigameComplete(_ result: MinigameResult) {
         showMinigame  = false
         activeTrigger = nil
-        audioPlayer?.play()
+        if pendingAdvanceAfterMinigame {
+            pendingAdvanceAfterMinigame = false
+            nextParagraph()
+        } else {
+            // Minigame was triggered by menu "next paragraph" — just resume audio
+            audioPlayer?.play()
+        }
     }
 
     // MARK: - Audio
@@ -480,6 +523,8 @@ struct StoryPlaybackView: View {
             DispatchQueue.main.async {
                 do {
                     self.audioPlayer = try AVAudioPlayer(data: data)
+                    self.audioDelegate.onFinish = { self.audioDidFinish() }
+                    self.audioPlayer?.delegate = self.audioDelegate
                     self.audioPlayer?.enableRate = true
                     self.audioPlayer?.rate = 1.0
                     self.audioPlayer?.prepareToPlay()

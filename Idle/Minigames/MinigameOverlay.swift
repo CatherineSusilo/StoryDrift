@@ -12,7 +12,8 @@ struct MinigameOverlay: View {
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     init(trigger: MinigameTrigger, onComplete: @escaping (MinigameResult) -> Void) {
-        self.trigger = trigger
+        // Ensure shape_sorting always has shapes before any rendering
+        self.trigger = trigger.withFallbackShapes()
         self.onComplete = onComplete
         _timeRemaining = State(initialValue: trigger.timeoutSeconds ?? 30)
     }

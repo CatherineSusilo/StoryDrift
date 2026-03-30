@@ -476,6 +476,20 @@ struct MinigameTrigger: Codable {
     let choices: [MinigameChoice]?
     let shapes: [ShapeSlot]?
     let timeoutSeconds: Int?
+
+    /// Returns a copy with a default set of shapes if type is shape_sorting and shapes is nil/empty.
+    func withFallbackShapes() -> MinigameTrigger {
+        guard type == .shape_sorting, (shapes ?? []).isEmpty else { return self }
+        let fallback: [ShapeSlot] = [
+            ShapeSlot(id: "s1", shape: "circle",   color: "#FF6B6B", targetSlotId: "slot_circle"),
+            ShapeSlot(id: "s2", shape: "square",   color: "#4ECDC4", targetSlotId: "slot_square"),
+            ShapeSlot(id: "s3", shape: "triangle", color: "#45B7D1", targetSlotId: "slot_triangle"),
+        ]
+        return MinigameTrigger(type: type, narratorPrompt: narratorPrompt,
+                               drawingTheme: drawingTheme, drawingDarkBackground: drawingDarkBackground,
+                               voiceTarget: voiceTarget, voiceHint: voiceHint,
+                               choices: choices, shapes: fallback, timeoutSeconds: timeoutSeconds)
+    }
 }
 
 struct MinigameResult {

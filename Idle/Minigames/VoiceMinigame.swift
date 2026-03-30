@@ -156,9 +156,9 @@ struct VoiceMinigame: View {
         phase = .listening
         transcript = ""
         recognizer.start()
-        // Auto-stop after 8 seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
-            if phase == .listening { stopListening() }
+        // Auto-stop after 5 seconds to prevent nw_read network timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            if self.phase == .listening { self.stopListening() }
         }
     }
 
@@ -211,7 +211,12 @@ class SpeechRecognizer: ObservableObject {
 
     func start() {
         transcript = ""
-        guard let recognizer = speechRecognizer, recognizer.isAvailable else { return }
+        guard let recognizer = speechRecognizer, recognizer.isAvailable else {
+            print("[VoiceMinigame] SFSpeechRecognizer unavailable")
+            return
+        }
+
+        stop() // ensure clean state
 
         do {
             let audioSession = AVAudioSession.sharedInstance()
@@ -221,10 +226,19 @@ class SpeechRecognizer: ObservableObject {
             recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
             guard let request = recognitionRequest else { return }
             request.shouldReportPartialResults = true
+            // Limit on-device to avoid network timeout — no server round-trip needed
+            if #available(iOS 17, *) {
+                request.addsPunctuation = false
+            }
 
             let inputNode = audioEngine.inputNode
-            recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, _ in
-                self?.transcript = result?.bestTranscription.formattedString ?? ""
+            recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
+                if let result = result {
+                    DispatchQueue.main.async { self?.transcript = result.bestTranscription.formattedString }
+                }
+                if error != nil || result?.isFinal == true {
+                    DispatchQueue.main.async { self?.transcript = self?.transcript ?? "" }
+                }
             }
 
             let format = inputNode.outputFormat(forBus: 0)
@@ -235,17 +249,24 @@ class SpeechRecognizer: ObservableObject {
             audioEngine.prepare()
             try audioEngine.start()
         } catch {
-            print("SpeechRecognizer error: \(error)")
+            print("[VoiceMinigame] Start error: \(error)")
         }
     }
 
     func stop() {
+        guard audioEngine.isRunning else { return }
         audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
+        if audioEngine.inputNode.numberOfInputs > 0 {
+            audioEngine.inputNode.removeTap(onBus: 0)
+        }
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
+        recognitionTask?.finish()
         recognitionRequest = nil
         recognitionTask = nil
-        try? AVAudioSession.sharedInstance().setActive(false)
+        // Deactivate with delay to let the socket close cleanly (prevents nw_read timeout log)
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.3) {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 }

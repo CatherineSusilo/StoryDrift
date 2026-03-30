@@ -119,16 +119,16 @@ async function generateParagraphAudio(
   driftPercent: number,  // 0 (start) → 1 (end of story)
 ): Promise<string> {
   const apiKey  = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || '9BWtsMINqrJLrRacOk9x'; // Aria — warm, calm
-
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'XrExE9yKIg1WjnnlVkGX'; // Matilda
   if (!apiKey) throw new Error('ELEVENLABS_API_KEY not configured');
 
-  // Start at 0.75 (slow bedtime pace), slide to 0.55 by the end (very drowsy)
-  const speed = 0.75 - driftPercent * 0.20;
+  // Start at 0.55 (slow, soothing bedtime pace), slide to 0.38 by the end (very drowsy lullaby)
+  // ElevenLabs speed range: 0.25 (slowest) – 4.0 (fastest). 0.38 is near the slow floor.
+  const speed = 0.55 - driftPercent * 0.17;
 
-  // Voice becomes more stable and less expressive as the story winds down
-  const stability        = 0.75 + driftPercent * 0.20;
-  const style            = Math.max(0, 0.25 - driftPercent * 0.25);
+  // Voice becomes progressively more stable and less expressive — hypnotic, monotone lullaby feel
+  const stability        = 0.82 + driftPercent * 0.15;   // 0.82 → 0.97
+  const style            = Math.max(0, 0.15 - driftPercent * 0.15); // 0.15 → 0
 
   const resp = await axios.post(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,

@@ -1,5 +1,19 @@
 import SwiftUI
 import PencilKit
+import ObjectiveC.runtime
+
+// MARK: - One-time swizzle to silence CAMetalDrawable setDirtyRect: warning
+// PencilKit's internal PKImageView sends this selector to CAMetalDrawable,
+// which doesn't implement it. The warning is benign but noisy.
+// We add a no-op implementation so the runtime stops logging "Uncaught selector".
+private let _silenceMetalDrawableWarning: Void = {
+    // Target: CAMetalDrawable (protocol; its concrete class is CAMetalDrawableStorage or similar)
+    // We add setDirtyRect: to NSObject so ANY receiver can handle it silently.
+    let sel = NSSelectorFromString("setDirtyRect:")
+    guard class_getInstanceMethod(NSObject.self, sel) == nil else { return }
+    let imp = imp_implementationWithBlock({ (_: AnyObject, _: CGRect) in } as @convention(block) (AnyObject, CGRect) -> Void)
+    class_addMethod(NSObject.self, sel, imp, "{CGRect={CGFloat}{CGFloat}{CGFloat}{CGFloat}}")
+}()
 
 // MARK: - DrawingMinigame
 
@@ -11,11 +25,27 @@ struct DrawingMinigame: View {
     let darkBackground: Bool
     let onComplete: (MinigameResult) -> Void
 
-    @State private var canvasView = PKCanvasView()
+    @State private var canvasView = NoScribbleCanvasView()
     @State private var hasDrawn = false
     @State private var strokeCount = 0
     @State private var selectedTool: DrawTool = .pencil
-    @State private var selectedColor: Color = .white
+    // Default ink is dark brown so it shows on pale yellow canvas
+    @State private var selectedColor: Color = Color(red: 0.18, green: 0.10, blue: 0.04)
+
+    // Pale yellow canvas background (always, regardless of darkBackground flag)
+    private let canvasBg = UIColor(red: 0.996, green: 0.976, blue: 0.88, alpha: 1) // #FEFF1E0
+
+    // Colors that read well on pale yellow
+    private let toolColors: [Color] = [
+        Color(red: 0.18, green: 0.10, blue: 0.04), // dark brown (default)
+        .black,
+        Color(red: 0.6, green: 0.0, blue: 0.0),   // dark red
+        Color(red: 0.0, green: 0.4, blue: 0.1),   // dark green
+        Color(red: 0.0, green: 0.15, blue: 0.5),  // dark blue
+        Color(red: 0.5, green: 0.0, blue: 0.5),   // purple
+        .orange,
+        Color(red: 0.6, green: 0.4, blue: 0.0),   // amber
+    ]
 
     enum DrawTool: CaseIterable {
         case pencil, brush, eraser
@@ -27,8 +57,6 @@ struct DrawingMinigame: View {
         }
     }
 
-    private let toolColors: [Color] = [.white, .yellow, .cyan, .green, .orange, .pink]
-
     var body: some View {
         GeometryReader { geo in
             let isCompact = geo.size.height < 340
@@ -37,23 +65,23 @@ struct DrawingMinigame: View {
                 HStack(spacing: 6) {
                     Image(systemName: "pencil.tip")
                         .font(.system(size: isCompact ? 13 : 16))
-                        .foregroundColor(.yellow)
+                        .foregroundColor(.orange)
                     Text("Draw: \(theme)")
                         .font(.custom("Georgia", size: isCompact ? 13 : 16))
                         .foregroundColor(.white)
                         .lineLimit(1)
                 }
 
-                // Canvas — fills remaining height
+                // Canvas
                 MinigameCanvasView(
                     canvasView: $canvasView,
                     strokeCount: $strokeCount,
-                    darkBackground: darkBackground
+                    bgColor: canvasBg
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .cornerRadius(12)
                 .overlay(RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1))
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1))
                 .onChange(of: strokeCount) { count in hasDrawn = count > 0 }
 
                 // Tool + color row
@@ -95,7 +123,7 @@ struct DrawingMinigame: View {
                     Spacer()
 
                     // Color swatches
-                    ForEach(toolColors, id: \.self) { color in
+                    ForEach(Array(toolColors.enumerated()), id: \.offset) { _, color in
                         Button {
                             selectedColor = color
                             applyTool(selectedTool)
@@ -103,7 +131,9 @@ struct DrawingMinigame: View {
                             Circle()
                                 .fill(color)
                                 .frame(width: isCompact ? 18 : 22, height: isCompact ? 18 : 22)
-                                .overlay(Circle().stroke(Color.white.opacity(selectedColor == color ? 1 : 0.2), lineWidth: 2))
+                                .overlay(Circle().stroke(
+                                    selectedColor == color ? Color.white : Color.white.opacity(0.25),
+                                    lineWidth: selectedColor == color ? 2.5 : 1))
                         }
                         .padding(.horizontal, 2)
                     }
@@ -127,7 +157,10 @@ struct DrawingMinigame: View {
                 .cornerRadius(10)
             }
         }
-        .onAppear { applyTool(.pencil) }
+        .onAppear {
+            _ = _silenceMetalDrawableWarning   // trigger swizzle once
+            applyTool(.pencil)
+        }
     }
 
     // MARK: - Apply tool
@@ -135,12 +168,9 @@ struct DrawingMinigame: View {
     private func applyTool(_ tool: DrawTool) {
         let uiColor = UIColor(selectedColor)
         switch tool {
-        case .pencil:
-            canvasView.tool = PKInkingTool(.pencil, color: uiColor, width: 4)
-        case .brush:
-            canvasView.tool = PKInkingTool(.marker, color: uiColor, width: 10)
-        case .eraser:
-            canvasView.tool = PKEraserTool(.bitmap)
+        case .pencil: canvasView.tool = PKInkingTool(.pencil, color: uiColor, width: 4)
+        case .brush:  canvasView.tool = PKInkingTool(.marker, color: uiColor, width: 10)
+        case .eraser: canvasView.tool = PKEraserTool(.bitmap)
         }
     }
 
@@ -154,26 +184,68 @@ struct DrawingMinigame: View {
     }
 }
 
-// MARK: - PKCanvasView wrapper (no PKToolPicker)
+// MARK: - PKCanvasView subclass — strips Scribble / handwritingd interactions
+
+/// Subclassing lets us intercept `didMoveToWindow` and `didMoveToSuperview`
+/// to remove every UIScribbleInteraction before PencilKit can connect to handwritingd.
+/// This silences both "Remote connection to handwritingd was invalidated" and
+/// the "CAMetalDrawable setDirtyRect:" uncaught-selector warnings.
+final class NoScribbleCanvasView: PKCanvasView {
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        removeScribbleInteractions()
+    }
+
+    override func didMoveToSuperview() {
+        super.didMoveToSuperview()
+        removeScribbleInteractions()
+    }
+
+    private func removeScribbleInteractions() {
+        // Walk the entire view subtree and strip every Scribble interaction.
+        removeScribbleFrom(self)
+    }
+
+    private func removeScribbleFrom(_ view: UIView) {
+        for interaction in view.interactions {
+            let name = String(describing: type(of: interaction))
+            if name.contains("Scribble") || name.contains("Handwriting") || name.contains("IndirectScribble") {
+                view.removeInteraction(interaction)
+            }
+        }
+        for sub in view.subviews {
+            removeScribbleFrom(sub)
+        }
+    }
+
+    // Refuse to add any Scribble interaction that PencilKit tries to inject later.
+    override func addInteraction(_ interaction: UIInteraction) {
+        let name = String(describing: type(of: interaction))
+        guard !name.contains("Scribble") && !name.contains("Handwriting") else { return }
+        super.addInteraction(interaction)
+    }
+}
+
+// MARK: - PKCanvasView SwiftUI wrapper (no PKToolPicker, no Scribble)
 
 struct MinigameCanvasView: UIViewRepresentable {
-    @Binding var canvasView: PKCanvasView
+    @Binding var canvasView: NoScribbleCanvasView
     @Binding var strokeCount: Int
-    let darkBackground: Bool
+    let bgColor: UIColor
 
-    func makeUIView(context: Context) -> PKCanvasView {
+    func makeUIView(context: Context) -> NoScribbleCanvasView {
         canvasView.delegate = context.coordinator
-        canvasView.backgroundColor = darkBackground
-            ? UIColor(red: 0.03, green: 0.03, blue: 0.08, alpha: 1)
-            : UIColor(red: 0.1,  green: 0.1,  blue: 0.18, alpha: 1)
+        canvasView.backgroundColor = bgColor
         canvasView.drawingPolicy = .anyInput
-        canvasView.tool = PKInkingTool(.pencil, color: .white, width: 4)
-        // Disable PencilKit's built-in finger drawing hint that requires PKToolPicker
+        canvasView.tool = PKInkingTool(.pencil,
+            color: UIColor(red: 0.18, green: 0.10, blue: 0.04, alpha: 1), width: 4)
         canvasView.isRulerActive = false
+        canvasView.overrideUserInterfaceStyle = .light   // light mode so pale yellow renders correctly
         return canvasView
     }
 
-    func updateUIView(_ uiView: PKCanvasView, context: Context) {}
+    func updateUIView(_ uiView: NoScribbleCanvasView, context: Context) {}
 
     func makeCoordinator() -> Coordinator { Coordinator(strokeCount: $strokeCount) }
 

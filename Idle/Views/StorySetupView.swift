@@ -325,15 +325,20 @@ struct StorySetupView: View {
                     Button(action: handleStartStoryDebug) {
                         HStack(spacing: 8) {
                             Image(systemName: "stopwatch")
-                            Text("⚠️ Test: 2-min Story")
-                                .font(.system(size: 15, weight: .semibold))
+                            VStack(spacing: 1) {
+                                Text("2-min test story")
+                                    .font(.system(size: 15, weight: .semibold))
+                                Text("same settings · 4 paragraphs · all features enabled")
+                                    .font(.system(size: 11))
+                                    .opacity(0.7)
+                            }
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(Color.orange.opacity(0.2))
+                        .padding(.vertical, 10)
+                        .background(Color.orange.opacity(0.15))
                         .foregroundColor(.orange)
                         .cornerRadius(8)
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.5), lineWidth: 1.5))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.orange.opacity(0.4), lineWidth: 1.5))
                     }
                     .disabled(isGenerating)
                     #endif
@@ -708,13 +713,17 @@ struct StorySetupView: View {
     #if DEBUG
     private func handleStartStoryDebug() {
         isGenerating = true
-        let prompt = parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty ? "quick test story" : parentPrompt
+        let prompt = parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty
+            ? (selectedTheme?.name ?? "a magical bedtime adventure")
+            : parentPrompt
+
+        // Identical to handleStartStory but targetDuration = 2 (→ 4 paragraphs, ~2 min)
         var config = StoryConfig(
             childId: child.id,
             name: child.name,
             age: child.age,
             storytellingTone: storytellingTone.rawValue,
-            parentPrompt: "DEBUG_2MIN:\(prompt)",
+            parentPrompt: prompt,
             initialState: initialState.rawValue
         )
         let drawings = selectedDrawingBase64()
@@ -722,6 +731,7 @@ struct StorySetupView: View {
         let chars = selectedCharacterPrompts()
         if !chars.isEmpty { config.characters = chars }
         if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
+        config.targetDuration = 2          // 2-minute test run
         config.cameraEnabled = vitalsManager.isCameraEnabled
         isGenerating = false
         onStartStory(config)
