@@ -267,7 +267,7 @@ struct StoryStatsSummary: Codable {
     let avgDuration: Int
     let avgInitialDriftScore: Int?
     let avgFinalDriftScore: Int?
-    let avgDriftImprovement: Double?
+    let avgDriftImprovement: Double?   // avg (finalDrift - initialDrift) across completed stories
 }
 
 struct StoryTrendPoint: Codable {

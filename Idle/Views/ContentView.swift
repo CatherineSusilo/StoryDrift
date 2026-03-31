@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var driftHistory: [Double] = []
     @State private var storyDuration: TimeInterval = 0
     @State private var selectedChild: Child?
+    @State private var dashboardRefreshID: UUID = UUID()
 
     var body: some View {
         ZStack {
@@ -21,7 +22,8 @@ struct ContentView: View {
                 case .dashboard, .onboarding, .roadmap:
                     MainTabView(
                         currentView: $currentView,
-                        selectedChild: $selectedChild
+                        selectedChild: $selectedChild,
+                        dashboardRefreshID: dashboardRefreshID
                     )
 
                 case .setup:
@@ -49,6 +51,8 @@ struct ContentView: View {
                                 driftHistory = history
                                 storyDuration = duration
                                 currentView = .summary
+                                // Persist completion to backend
+                                Task { await saveCompletion(story: story, history: history, duration: duration) }
                             }
                         )
                         .transition(.opacity)
@@ -67,6 +71,7 @@ struct ContentView: View {
                                 activeStory = nil
                                 driftHistory = []
                                 storyDuration = 0
+                                dashboardRefreshID = UUID()   // trigger dashboard reload
                                 currentView = .dashboard
                             }
                         )
@@ -92,6 +97,25 @@ struct ContentView: View {
         } catch {
             print("❌ Story generation failed: \(error)")
             await MainActor.run { currentView = .dashboard }
+        }
+    }
+
+    private func saveCompletion(story: Story, history: [Double], duration: TimeInterval) async {
+        guard let token = authManager.accessToken else { return }
+        let finalScore = Int(history.last ?? 0)
+        let historyInts = history.map { Int($0) }
+        do {
+            try await APIService.shared.updateStory(
+                storyId: story.id,
+                completed: true,
+                duration: Int(duration),
+                finalDriftScore: finalScore,
+                driftScoreHistory: historyInts,
+                token: token
+            )
+            print("✅ Story \(story.id) saved as completed (drift: \(finalScore)%)")
+        } catch {
+            print("⚠️ Could not save story completion: \(error)")
         }
     }
 }

@@ -35,6 +35,7 @@ enum NavDestination: Int, CaseIterable {
 struct MainTabView: View {
     @Binding var currentView: AppView
     @Binding var selectedChild: Child?
+    var dashboardRefreshID: UUID = UUID()
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var vitalsManager: VitalsManager
     @Environment(\.horizontalSizeClass) private var hSizeClass
@@ -339,6 +340,7 @@ struct MainTabView: View {
         case .home:
             ChildDashboardView(
                 child: .constant(child),
+                refreshID: dashboardRefreshID,
                 onStartStory: {
                     selectedChild = child
                     currentView = .setup
@@ -354,7 +356,7 @@ struct MainTabView: View {
                 }
             )
         case .analytics:
-            BehavioralStatsView(child: child)
+            BehavioralStatsView(child: child, refreshID: dashboardRefreshID)
         case .stories:
             StoryArchiveView(childId: child.id)
         case .drawings:
@@ -395,4 +397,3 @@ extension LessonDefinition: Hashable {
         .environmentObject(AuthManager())
         .environmentObject(VitalsManager())
 }
-
