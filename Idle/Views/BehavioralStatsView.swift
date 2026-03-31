@@ -457,7 +457,6 @@ struct VitalsLineGraph: View {
             dateOfBirth: nil, avatar: nil,
             createdAt: Date(), updatedAt: Date(),
             preferences: ChildPreferencesModel(
-                id: "p1", childId: "1",
                 storytellingTone: "calming",
                 favoriteThemes: ["mulan", "rainbow", "dragon"],
                 defaultInitialState: "normal",

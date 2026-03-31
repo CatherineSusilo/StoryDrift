@@ -402,20 +402,29 @@ struct StoryPlaybackView: View {
 
     private func startImagePolling(jobId: String) {
         guard let token = authManager.accessToken else { return }
-        imagePollingTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
-            Task {
-                guard let url = URL(string: "\(APIService.baseURL)/api/generate/story-images/\(jobId)") else { return }
-                var req = URLRequest(url: url)
-                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-                guard let (data, _) = try? await URLSession.shared.data(for: req),
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let images = json["images"] as? [String] else { return }
-                await MainActor.run {
-                    for (i, imgUrl) in images.enumerated() where i < self.paragraphImages.count && !imgUrl.isEmpty {
-                        if self.paragraphImages[i].isEmpty { self.paragraphImages[i] = imgUrl }
-                    }
-                    if json["complete"] as? Bool == true { self.stopImagePolling() }
+
+        // Fetch immediately so image 0 shows up as soon as Vertex AI returns it (~5s)
+        fetchImages(jobId: jobId, token: token)
+
+        // Then poll every 2s (down from 5s) to keep subsequent images snappy
+        imagePollingTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+            self.fetchImages(jobId: jobId, token: token)
+        }
+    }
+
+    private func fetchImages(jobId: String, token: String) {
+        Task {
+            guard let url = URL(string: "\(APIService.baseURL)/api/generate/story-images/\(jobId)") else { return }
+            var req = URLRequest(url: url)
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            guard let (data, _) = try? await URLSession.shared.data(for: req),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let images = json["images"] as? [String] else { return }
+            await MainActor.run {
+                for (i, imgUrl) in images.enumerated() where i < self.paragraphImages.count && !imgUrl.isEmpty {
+                    if self.paragraphImages[i].isEmpty { self.paragraphImages[i] = imgUrl }
                 }
+                if json["complete"] as? Bool == true { self.stopImagePolling() }
             }
         }
     }

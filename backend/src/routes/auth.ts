@@ -1,80 +1,49 @@
 import { Router } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import { prisma } from '../lib/prisma';
+import { User } from '../models/User';
+import { Child } from '../models/Child';
 import { z } from 'zod';
 
 const router = Router();
 
-// Schema for user profile — email is optional here; only required when creating a new user
 const userProfileSchema = z.object({
-  email: z.string().optional(),
-  name: z.string().optional(),
-  picture: z.string().optional(), // Don't validate as URL — Auth0 can return various formats
+  email:   z.string().optional(),
+  name:    z.string().optional(),
+  picture: z.string().optional(),
 });
 
 // Get or create user profile (called after Auth0 login)
 router.post('/profile', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const auth0Id = req.auth?.payload?.sub;
-    if (!auth0Id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!auth0Id) return res.status(401).json({ error: 'Unauthorized' });
 
     const body = userProfileSchema.parse(req.body);
 
-    // Try to find existing user first
-    const includeChildren = {
-      children: {
-        include: {
-          preferences: true,
-        },
-      },
-    };
-
-    let user = await prisma.user.findUnique({
-      where: { auth0Id },
-      include: includeChildren,
-    });
+    let user = await User.findOne({ auth0Id });
 
     if (!user) {
-      // Need an email to create a new user — derive it from the JWT sub if not provided
-      const email = (body.email && body.email.trim() !== '')
-        ? body.email
+      const email = body.email?.trim()
+        ? body.email.trim()
         : `${auth0Id.replace('|', '_')}@storydrift.local`;
 
-      user = await prisma.user.create({
-        data: {
-          auth0Id,
-          email,
-          name: body.name,
-          picture: body.picture,
-        },
-        include: includeChildren,
-      });
+      user = await User.create({ auth0Id, email, name: body.name, picture: body.picture });
     } else {
-      // Update name/picture if provided, and email if a real one is now available
       const updateData: any = {};
-      if (body.name !== undefined) updateData.name = body.name;
+      if (body.name    !== undefined) updateData.name    = body.name;
       if (body.picture !== undefined) updateData.picture = body.picture;
-      // Update email if a real one is provided and the stored one looks like a fallback
-      if (body.email && body.email.trim() !== '' && user.email.endsWith('@storydrift.local')) {
+      if (body.email?.trim() && user.email.endsWith('@storydrift.local')) {
         updateData.email = body.email.trim();
       }
-
       if (Object.keys(updateData).length > 0) {
-        user = await prisma.user.update({
-          where: { auth0Id },
-          data: updateData,
-          include: includeChildren,
-        });
+        user = await User.findByIdAndUpdate(user._id, updateData, { new: true }) ?? user;
       }
     }
 
-    res.json(user);
+    const children = await Child.find({ userId: user._id }).sort({ createdAt: 1 });
+    return res.json({ ...user.toJSON(), children: children.map(c => c.toJSON()) });
   } catch (error) {
-    console.error('Profile error (full):', error);
-    console.error('Profile error message:', error instanceof Error ? error.message : String(error));
-    console.error('Profile error stack:', error instanceof Error ? error.stack : 'no stack');
+    console.error('Profile error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to get/create profile', detail: error instanceof Error ? error.message : String(error) });
   }
 });

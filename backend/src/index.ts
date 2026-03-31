@@ -9,10 +9,11 @@ import path from 'path';
 // IMPORTANT: Load environment variables FIRST before importing auth middleware
 dotenv.config();
 
-// Ensure story image uploads directory exists
+// Ensure story image/audio uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads', 'story-images');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
+import { connectDB } from './lib/db';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
@@ -30,7 +31,7 @@ import vitalsRoutes from './routes/vitals';
 import storySessionRoutes from './routes/story-session';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Middleware
 app.use(helmet());
@@ -43,12 +44,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
-// ── Static: permanently stored story images (no auth required) ──
-// Served at GET /images/{filename} — URLs stored in session state never expire
-app.use('/images', express.static(uploadsDir, {
-  maxAge: '365d',           // client-side caching — files are immutable
-  immutable: true,
-}));
+// ── Static: story images + audio (no auth required) ──────────────────────────
+// Served at GET /images/{filename} — matches the /images/xxx.mp3 and /images/xxx.png URLs
+// stored in MongoDB. Files are immutable so we cache them for a year client-side.
+app.use('/images', express.static(uploadsDir, { maxAge: '365d', immutable: true }));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -77,14 +76,24 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 StoryDrift API running on http://0.0.0.0:${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔐 Auth0 Domain: ${process.env.AUTH0_DOMAIN}`);
-});
+let server: ReturnType<typeof app.listen>;
+
+connectDB()
+  .then(() => {
+    server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 StoryDrift API running on http://0.0.0.0:${PORT}`);
+      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔐 Auth0 Domain: ${process.env.AUTH0_DOMAIN}`);
+    });
+  })
+  .catch(err => {
+    console.error('❌ Failed to connect to MongoDB:', err.message);
+    process.exit(1);
+  });
 
 const shutdown = () => {
-  server.close(() => process.exit(0));
+  if (server) server.close(() => process.exit(0));
+  else process.exit(0);
   setTimeout(() => process.exit(1), 3000);
 };
 process.on('SIGTERM', shutdown);

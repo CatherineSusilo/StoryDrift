@@ -3,21 +3,27 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuid } from 'uuid';
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleAuth } from 'google-auth-library';
 
 // ── Local storage setup ────────────────────────────────────────────────────────
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'story-images');
-
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-interface ImageResult {
-  imageUrl: string;
-  falUrl: string;
-  prompt: string;
+const VERTEX_PROJECT  = process.env.VERTEX_AI_PROJECT  || 'hackcanada-489602';
+const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION || 'us-central1';
+
+const vertexAuth = new GoogleAuth({
+  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS || './vertex-ai-key.json',
+  scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+});
+
+export interface ImageResult {
+  imageUrl: string;   // permanent local URL served by Express (e.g. /images/abc.png)
+  falUrl:   string;   // kept for call-site compatibility — always '' with Vertex AI
+  prompt:   string;
 }
 
 // ── Visual tone by score ───────────────────────────────────────────────────────
@@ -39,50 +45,37 @@ const STYLE_SUFFIX =
   "children's storybook illustration, painterly watercolor style, " +
   'no text, no words, no letters, no UI elements, soft edges, wide aspect ratio';
 
-/**
- * Uses Claude to extract a rich, specific, visual image prompt from the paragraph.
- * Returns a single descriptive sentence focused on scene, characters, lighting,
- * and mood — everything Flux needs to paint a beautiful storybook illustration.
- */
+// ── Claude prompt builder ─────────────────────────────────────────────────────
+
 async function buildImagePrompt(
   segment: string,
   score: number,
   mode: 'bedtime' | 'educational',
   lessonConcept?: string,
 ): Promise<string> {
-  const visualTone = getVisualTone(score, mode);
+  const visualTone  = getVisualTone(score, mode);
   const conceptHint = lessonConcept ? ` Make sure the concept "${lessonConcept}" is clearly visible.` : '';
 
   try {
     const response = await claude.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 120,
-      messages: [
-        {
-          role: 'user',
-          content: `Extract a single vivid image prompt from this story paragraph for a children's storybook illustration.
-
-PARAGRAPH:
-"${segment}"
-
-VISUAL TONE: ${visualTone}${conceptHint}
-
-Rules:
-- One sentence only, max 40 words
-- Describe the exact scene: specific characters, their actions, the setting, foreground objects
-- Include the visual tone naturally (lighting, palette, atmosphere)
-- End with: ${STYLE_SUFFIX}
-- No quotes, no preamble, just the prompt itself`,
-        },
-      ],
+      messages: [{
+        role: 'user',
+        content:
+          `Extract a single vivid image prompt from this story paragraph for a children's storybook illustration.\n\n` +
+          `PARAGRAPH:\n"${segment}"\n\n` +
+          `VISUAL TONE: ${visualTone}${conceptHint}\n\n` +
+          `Rules:\n- One sentence only, max 40 words\n` +
+          `- Describe the exact scene: specific characters, their actions, the setting\n` +
+          `- Include the visual tone naturally\n` +
+          `- End with: ${STYLE_SUFFIX}\n` +
+          `- No quotes, no preamble, just the prompt itself`,
+      }],
     });
-
     const text = (response.content[0] as { type: string; text: string }).text.trim();
-    // Strip any accidental leading quotes
     return text.replace(/^["']|["']$/g, '');
-  } catch (err) {
-    // Fallback: first two sentences + tone
-    console.warn('⚠️ Claude prompt extraction failed, using fallback:', err);
+  } catch {
     const sentences = segment.match(/[^.!?]+[.!?]+/g) || [segment];
     const base = sentences.slice(0, 2).join(' ').trim();
     let prompt = `${base} ${visualTone}, ${STYLE_SUFFIX}`;
@@ -93,182 +86,66 @@ Rules:
 
 // ── Main export ────────────────────────────────────────────────────────────────
 
-/**
- * Node 6/7 — IMAGE GENERATOR (Fal.ai + Flux)
- *
- * First segment: fal-ai/flux/schnell (text-to-image, fastest)
- * Subsequent segments: fal-ai/flux/dev/image-to-image with the previous
- *   Fal.ai CDN URL as reference (strength 0.82 — mostly new scene, same art style)
- *
- * Generated images are immediately downloaded and stored permanently under
- * uploads/story-images/. The local URL is what goes into session state and
- * the iOS app — it never expires.
- */
 export async function generateSceneImage(
   segment: string,
   score: number,
   mode: 'bedtime' | 'educational',
-  recentFalUrls: string[] = [],
+  recentFalUrls: string[] = [],   // kept for call-site compat — unused with Vertex AI
   lessonConcept?: string,
 ): Promise<ImageResult> {
-  const apiKey = process.env.FAL_API_KEY;
-  if (!apiKey) {
-    console.warn('⚠️ FAL_API_KEY not configured — skipping image generation');
+  const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || './vertex-ai-key.json';
+  if (!fs.existsSync(keyFile)) {
+    console.warn('⚠️ Vertex AI key not found — skipping image generation');
     return { imageUrl: '', falUrl: '', prompt: '' };
   }
 
-  // Claude extracts a rich, specific visual prompt from the paragraph
   const imagePrompt = await buildImagePrompt(segment, score, mode, lessonConcept);
   console.log(`🎨 Image prompt: ${imagePrompt.slice(0, 80)}…`);
 
-  const refUrl = recentFalUrls.at(-1);
-
   try {
-    const falUrl = refUrl
-      ? await generateImageToImage(imagePrompt, refUrl, score, apiKey)
-      : await generateTextToImage(imagePrompt, apiKey);
-
-    if (!falUrl) return { imageUrl: '', falUrl: '', prompt: imagePrompt };
-
-    // Download and store permanently
-    const imageUrl = await downloadAndStore(falUrl);
-    return { imageUrl, falUrl, prompt: imagePrompt };
+    const imageUrl = await generateWithVertexAI(imagePrompt);
+    return { imageUrl, falUrl: '', prompt: imagePrompt };
   } catch (err: any) {
-    console.error('❌ Image generation error:', err.response?.data || err.message);
+    console.error('❌ Image generation error:', err.message);
     return { imageUrl: '', falUrl: '', prompt: imagePrompt };
   }
 }
 
-// ── fal-ai/flux/schnell — text-to-image (no reference) ────────────────────────
+// ── Vertex AI Imagen 3 ────────────────────────────────────────────────────────
 
-async function generateTextToImage(prompt: string, apiKey: string): Promise<string> {
-  console.log('🎨 Flux Schnell text-to-image');
+async function generateWithVertexAI(prompt: string): Promise<string> {
+  const client = await vertexAuth.getClient();
+  const token  = await client.getAccessToken();
+  if (!token.token) throw new Error('Failed to get Vertex AI access token');
+
+  const endpoint =
+    `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}` +
+    `/locations/${VERTEX_LOCATION}/publishers/google/models/imagen-3.0-fast-generate-001:predict`;
+
   const response = await axios.post(
-    'https://queue.fal.run/fal-ai/flux/schnell',
+    endpoint,
     {
-      prompt,
-      image_size: 'landscape_4_3',
-      num_inference_steps: 4,      // schnell is optimised for 4 steps
-      num_images: 1,
-      enable_safety_checker: true,
+      instances:  [{ prompt }],
+      parameters: { sampleCount: 1, aspectRatio: '4:3', safetyFilterLevel: 'block_some', personGeneration: 'dont_allow' },
     },
     {
-      headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json' },
-      timeout: 30000,
+      headers: { Authorization: `Bearer ${token.token}`, 'Content-Type': 'application/json' },
+      timeout: 60_000,
     },
   );
 
-  const requestId = response.data?.request_id;
-  if (requestId) return pollFalResult('flux/schnell', requestId, apiKey);
+  const predictions = response.data?.predictions ?? [];
+  if (!predictions.length) throw new Error('No image generated from Vertex AI');
 
-  return response.data?.images?.[0]?.url ?? '';
-}
+  const base64 = predictions[0].bytesBase64Encoded;
+  if (!base64) throw new Error('No image data in Vertex AI response');
 
-// ── fal-ai/flux/dev/image-to-image — style reference ─────────────────────────
-//
-// Why this instead of IP-Adapter:
-//   Flux Schnell does NOT support IP-Adapter — those parameters are silently
-//   ignored.  fal-ai/flux/dev/image-to-image accepts an image_url and a
-//   strength (0–1).  At strength 0.82 the model keeps the style, palette, and
-//   general character look from the previous frame while generating a fresh scene.
+  const mime     = predictions[0].mimeType || 'image/png';
+  const ext      = mime.includes('jpeg') ? 'jpg' : 'png';
+  const filename = `${uuid()}.${ext}`;
 
-async function generateImageToImage(
-  prompt: string,
-  referenceUrl: string,
-  score: number,
-  apiKey: string,
-): Promise<string> {
-  // Strength: how much to deviate from reference.
-  // Rising drift (bedtime) → weaker deviation = more visual consistency
-  // Active educational → more creative freedom
-  const strength = Math.min(0.95, 0.75 + score / 100 * 0.2);
+  fs.writeFileSync(path.join(UPLOADS_DIR, filename), Buffer.from(base64, 'base64'));
+  console.log(`💾 Image saved: ${filename}`);
 
-  console.log(`🎨 Flux Dev image-to-image (strength ${strength.toFixed(2)}, ref: ${referenceUrl.slice(0, 50)}...)`);
-
-  const response = await axios.post(
-    'https://queue.fal.run/fal-ai/flux/dev/image-to-image',
-    {
-      prompt,
-      image_url: referenceUrl,
-      strength,
-      num_inference_steps: 28,
-      guidance_scale: 3.5,
-      num_images: 1,
-      enable_safety_checker: true,
-    },
-    {
-      headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json' },
-      timeout: 45000,
-    },
-  );
-
-  const requestId = response.data?.request_id;
-  if (requestId) return pollFalResult('flux/dev/image-to-image', requestId, apiKey);
-
-  return response.data?.images?.[0]?.url ?? '';
-}
-
-// ── Fal.ai queue polling ───────────────────────────────────────────────────────
-
-async function pollFalResult(
-  model: string,
-  requestId: string,
-  apiKey: string,
-  maxAttempts = 20,
-): Promise<string> {
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise((r) => setTimeout(r, 2000));
-    try {
-      const res = await axios.get(
-        `https://queue.fal.run/fal-ai/${model}/requests/${requestId}`,
-        { headers: { Authorization: `Key ${apiKey}` } },
-      );
-
-      const status = res.data?.status;
-      if (status === 'COMPLETED') {
-        return res.data?.output?.images?.[0]?.url
-          ?? res.data?.images?.[0]?.url
-          ?? '';
-      }
-      if (status === 'FAILED') {
-        console.error('❌ Fal.ai request failed:', res.data);
-        return '';
-      }
-    } catch {
-      // transient polling error — continue
-    }
-  }
-  console.warn('⚠️ Fal.ai polling timed out');
-  return '';
-}
-
-// ── Local storage ─────────────────────────────────────────────────────────────
-//
-// Downloads the Fal.ai CDN image immediately and saves it under
-// uploads/story-images/{uuid}.webp
-//
-// Returns the local path that Express will serve at /images/{uuid}.webp
-// This URL never expires — it's permanent as long as the server storage exists.
-
-async function downloadAndStore(falUrl: string): Promise<string> {
-  try {
-    const ext = falUrl.includes('.png') ? 'png' : 'webp';
-    const filename = `${uuid()}.${ext}`;
-    const filePath = path.join(UPLOADS_DIR, filename);
-
-    const response = await axios.get(falUrl, {
-      responseType: 'arraybuffer',
-      timeout: 20000,
-    });
-
-    fs.writeFileSync(filePath, response.data);
-    console.log(`💾 Image stored: ${filename}`);
-
-    // Return the local URL path (Express serves /images/*)
-    return `/images/${filename}`;
-  } catch (err: any) {
-    console.error('⚠️ Image download/store failed:', err.message);
-    // Fall back to Fal.ai URL — will work for ~1 hour
-    return falUrl;
-  }
+  return `/images/${filename}`;
 }

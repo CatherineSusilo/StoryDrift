@@ -1,11 +1,3 @@
-import { PrismaClient } from '@prisma/client';
-
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  });
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+// Prisma is no longer used — database layer migrated to MongoDB (see db.ts).
+// This file is kept as a placeholder to avoid import errors during transition.
+export const prisma = null;

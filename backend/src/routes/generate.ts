@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { prisma } from '../lib/prisma';
+import { Child } from '../models/Child';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
@@ -20,7 +20,7 @@ const auth = new GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/cloud-platform'],
 });
 
-const VERTEX_PROJECT = process.env.VERTEX_AI_PROJECT || 'hackcanada-489602';
+const VERTEX_PROJECT  = process.env.VERTEX_AI_PROJECT  || 'hackcanada-489602';
 const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION || 'us-central1';
 
 interface ChildProfile {
@@ -37,14 +37,10 @@ function paragraphCountForDuration(minutes: number): number {
   return Math.round((minutes * 60) / 30);
 }
 
-// ── Vertex AI Imagen via REST API ───────────────────────────────────────────
+// ── Vertex AI Imagen via REST API ─────────────────────────────────────────────
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-/**
- * Generate storybook illustration using Vertex AI Imagen via REST API.
- * Uses service account authentication for proper quota.
- */
 async function generateParagraphImage(
   paragraphText: string,
   storyContext: string,
@@ -61,44 +57,32 @@ async function generateParagraphImage(
       `Story: ${storyContext.slice(0, 150)}. Scene: ${paragraphText.slice(0, 250)}. ` +
       `Watercolor style, ${palette}, soft edges, no text, 4:3 landscape, dreamy calming atmosphere.`;
 
-    // Get access token from service account
     const client = await auth.getClient();
     const accessToken = await client.getAccessToken();
-    
     if (!accessToken.token) throw new Error('Failed to get access token');
 
-    // Call Vertex AI Imagen 3 predict API with current model version
-    const endpoint = `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}/locations/${VERTEX_LOCATION}/publishers/google/models/imagen-3.0-fast-generate-001:predict`;
-    
+    const endpoint =
+      `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}` +
+      `/locations/${VERTEX_LOCATION}/publishers/google/models/imagen-3.0-fast-generate-001:predict`;
+
     const response = await axios.post(endpoint, {
-      instances: [{ prompt }],
-      parameters: {
-        sampleCount: 1,
-        aspectRatio: '4:3',
-        safetyFilterLevel: 'block_some',
-        personGeneration: 'dont_allow',
-      },
+      instances:  [{ prompt }],
+      parameters: { sampleCount: 1, aspectRatio: '4:3', safetyFilterLevel: 'block_some', personGeneration: 'dont_allow' },
     }, {
-      headers: {
-        'Authorization': `Bearer ${accessToken.token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${accessToken.token}`, 'Content-Type': 'application/json' },
       timeout: 60_000,
     });
 
     const predictions = response.data?.predictions || [];
-    if (predictions.length === 0) throw new Error('No image generated');
+    if (!predictions.length) throw new Error('No image generated');
 
     const base64Data = predictions[0].bytesBase64Encoded;
     if (!base64Data) throw new Error('No image data in response');
 
     const mimeType = predictions[0].mimeType || 'image/png';
-    const ext = mimeType.includes('jpeg') ? 'jpg' : 'png';
+    const ext      = mimeType.includes('jpeg') ? 'jpg' : 'png';
     const filename = `${uuid()}.${ext}`;
-    
-    const buffer = Buffer.from(base64Data, 'base64');
-    fs.writeFileSync(path.join(UPLOADS_DIR, filename), buffer);
-    
+    fs.writeFileSync(path.join(UPLOADS_DIR, filename), Buffer.from(base64Data, 'base64'));
     return `/images/${filename}`;
   } catch (err: any) {
     console.error('⚠️ Vertex AI image error:', err.message);
@@ -107,48 +91,27 @@ async function generateParagraphImage(
   }
 }
 
-// ── ElevenLabs paragraph audio generation ────────────────────────────────────
+// ── ElevenLabs paragraph audio ────────────────────────────────────────────────
 
-/**
- * Generates a slow, warm narration MP3 for a story paragraph.
- * Speed 0.75 → 0.55 across the story so the voice gets progressively sleepier.
- * Returns a permanent local URL, e.g. /images/abc123.mp3
- */
-async function generateParagraphAudio(
-  text: string,
-  driftPercent: number,  // 0 (start) → 1 (end of story)
-): Promise<string> {
+async function generateParagraphAudio(text: string, driftPercent: number): Promise<string> {
   const apiKey  = process.env.ELEVENLABS_API_KEY;
   const voiceId = process.env.ELEVENLABS_VOICE_ID || 'XrExE9yKIg1WjnnlVkGX'; // Matilda
   if (!apiKey) throw new Error('ELEVENLABS_API_KEY not configured');
 
-  // Start at 0.55 (slow, soothing bedtime pace), slide to 0.38 by the end (very drowsy lullaby)
-  // ElevenLabs speed range: 0.25 (slowest) – 4.0 (fastest). 0.38 is near the slow floor.
-  const speed = 0.55 - driftPercent * 0.17;
-
-  // Voice becomes progressively more stable and less expressive — hypnotic, monotone lullaby feel
-  const stability        = 0.82 + driftPercent * 0.15;   // 0.82 → 0.97
-  const style            = Math.max(0, 0.15 - driftPercent * 0.15); // 0.15 → 0
+  const speed      = 0.55 - driftPercent * 0.17;
+  const stability  = 0.82 + driftPercent * 0.15;
+  const style      = Math.max(0, 0.15 - driftPercent * 0.15);
 
   const resp = await axios.post(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
     {
       text,
       model_id: 'eleven_turbo_v2_5',
-      voice_settings: {
-        stability,
-        similarity_boost: 0.80,
-        style,
-        use_speaker_boost: false,
-      },
+      voice_settings: { stability, similarity_boost: 0.80, style, use_speaker_boost: false },
       speed,
     },
     {
-      headers: {
-        'xi-api-key': apiKey,
-        'Content-Type': 'application/json',
-        Accept: 'audio/mpeg',
-      },
+      headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
       responseType: 'arraybuffer',
       timeout: 30_000,
     },
@@ -161,25 +124,17 @@ async function generateParagraphAudio(
 
 // ── Concurrency helper ────────────────────────────────────────────────────────
 
-async function pMap<T, R>(
-  items: T[],
-  fn: (item: T, index: number) => Promise<R>,
-  concurrency = 5,
-): Promise<R[]> {
+async function pMap<T, R>(items: T[], fn: (item: T, index: number) => Promise<R>, concurrency = 5): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let idx = 0;
   async function worker() {
-    while (idx < items.length) {
-      const i = idx++;
-      results[i] = await fn(items[i], i);
-    }
+    while (idx < items.length) { const i = idx++; results[i] = await fn(items[i], i); }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
   return results;
 }
 
-// ── In-memory image progress store ────────────────────────────────────────────
-// Maps storyId → array of image URLs ('' = still pending, filled as they complete)
+// ── In-memory image progress ──────────────────────────────────────────────────
 const imageProgress = new Map<string, string[]>();
 
 // ── POST /api/generate/story ──────────────────────────────────────────────────
@@ -187,38 +142,30 @@ const imageProgress = new Map<string, string[]>();
 router.post('/story', async (req: AuthRequest, res: Response) => {
   try {
     const { profile } = req.body as { profile: ChildProfile };
-
-    if (!profile?.name || !profile?.parentPrompt) {
-      return res.status(400).json({ error: 'Invalid profile data' });
-    }
+    if (!profile?.name || !profile?.parentPrompt) return res.status(400).json({ error: 'Invalid profile data' });
     if (!process.env.ANTHROPIC_API_KEY)  return res.status(500).json({ error: 'Anthropic API key not configured' });
     if (!process.env.ELEVENLABS_API_KEY) return res.status(500).json({ error: 'ElevenLabs API key not configured' });
 
     const paragraphCount = paragraphCountForDuration(profile.targetDuration ?? 15);
     console.log(`📖 ${profile.name} | ${profile.targetDuration ?? 15} min | ${paragraphCount} paragraphs`);
 
-    let childData = null;
+    let childPersonality = '', childMedia = '';
     if (profile.childId) {
-      childData = await prisma.child.findUnique({
-        where: { id: profile.childId },
-        include: { preferences: true },
-      });
+      const childData = await Child.findById(profile.childId);
+      childPersonality = childData?.preferences?.personality || '';
+      childMedia       = childData?.preferences?.favoriteMedia || '';
     }
-    const childPersonality = childData?.preferences?.personality || '';
-    const childMedia       = childData?.preferences?.favoriteMedia || '';
 
-    // ── Phase 1: story text (Claude Sonnet) ───────────────────────────────────
+    // Phase 1: story text (Claude)
     const storyPrompt =
       `You are a bedtime story narrator. Create a calming, soothing bedtime story told in third person.\n\n` +
-      `Theme/idea: ${profile.parentPrompt}\n` +
-      `Tone: ${profile.storytellingTone}\n` +
-      `Target age: ${profile.age}\n` +
+      `Theme/idea: ${profile.parentPrompt}\nTone: ${profile.storytellingTone}\nTarget age: ${profile.age}\n` +
       (childPersonality ? `Child's personality (tailor themes, do NOT address child): ${childPersonality}\n` : '') +
       (childMedia       ? `Child's interests (weave into plot naturally): ${childMedia}\n` : '') +
       `\nIMPORTANT RULES:\n` +
       `- Do NOT use the name "${profile.name}" in the story.\n` +
       `- Tell a story about characters, animals, or magical beings — not about the child.\n` +
-      `- Third-person narration only ("the little fox walked...", "she whispered...").\n` +
+      `- Third-person narration only.\n` +
       `- The story gradually slows, becomes dreamier as it progresses.\n` +
       `- Write EXACTLY ${paragraphCount} paragraphs. Each paragraph is 2-3 short sentences (~60 words).\n` +
       `- Complete arc: opening → build-up → gentle climax → slow dreamy resolution.\n\n` +
@@ -229,14 +176,37 @@ router.post('/story', async (req: AuthRequest, res: Response) => {
       max_tokens: 8192,
       messages: [{ role: 'user', content: storyPrompt }],
     });
-    const storyText = (storyResp.content[0] as { type: string; text: string }).text.trim();
-    console.log(`✅ Story text (${storyText.length} chars)`);
-
+    const storyText  = (storyResp.content[0] as { type: string; text: string }).text.trim();
     const paragraphs = storyText.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
     const total      = Math.max(1, paragraphs.length - 1);
     const storyContext = `${profile.parentPrompt} — ${profile.storytellingTone} tone`;
+    console.log(`✅ Story text (${storyText.length} chars, ${paragraphs.length} paragraphs)`);
 
-    // ── Phase 2: ElevenLabs audio (concurrency 3) — run in parallel with text ─
+    // ── Set up image job immediately after story text — don't wait for audio ──
+    const tempStoryId = uuid();
+    const pending = new Array(paragraphs.length).fill('');
+    imageProgress.set(tempStoryId, pending);
+
+    // Phase 2 + 3: audio and images run concurrently
+    // Image 0 starts RIGHT NOW so it's ready within ~5s when the app opens the story.
+    // Remaining images follow sequentially with a small delay to respect Vertex AI quota.
+    console.log(`🎨 Starting Vertex AI image generation for ${tempStoryId}…`);
+    const imageGenPromise = (async () => {
+      for (let i = 0; i < paragraphs.length; i++) {
+        if (i > 0) await delay(1_500);   // 1.5s between requests — fast enough, quota-safe
+        try {
+          const url = await generateParagraphImage(paragraphs[i], storyContext, i / total);
+          pending[i] = url;
+          console.log(`  🖼  Image ${i + 1}/${paragraphs.length}: ${url}`);
+        } catch (err: any) {
+          console.warn(`  ⚠️  Image ${i + 1} failed: ${err.message}`);
+        }
+      }
+      console.log(`✅ All images done for ${tempStoryId}`);
+      setTimeout(() => imageProgress.delete(tempStoryId), 60 * 60 * 1000);
+    })();
+
+    // Phase 2: ElevenLabs audio (concurrency 3) — runs in parallel with images
     console.log(`🔊 Generating ${paragraphs.length} audio clips…`);
     const audioUrls = await pMap(paragraphs, async (para, i) => {
       try {
@@ -250,35 +220,10 @@ router.post('/story', async (req: AuthRequest, res: Response) => {
     }, 3);
     console.log(`✅ Audio: ${audioUrls.filter(Boolean).length}/${paragraphs.length}`);
 
-    // ── Phase 3: Vertex AI Imagen 3 — background generation ───────────────────
-    const tempStoryId = uuid();
-    const pending = new Array(paragraphs.length).fill('');
-    imageProgress.set(tempStoryId, pending);
+    // Fire-and-forget the remaining image work (imageGenPromise keeps running in background)
+    imageGenPromise.catch(() => {});
 
-    console.log(`🎨 Starting Vertex AI image generation for ${tempStoryId}…`);
-    (async () => {
-      for (let i = 0; i < paragraphs.length; i++) {
-        if (i > 0) await delay(2_000); // 2s between requests
-        try {
-          const url = await generateParagraphImage(paragraphs[i], storyContext, i / total);
-          pending[i] = url;
-          console.log(`  🖼  Image ${i + 1}/${paragraphs.length}: ${url}`);
-        } catch (err: any) {
-          console.warn(`  ⚠️  Image ${i + 1} failed: ${err.message}`);
-        }
-      }
-      console.log(`✅ All images done for ${tempStoryId}`);
-      setTimeout(() => imageProgress.delete(tempStoryId), 60 * 60 * 1000);
-    })();
-
-    res.json({
-      story: storyText,
-      generatedImages: [],
-      audioUrls,
-      imageJobId: tempStoryId,
-      modelUsed: 'claude-sonnet-4-5',
-    });
-
+    return res.json({ story: storyText, generatedImages: [], audioUrls, imageJobId: tempStoryId, modelUsed: 'claude-sonnet-4-5' });
   } catch (error: any) {
     console.error('❌ Story generation error:', error.message);
     res.status(500).json({ error: 'Failed to generate story', details: error.message });
@@ -286,12 +231,11 @@ router.post('/story', async (req: AuthRequest, res: Response) => {
 });
 
 // ── GET /api/generate/story-images/:jobId ─────────────────────────────────────
-// Returns current image progress — iOS polls this every few seconds during playback.
 
 router.get('/story-images/:jobId', async (req: AuthRequest, res: Response) => {
   const images = imageProgress.get(req.params.jobId);
   if (!images) return res.status(404).json({ error: 'Job not found' });
-  res.json({ images, complete: images.every(u => u !== '') });
+  return res.json({ images, complete: images.every(u => u !== '') });
 });
 
 // ── POST /api/generate/paragraph-image ───────────────────────────────────────
@@ -304,7 +248,7 @@ router.post('/paragraph-image', async (req: AuthRequest, res: Response) => {
     if (!paragraphText) return res.status(400).json({ error: 'paragraphText required' });
     const drift = totalParagraphs > 1 ? paragraphIndex / (totalParagraphs - 1) : 0;
     const imageUrl = await generateParagraphImage(paragraphText, storyContext ?? '', drift);
-    res.json({ imageUrl });
+    return res.json({ imageUrl });
   } catch (error: any) {
     console.error('❌ Paragraph image error:', error.message);
     res.status(500).json({ error: 'Failed to generate image', details: error.message });
@@ -318,7 +262,7 @@ router.post('/image', async (req: AuthRequest, res: Response) => {
     const { prompt } = req.body;
     if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
     const imageUrl = await generateParagraphImage(prompt, '', 0.5);
-    res.json({ imageUrl });
+    return res.json({ imageUrl });
   } catch (error: any) {
     console.error('❌ Image generation error:', error.message);
     res.status(500).json({ error: 'Failed to generate image', details: error.message });
@@ -326,17 +270,12 @@ router.post('/image', async (req: AuthRequest, res: Response) => {
 });
 
 // ── POST /api/generate/minigame ───────────────────────────────────────────────
-// Generates a MinigameTrigger for a pre-generated story paragraph.
 
 router.post('/minigame', async (req: AuthRequest, res: Response) => {
   try {
     const { paragraphText, storyContext, childAge, paragraphIndex } = req.body as {
-      paragraphText: string;
-      storyContext: string;
-      childAge?: number;
-      paragraphIndex?: number;
+      paragraphText: string; storyContext: string; childAge?: number; paragraphIndex?: number;
     };
-
     if (!paragraphText) return res.status(400).json({ error: 'paragraphText required' });
 
     const age  = childAge    ?? 6;
@@ -366,7 +305,6 @@ router.post('/minigame', async (req: AuthRequest, res: Response) => {
       trigger = JSON.parse(cleaned);
       if (!trigger.type || !trigger.narratorPrompt) throw new Error('Missing required fields');
     } catch {
-      // Rotate fallback types by paragraph index
       const types = ['multiple_choice', 'drawing', 'voice', 'shape_sorting'] as const;
       const type  = types[pIdx % 4];
       trigger = type === 'drawing'
@@ -375,20 +313,12 @@ router.post('/minigame', async (req: AuthRequest, res: Response) => {
         ? { type: 'voice', narratorPrompt: 'Can you say it out loud?', voiceTarget: 'magic', voiceHint: 'Say "magic"!', timeoutSeconds: 20 }
         : type === 'shape_sorting'
         ? { type: 'shape_sorting', narratorPrompt: 'Put the shapes where they belong!',
-            shapes: [
-              { id: 's1', shape: 'circle',   color: '#FF6B6B', targetSlotId: 'slot_circle'   },
-              { id: 's2', shape: 'square',   color: '#4ECDC4', targetSlotId: 'slot_square'   },
-              { id: 's3', shape: 'triangle', color: '#45B7D1', targetSlotId: 'slot_triangle' },
-            ], timeoutSeconds: 35 }
+            shapes: [{ id: 's1', shape: 'circle', color: '#FF6B6B', targetSlotId: 'slot_circle' }, { id: 's2', shape: 'square', color: '#4ECDC4', targetSlotId: 'slot_square' }, { id: 's3', shape: 'triangle', color: '#45B7D1', targetSlotId: 'slot_triangle' }], timeoutSeconds: 35 }
         : { type: 'multiple_choice', narratorPrompt: 'Quick question — what do you think?',
-            choices: [
-              { id: 'a', label: 'In the forest', emoji: '🌲', isCorrect: true  },
-              { id: 'b', label: 'In the ocean',  emoji: '🌊', isCorrect: false },
-              { id: 'c', label: 'In the sky',    emoji: '☁️', isCorrect: false },
-            ], timeoutSeconds: 25 };
+            choices: [{ id: 'a', label: 'In the forest', emoji: '🌲', isCorrect: true }, { id: 'b', label: 'In the ocean', emoji: '🌊', isCorrect: false }, { id: 'c', label: 'In the sky', emoji: '☁️', isCorrect: false }], timeoutSeconds: 25 };
     }
 
-    res.json(trigger);
+    return res.json(trigger);
   } catch (error: any) {
     console.error('❌ Minigame generation error:', error.message);
     res.status(500).json({ error: 'Failed to generate minigame', details: error.message });

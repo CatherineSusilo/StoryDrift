@@ -1,289 +1,175 @@
 import { Router } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { prisma } from '../lib/prisma';
+import { User } from '../models/User';
+import { Child } from '../models/Child';
+import { SleepSession } from '../models/SleepSession';
 import { z } from 'zod';
 
 const router = Router();
 
-// Schema for creating a sleep session
 const createSleepSchema = z.object({
-  childId: z.string().min(1),
-  bedtime: z.string().datetime(),
-  wakeupTime: z.string().datetime().optional(),
-  quality: z.enum(['poor', 'fair', 'good', 'excellent']).optional(),
-  notes: z.string().optional(),
-  timeToSleep: z.number().int().optional(),
-  nightWakings: z.number().int().default(0),
-  sleepEfficiency: z.number().min(0).max(100).optional(),
+  childId:          z.string().min(1),
+  bedtime:          z.string().datetime(),
+  wakeupTime:       z.string().datetime().optional(),
+  quality:          z.enum(['poor', 'fair', 'good', 'excellent']).optional(),
+  notes:            z.string().optional(),
+  timeToSleep:      z.number().int().optional(),
+  nightWakings:     z.number().int().default(0),
+  sleepEfficiency:  z.number().min(0).max(100).optional(),
   weatherCondition: z.string().optional(),
-  roomTemperature: z.number().optional(),
-  storySessionId: z.string().min(1).optional(),
+  roomTemperature:  z.number().optional(),
+  storySessionId:   z.string().min(1).optional(),
 });
 
-// Schema for updating a sleep session
 const updateSleepSchema = createSleepSchema.partial().omit({ childId: true });
 
-// Get all sleep sessions for a child
+async function verifyChildOwnership(auth0Id: string, childId: string) {
+  const user = await User.findOne({ auth0Id });
+  if (!user) return null;
+  const child = await Child.findOne({ _id: childId, userId: user._id });
+  return child ? user : null;
+}
+
 router.get('/child/:childId', async (req: AuthRequest, res) => {
   try {
     const auth0Id = req.auth?.payload?.sub;
     const { childId } = req.params;
     const { limit = '30', offset = '0' } = req.query;
+    if (!auth0Id) return res.status(401).json({ error: 'Unauthorized' });
 
-    if (!auth0Id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = await verifyChildOwnership(auth0Id, childId);
+    if (!user) return res.status(404).json({ error: 'Child not found' });
 
-    const user = await prisma.user.findUnique({
-      where: { auth0Id },
-    });
+    const lim  = parseInt(limit as string);
+    const skip = parseInt(offset as string);
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const [sessions, total] = await Promise.all([
+      SleepSession.find({ childId }).sort({ bedtime: -1 }).skip(skip).limit(lim),
+      SleepSession.countDocuments({ childId }),
+    ]);
 
-    // Verify child belongs to user
-    const child = await prisma.child.findFirst({
-      where: {
-        id: childId,
-        userId: user.id,
-      },
-    });
-
-    if (!child) {
-      return res.status(404).json({ error: 'Child not found' });
-    }
-
-    const sleepSessions = await prisma.sleepSession.findMany({
-      where: { childId },
-      orderBy: { bedtime: 'desc' },
-      take: parseInt(limit as string),
-      skip: parseInt(offset as string),
-    });
-
-    const total = await prisma.sleepSession.count({
-      where: { childId },
-    });
-
-    res.json({
-      data: sleepSessions,
-      total,
-      limit: parseInt(limit as string),
-      offset: parseInt(offset as string),
-    });
+    return res.json({ data: sessions.map(s => s.toJSON()), total, limit: lim, offset: skip });
   } catch (error) {
     console.error('Get sleep sessions error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to get sleep sessions' });
   }
 });
 
-// Get single sleep session
 router.get('/:sleepId', async (req: AuthRequest, res) => {
   try {
     const auth0Id = req.auth?.payload?.sub;
     const { sleepId } = req.params;
+    if (!auth0Id) return res.status(401).json({ error: 'Unauthorized' });
 
-    if (!auth0Id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = await User.findOne({ auth0Id });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const user = await prisma.user.findUnique({
-      where: { auth0Id },
-    });
+    const session = await SleepSession.findById(sleepId);
+    if (!session) return res.status(404).json({ error: 'Sleep session not found' });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const child = await Child.findOne({ _id: session.childId, userId: user._id });
+    if (!child) return res.status(404).json({ error: 'Sleep session not found' });
 
-    const sleepSession = await prisma.sleepSession.findFirst({
-      where: {
-        id: sleepId,
-        child: {
-          userId: user.id,
-        },
-      },
-      include: {
-        child: true,
-      },
-    });
-
-    if (!sleepSession) {
-      return res.status(404).json({ error: 'Sleep session not found' });
-    }
-
-    res.json(sleepSession);
+    return res.json(session.toJSON());
   } catch (error) {
     console.error('Get sleep session error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to get sleep session' });
   }
 });
 
-// Create a new sleep session
 router.post('/', async (req: AuthRequest, res) => {
   try {
     const auth0Id = req.auth?.payload?.sub;
-    if (!auth0Id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { auth0Id },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (!auth0Id) return res.status(401).json({ error: 'Unauthorized' });
 
     const body = createSleepSchema.parse(req.body);
+    const user = await verifyChildOwnership(auth0Id, body.childId);
+    if (!user) return res.status(404).json({ error: 'Child not found' });
 
-    // Verify child belongs to user
-    const child = await prisma.child.findFirst({
-      where: {
-        id: body.childId,
-        userId: user.id,
-      },
-    });
-
-    if (!child) {
-      return res.status(404).json({ error: 'Child not found' });
-    }
-
-    // Calculate duration if wakeup time provided
     let duration: number | undefined;
     if (body.wakeupTime) {
-      const bedtime = new Date(body.bedtime);
-      const wakeup = new Date(body.wakeupTime);
-      duration = Math.floor((wakeup.getTime() - bedtime.getTime()) / 1000 / 60); // minutes
+      duration = Math.floor((new Date(body.wakeupTime).getTime() - new Date(body.bedtime).getTime()) / 60000);
     }
 
-    const sleepSession = await prisma.sleepSession.create({
-      data: {
-        childId: body.childId,
-        bedtime: new Date(body.bedtime),
-        wakeupTime: body.wakeupTime ? new Date(body.wakeupTime) : undefined,
-        duration,
-        quality: body.quality,
-        notes: body.notes,
-        timeToSleep: body.timeToSleep,
-        nightWakings: body.nightWakings,
-        sleepEfficiency: body.sleepEfficiency,
-        weatherCondition: body.weatherCondition,
-        roomTemperature: body.roomTemperature,
-        storySessionId: body.storySessionId,
-      },
+    const session = await SleepSession.create({
+      childId:          body.childId,
+      bedtime:          new Date(body.bedtime),
+      wakeupTime:       body.wakeupTime ? new Date(body.wakeupTime) : undefined,
+      duration,
+      quality:          body.quality,
+      notes:            body.notes,
+      timeToSleep:      body.timeToSleep,
+      nightWakings:     body.nightWakings,
+      sleepEfficiency:  body.sleepEfficiency,
+      weatherCondition: body.weatherCondition,
+      roomTemperature:  body.roomTemperature,
+      storySessionId:   body.storySessionId,
     });
 
-    res.status(201).json(sleepSession);
+    return res.status(201).json(session.toJSON());
   } catch (error) {
     console.error('Create sleep session error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to create sleep session' });
   }
 });
 
-// Update a sleep session
 router.patch('/:sleepId', async (req: AuthRequest, res) => {
   try {
     const auth0Id = req.auth?.payload?.sub;
     const { sleepId } = req.params;
+    if (!auth0Id) return res.status(401).json({ error: 'Unauthorized' });
 
-    if (!auth0Id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = await User.findOne({ auth0Id });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const user = await prisma.user.findUnique({
-      where: { auth0Id },
-    });
+    const existing = await SleepSession.findById(sleepId);
+    if (!existing) return res.status(404).json({ error: 'Sleep session not found' });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Verify sleep session belongs to user's child
-    const existingSleep = await prisma.sleepSession.findFirst({
-      where: {
-        id: sleepId,
-        child: {
-          userId: user.id,
-        },
-      },
-    });
-
-    if (!existingSleep) {
-      return res.status(404).json({ error: 'Sleep session not found' });
-    }
+    const child = await Child.findOne({ _id: existing.childId, userId: user._id });
+    if (!child) return res.status(404).json({ error: 'Sleep session not found' });
 
     const body = updateSleepSchema.parse(req.body);
+    const updateData: any = {};
+    if (body.bedtime          !== undefined) updateData.bedtime          = new Date(body.bedtime);
+    if (body.wakeupTime       !== undefined) updateData.wakeupTime       = new Date(body.wakeupTime);
+    if (body.quality          !== undefined) updateData.quality          = body.quality;
+    if (body.notes            !== undefined) updateData.notes            = body.notes;
+    if (body.timeToSleep      !== undefined) updateData.timeToSleep      = body.timeToSleep;
+    if (body.nightWakings     !== undefined) updateData.nightWakings     = body.nightWakings;
+    if (body.sleepEfficiency  !== undefined) updateData.sleepEfficiency  = body.sleepEfficiency;
+    if (body.weatherCondition !== undefined) updateData.weatherCondition = body.weatherCondition;
+    if (body.roomTemperature  !== undefined) updateData.roomTemperature  = body.roomTemperature;
 
-    // Calculate duration if wakeup time updated
-    let duration: number | undefined;
-    if (body.wakeupTime || body.bedtime) {
-      const bedtime = body.bedtime ? new Date(body.bedtime) : existingSleep.bedtime;
-      const wakeup = body.wakeupTime ? new Date(body.wakeupTime) : existingSleep.wakeupTime;
-      if (wakeup) {
-        duration = Math.floor((wakeup.getTime() - bedtime.getTime()) / 1000 / 60);
-      }
-    }
+    // Recalculate duration if time bounds changed
+    const bedtime  = updateData.bedtime  ?? existing.bedtime;
+    const wakeup   = updateData.wakeupTime ?? existing.wakeupTime;
+    if (wakeup) updateData.duration = Math.floor((wakeup.getTime() - bedtime.getTime()) / 60000);
 
-    const sleepSession = await prisma.sleepSession.update({
-      where: { id: sleepId },
-      data: {
-        bedtime: body.bedtime ? new Date(body.bedtime) : undefined,
-        wakeupTime: body.wakeupTime ? new Date(body.wakeupTime) : undefined,
-        duration,
-        quality: body.quality,
-        notes: body.notes,
-        timeToSleep: body.timeToSleep,
-        nightWakings: body.nightWakings,
-        sleepEfficiency: body.sleepEfficiency,
-        weatherCondition: body.weatherCondition,
-        roomTemperature: body.roomTemperature,
-      },
-    });
-
-    res.json(sleepSession);
+    const session = await SleepSession.findByIdAndUpdate(sleepId, updateData, { new: true });
+    return res.json(session!.toJSON());
   } catch (error) {
     console.error('Update sleep session error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to update sleep session' });
   }
 });
 
-// Delete a sleep session
 router.delete('/:sleepId', async (req: AuthRequest, res) => {
   try {
     const auth0Id = req.auth?.payload?.sub;
     const { sleepId } = req.params;
+    if (!auth0Id) return res.status(401).json({ error: 'Unauthorized' });
 
-    if (!auth0Id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = await User.findOne({ auth0Id });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const user = await prisma.user.findUnique({
-      where: { auth0Id },
-    });
+    const session = await SleepSession.findById(sleepId);
+    if (!session) return res.status(404).json({ error: 'Sleep session not found' });
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const child = await Child.findOne({ _id: session.childId, userId: user._id });
+    if (!child) return res.status(404).json({ error: 'Sleep session not found' });
 
-    // Verify sleep session belongs to user's child
-    const existingSleep = await prisma.sleepSession.findFirst({
-      where: {
-        id: sleepId,
-        child: {
-          userId: user.id,
-        },
-      },
-    });
-
-    if (!existingSleep) {
-      return res.status(404).json({ error: 'Sleep session not found' });
-    }
-
-    await prisma.sleepSession.delete({
-      where: { id: sleepId },
-    });
-
-    res.json({ message: 'Sleep session deleted successfully' });
+    await SleepSession.findByIdAndDelete(sleepId);
+    return res.json({ message: 'Sleep session deleted successfully' });
   } catch (error) {
     console.error('Delete sleep session error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to delete sleep session' });

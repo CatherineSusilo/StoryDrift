@@ -1,10 +1,10 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Child (matches backend Prisma schema)
+// MARK: - Child (matches backend MongoDB schema)
 struct Child: Codable, Identifiable {
     let id: String
-    let userId: String
+    let userId: String?   // present in list/get responses; may be absent in some contexts
     var name: String
     var age: Int
     var dateOfBirth: Date?
@@ -15,8 +15,7 @@ struct Child: Codable, Identifiable {
 }
 
 struct ChildPreferencesModel: Codable {
-    let id: String
-    let childId: String
+    // id and childId are Prisma-only — MongoDB embeds preferences directly, no separate id
     var storytellingTone: String
     var favoriteThemes: [String]
     var defaultInitialState: String

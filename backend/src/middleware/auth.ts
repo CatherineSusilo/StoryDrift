@@ -47,7 +47,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
 export interface AuthRequest extends Request {
   auth?: {
     payload: {
-      sub: string; // Auth0 user ID
+      sub?: string; // Auth0 user ID
       [key: string]: any;
     };
     header: any;
