@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ChildDashboardView: View {
     @Binding var child: ChildProfile
+    var refreshID: UUID = UUID()
     @EnvironmentObject var vitalsManager: VitalsManager
     @EnvironmentObject var authManager: AuthManager
     @State private var recentStories: [Story] = []
@@ -76,18 +77,35 @@ struct ChildDashboardView: View {
             }
         }
         .task { await loadDashboardData() }
+        .onChange(of: refreshID) { Task { await loadDashboardData() } }
     }
 
     private func loadDashboardData() async {
         let token = authManager.accessToken ?? UserDefaults.standard.string(forKey: "accessToken")
-        guard let token else { return }
+        guard let token else {
+            print("❌ Dashboard: No auth token available")
+            return
+        }
+        
+        print("📊 Dashboard: Loading data for child \(child.id)")
+        
         do {
             async let storiesTask = APIService.shared.getStories(childId: child.id, token: token)
             async let statsTask   = APIService.shared.getStatistics(childId: child.id, token: token)
-            recentStories = try await storiesTask
-            statistics    = try await statsTask
+            
+            let stories = try await storiesTask
+            let stats = try await statsTask
+            
+            await MainActor.run {
+                recentStories = stories
+                statistics = stats
+                print("✅ Dashboard: Loaded \(stories.count) stories, stats: \(stats.summary.totalSessions) sessions")
+            }
         } catch {
-            print("Error loading dashboard data: \(error)")
+            print("❌ Dashboard error: \(error)")
+            if let apiError = error as? APIError {
+                print("   API Error details: \(apiError.localizedDescription)")
+            }
         }
     }
 }

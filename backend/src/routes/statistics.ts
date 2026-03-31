@@ -123,6 +123,7 @@ router.get('/stories/:childId', async (req: AuthRequest, res) => {
     });
     const storyTrend = Array.from(dailyStories.entries()).map(([date, d]) => ({
       date,
+      count:             d.count,
       avgDuration:       Math.round(d.duration / d.count),
       avgDriftImprovement: Math.round((d.driftImprovement / d.count) * 10) / 10,
     }));

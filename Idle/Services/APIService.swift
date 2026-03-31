@@ -16,6 +16,7 @@ class APIService: ObservableObject {
         token: String? = nil
     ) async throws -> T {
         guard let url = URL(string: "\(Self.baseURL)\(endpoint)") else {
+            print("❌ Invalid URL: \(Self.baseURL)\(endpoint)")
             throw APIError.invalidURL
         }
 
@@ -31,9 +32,12 @@ class APIService: ObservableObject {
             request.httpBody = try JSONEncoder().encode(body)
         }
 
+        print("🌐 API: \(method) \(endpoint)")
+
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ Invalid response from \(endpoint)")
             throw APIError.invalidResponse
         }
 
@@ -61,7 +65,18 @@ class APIService: ObservableObject {
             throw DecodingError.dataCorruptedError(in: container,
                 debugDescription: "Cannot decode date: \(str)")
         }
-        return try decoder.decode(T.self, from: data)
+        
+        do {
+            let decoded = try decoder.decode(T.self, from: data)
+            print("✅ API: \(endpoint) → \(T.self)")
+            return decoded
+        } catch {
+            let raw = String(data: data, encoding: .utf8) ?? "nil"
+            print("❌ Decoding error for \(endpoint) → \(T.self)")
+            print("   Raw response: \(raw)")
+            print("   Error: \(error)")
+            throw error
+        }
     }
 
     // MARK: - Raw POST helper (returns Data for manual decoding)
@@ -162,6 +177,24 @@ class APIService: ObservableObject {
 
         let story: Story = try await request(endpoint: "/api/stories", method: "POST", body: AnyCodable(saveBody), token: token)
         return story
+    }
+
+    /// Mark a story as completed and persist drift/duration data.
+    func updateStory(storyId: String, completed: Bool, duration: Int,
+                     finalDriftScore: Int, driftScoreHistory: [Int], token: String) async throws {
+        struct UpdateBody: Encodable {
+            let completed: Bool
+            let duration: Int
+            let finalDriftScore: Int
+            let driftScoreHistory: [Int]
+            let endTime: String
+        }
+        let fmt = ISO8601DateFormatter()
+        fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let body = UpdateBody(completed: completed, duration: duration,
+                              finalDriftScore: finalDriftScore, driftScoreHistory: driftScoreHistory,
+                              endTime: fmt.string(from: Date()))
+        let _: Story = try await request(endpoint: "/api/stories/\(storyId)", method: "PATCH", body: body, token: token)
     }
 
     // MARK: - Vitals

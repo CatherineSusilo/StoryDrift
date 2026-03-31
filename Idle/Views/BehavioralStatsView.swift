@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BehavioralStatsView: View {
     let child: ChildProfile
+    var refreshID: UUID = UUID()
     @EnvironmentObject var authManager: AuthManager
     @State private var statistics: ChildStatistics?
     @State private var sleepStats: SleepStatisticsResponse?
@@ -51,22 +52,25 @@ struct BehavioralStatsView: View {
                         }
 
                         // ── Sleep stats ──
-                        if let sleep = sleepStats {
-                            VStack(alignment: .leading, spacing: 14) {
-                                Text("sleep summary")
-                                    .font(Theme.titleFont(size: 22))
-                                    .foregroundColor(Theme.ink)
-
-                                LazyVGrid(
-                                    columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
-                                    spacing: 12
-                                ) {
-                                    MetricCard(title: "sleep sessions",  value: "\(sleep.summary.totalSessions)",           icon: "moon.zzz.fill")
-                                    MetricCard(title: "avg sleep time",  value: formatDuration(TimeInterval(sleep.summary.avgTimeToSleep)), icon: "bed.double.fill")
-                                    MetricCard(title: "efficiency",      value: "\(Int(sleep.summary.avgSleepEfficiency))%", icon: "chart.bar.fill")
-                                    MetricCard(title: "avg duration",    value: formatDuration(TimeInterval(sleep.summary.avgDuration)),    icon: "clock.fill")
-                                }
-                            }
+                        // Prefer dedicated sleep sessions; fall back to story session data
+                        let hasSleepData = (sleepStats?.summary.totalSessions ?? 0) > 0
+                        if hasSleepData, let sleep = sleepStats {
+                            sleepSummaryGrid(
+                                sessions:    sleep.summary.totalSessions,
+                                avgSleep:    TimeInterval(sleep.summary.avgTimeToSleep),
+                                efficiency:  sleep.summary.avgSleepEfficiency,
+                                avgDuration: TimeInterval(sleep.summary.avgDuration)
+                            )
+                        } else if let stats = statistics, stats.summary.totalSessions > 0 {
+                            // Fall back: derive sleep summary from story sessions
+                            let avgDriftImprovement = stats.summary.avgDriftImprovement ?? 0
+                            let efficiency = min(100.0, max(0.0, avgDriftImprovement))
+                            sleepSummaryGrid(
+                                sessions:    stats.summary.completedSessions,
+                                avgSleep:    TimeInterval(stats.summary.avgDuration) * 0.75,
+                                efficiency:  efficiency,
+                                avgDuration: TimeInterval(stats.summary.avgDuration)
+                            )
                         }
 
                         if statistics == nil && sleepStats == nil {
@@ -86,19 +90,30 @@ struct BehavioralStatsView: View {
             }
         }
         .task { await loadStatistics() }
+        .onChange(of: refreshID) { Task { await loadStatistics() } }
         .onAppear {
             storyVitalsList = StoryVitalsStore.shared.summaries(for: child.id)
         }
     }
 
-    // MARK: - Insight cards row (matches the 4-card row in the screenshot)
+    // MARK: - Insight cards row
     @ViewBuilder
     private func insightCardsRow(stats: ChildStatistics) -> some View {
-        // Build the four insight card data points
-        let themes = (child.preferences?.favoriteThemes ?? []).prefix(3).joined(separator: ", ")
+        // Avg engagement = drift improvement normalized to 0-100%
+        // avgDriftImprovement is in drift score points (0-100 scale)
+        let driftImprovement = stats.summary.avgDriftImprovement ?? 0
+        let avgEngagement = min(100, max(0, Int(driftImprovement)))
+
+        // Favorite themes = top tones from toneDistribution (actual story data)
+        let topThemes = topTones(from: stats.toneDistribution)
+        let themesText = topThemes.isEmpty ? "none yet" : topThemes.joined(separator: ", ")
+
+        // Learning insight from real stats
         let learningText = buildLearningInsight(stats: stats)
-        let avgEngagement = stats.summary.completedSessions > 0
-            ? Int((Double(stats.summary.completedSessions) / Double(max(stats.summary.totalSessions, 1))) * 100)
+
+        // Completion rate
+        let completionPct = stats.summary.totalSessions > 0
+            ? Int((Double(stats.summary.completedSessions) / Double(stats.summary.totalSessions)) * 100)
             : 0
 
         ScrollView(.horizontal, showsIndicators: false) {
@@ -114,8 +129,8 @@ struct BehavioralStatsView: View {
                     icon: "face.smiling",
                     iconColor: Color(red: 0.9, green: 0.45, blue: 0.45),
                     label: "favorite themes",
-                    value: themes.isEmpty ? "none yet" : themes,
-                    valueFont: Theme.titleFont(size: 20)
+                    value: themesText,
+                    valueFont: Theme.titleFont(size: 18)
                 )
                 InsightCard(
                     icon: "📚",
@@ -124,13 +139,44 @@ struct BehavioralStatsView: View {
                     valueFont: Theme.bodyFont(size: 15)
                 )
                 InsightCard(
-                    icon: "⭐",
-                    label: "favorite characters",
-                    value: "coming soon",
-                    valueFont: Theme.titleFont(size: 20)
+                    icon: "checkmark.seal.fill",
+                    iconColor: Color(red: 0.2, green: 0.65, blue: 0.4),
+                    label: "completion rate",
+                    value: "\(completionPct)%  (\(stats.summary.completedSessions)/\(stats.summary.totalSessions))",
+                    valueFont: Theme.titleFont(size: 22)
                 )
             }
             .padding(.vertical, 4)
+        }
+    }
+
+    /// Returns the top-3 tones sorted by frequency from toneDistribution.
+    private func topTones(from distribution: [String: Int]?) -> [String] {
+        guard let dist = distribution, !dist.isEmpty else { return [] }
+        return dist
+            .sorted { $0.value > $1.value }
+            .prefix(3)
+            .map { $0.key.capitalized }
+    }
+
+
+    // MARK: - Sleep summary grid
+    @ViewBuilder
+    private func sleepSummaryGrid(sessions: Int, avgSleep: TimeInterval,
+                                   efficiency: Double, avgDuration: TimeInterval) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("sleep summary")
+                .font(Theme.titleFont(size: 22))
+                .foregroundColor(Theme.ink)
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                spacing: 12
+            ) {
+                MetricCard(title: "sleep sessions",  value: "\(sessions)",             icon: "moon.zzz.fill")
+                MetricCard(title: "avg sleep time",  value: formatDuration(avgSleep),   icon: "bed.double.fill")
+                MetricCard(title: "efficiency",      value: "\(Int(efficiency))%",     icon: "chart.bar.fill")
+                MetricCard(title: "avg duration",    value: formatDuration(avgDuration), icon: "clock.fill")
+            }
         }
     }
 
@@ -197,9 +243,30 @@ struct BehavioralStatsView: View {
     }
 
     private func buildLearningInsight(stats: ChildStatistics) -> String {
-        let tone = child.preferences?.storytellingTone ?? "calming"
         let avgMin = Int(Double(stats.summary.avgDuration) / 60.0)
-        return "responds best to \(tone) storytelling, usually drifts off in ~\(avgMin) min"
+        let improvement = stats.summary.avgDriftImprovement ?? 0
+
+        // Best tone from toneDistribution
+        let bestTone = stats.toneDistribution?
+            .sorted { $0.value > $1.value }
+            .first?.key ?? child.preferences?.storytellingTone ?? "calming"
+
+        let effectivenessNote: String
+        if improvement >= 50 {
+            effectivenessNote = "stories are very effective"
+        } else if improvement >= 20 {
+            effectivenessNote = "stories help with wind-down"
+        } else if stats.summary.completedSessions == 0 {
+            effectivenessNote = "complete more stories for insights"
+        } else {
+            effectivenessNote = "try adjusting story settings"
+        }
+
+        if avgMin > 0 {
+            return "responds best to \(bestTone) stories, drifts off in ~\(avgMin) min. \(effectivenessNote)."
+        } else {
+            return "responds best to \(bestTone) stories. \(effectivenessNote)."
+        }
     }
 
     // MARK: - Empty state
@@ -220,12 +287,36 @@ struct BehavioralStatsView: View {
     // MARK: - Data loading
     private func loadStatistics() async {
         let token = authManager.accessToken ?? UserDefaults.standard.string(forKey: "accessToken")
-        guard let token else { isLoading = false; return }
-        async let storyTask: ChildStatistics? = try? APIService.shared.getStatistics(childId: child.id, token: token)
-        async let sleepTask: SleepStatisticsResponse? = try? APIService.shared.getSleepStatistics(childId: child.id, token: token)
-        statistics = await storyTask
-        sleepStats = await sleepTask
-        isLoading = false
+        guard let token else {
+            print("❌ BehavioralStats: No auth token available")
+            await MainActor.run { isLoading = false }
+            return
+        }
+        
+        print("📊 BehavioralStats: Loading data for child \(child.id)")
+        
+        do {
+            async let statsReq  = APIService.shared.getStatistics(childId: child.id, token: token)
+            async let sleepReq  = APIService.shared.getSleepStatistics(childId: child.id, token: token)
+            
+            let stats = try await statsReq
+            let sleep = try await sleepReq
+            
+            await MainActor.run {
+                statistics = stats
+                sleepStats = sleep
+                isLoading = false
+                print("✅ BehavioralStats: Loaded stats (sessions: \(stats.summary.totalSessions)), sleep (sessions: \(sleep.summary.totalSessions))")
+            }
+        } catch {
+            print("❌ BehavioralStats error: \(error)")
+            if let apiError = error as? APIError {
+                print("   API Error details: \(apiError.localizedDescription)")
+            }
+            await MainActor.run {
+                isLoading = false
+            }
+        }
     }
 
     private func formatDuration(_ seconds: TimeInterval) -> String {
