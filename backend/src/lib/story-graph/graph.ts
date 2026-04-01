@@ -43,7 +43,7 @@ function minGapForFrequency(freq: string): number {
 
 // ── Session initialisation ─────────────────────────────────────────────────────
 
-export function createBedtimeSession(childProfile: ChildProfile): BedtimeState {
+export function createBedtimeSession(childProfile: ChildProfile, knownCharacters: KnownCharacter[] = []): BedtimeState {
   const sessionId = uuid();
   const state: BedtimeState = {
     mode: 'bedtime',
@@ -58,6 +58,7 @@ export function createBedtimeSession(childProfile: ChildProfile): BedtimeState {
     arc_position: 'opening',
     session_minutes: 0,
     guard_failures: 0,
+    knownCharacters,
     segments: [],
     session_complete: false,
   };
@@ -70,6 +71,8 @@ export async function createEducationalSession(
   lessonName: string,
   lessonDescription: string,
   minigameFrequency: 'none' | 'every_5th' | 'every_3rd' | 'every_paragraph' = 'every_5th',
+  knownCharacters: KnownCharacter[] = [],
+  curriculumLessonId?: string,
 ): Promise<EducationalState> {
   const sessionId = uuid();
 
@@ -86,6 +89,7 @@ export async function createEducationalSession(
     engagement_score: 50,
     engagement_trajectory: 'flat',
     engagement_score_history: [],
+    curriculumLessonId,
     lesson_name: lessonName,
     lesson_description: lessonDescription,
     lesson_plan,
@@ -96,6 +100,7 @@ export async function createEducationalSession(
     characters: {},
     session_minutes: 0,
     guard_failures: 0,
+    knownCharacters,
     segments: [],
     minigame_events: [],
     segments_since_last_minigame: minGapForFrequency(minigameFrequency),   // fires on tick 2
@@ -160,7 +165,7 @@ async function tickBedtime(state: BedtimeState, biometrics: BiometricInput): Pro
     const segment = await generateResolutionSegment(state);
     const { imageUrl, falUrl } = await generateSceneImage(segment, drift_score, 'bedtime',
       getLastFalUrls(state));
-    const voice = await generateVoice(segment, drift_score, 'bedtime');
+    const voice = await generateVoice(segment, drift_score, 'bedtime', state.childProfile.narratorVoiceId);
 
     const updated = await updateBedtimeState(
       state, segment, imageUrl, falUrl, voice?.audioBase64 ?? null,
@@ -202,7 +207,7 @@ async function tickBedtime(state: BedtimeState, biometrics: BiometricInput): Pro
   );
 
   // Node 7 — Voice Output
-  const voice = await generateVoice(segment, drift_score, 'bedtime');
+  const voice = await generateVoice(segment, drift_score, 'bedtime', state.childProfile.narratorVoiceId);
 
   // Node 8 — State Updater
   const updated = await updateBedtimeState(
@@ -251,7 +256,7 @@ async function tickEducational(
     const segment = await generateLessonCompletionSegment({ ...state, engagement_score });
     const { imageUrl, falUrl } = await generateSceneImage(segment, engagement_score, 'educational',
       getLastFalUrls(state), state.lesson_name);
-    const voice = await generateVoice(segment, engagement_score, 'educational');
+    const voice = await generateVoice(segment, engagement_score, 'educational', state.childProfile.narratorVoiceId);
 
     const updated = await updateEducationalState(
       state, segment, imageUrl, falUrl, voice?.audioBase64 ?? null,
@@ -296,7 +301,7 @@ async function tickEducational(
   );
 
   // Node 8 — Voice Output
-  const voice = await generateVoice(segment, engagement_score, 'educational');
+  const voice = await generateVoice(segment, engagement_score, 'educational', state.childProfile.narratorVoiceId);
 
   // Node 9 — State Updater
   const conceptIntroduced = !strategy.hold_concept ? strategy.next_concept : undefined;

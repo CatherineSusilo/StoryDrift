@@ -10,7 +10,6 @@ interface VoiceParams {
 
 interface VoiceResult {
   audioUrl: string;   // permanent R2 CDN URL
-  contentType: string;
 }
 
 // Map drift/engagement score to ElevenLabs voice parameters
@@ -54,14 +53,18 @@ function getEducationalVoiceParams(engagementScore: number): { params: VoicePara
  *
  * Generates narration audio for the story segment, with voice parameters
  * adapted to the current drift or engagement score.
+ *
+ * @param voiceIdOverride  Optional ElevenLabs voice ID (e.g. child's saved narrator voice).
+ *                         Falls back to ELEVENLABS_VOICE_ID env var, then 'EXAVITQu4vr4xnSDxMaL' (Bella).
  */
 export async function generateVoice(
   text: string,
   score: number,
   mode: 'bedtime' | 'educational',
+  voiceIdOverride?: string,
 ): Promise<VoiceResult | null> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL'; // default: Bella
+  const voiceId = voiceIdOverride || process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL'; // default: Bella
 
   if (!apiKey) {
     console.warn('⚠️ ELEVENLABS_API_KEY not configured — skipping voice generation');
@@ -95,7 +98,7 @@ export async function generateVoice(
 
     const audioUrl = await uploadToR2(Buffer.from(response.data), 'mp3', 'audio/mpeg');
     console.log(`✅ Audio uploaded to R2: ${audioUrl}`);
-    return { audioUrl, contentType: 'audio/mpeg' };
+    return { audioUrl };
   } catch (err: any) {
     console.error('❌ ElevenLabs voice error:', err.response?.data || err.message);
     return null;

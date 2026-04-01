@@ -151,9 +151,9 @@ async function generateParagraphImage(
 
 // ── ElevenLabs paragraph audio ────────────────────────────────────────────────
 
-async function generateParagraphAudio(text: string, driftPercent: number): Promise<string> {
+async function generateParagraphAudio(text: string, driftPercent: number, voiceIdOverride?: string): Promise<string> {
   const apiKey  = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';
+  const voiceId = voiceIdOverride || process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';
   if (!apiKey) throw new Error('ELEVENLABS_API_KEY not configured');
 
   const speed      = 0.55 - driftPercent * 0.17;
@@ -206,11 +206,12 @@ router.post('/story', async (req: AuthRequest, res: Response) => {
     const paragraphCount = paragraphCountForDuration(profile.targetDuration ?? 15);
     console.log(`📖 ${profile.name} | ${profile.targetDuration ?? 15} min | ${paragraphCount} paragraphs`);
 
-    let childPersonality = '', childMedia = '';
+    let childPersonality = '', childMedia = '', narratorVoiceId: string | undefined;
     if (profile.childId) {
       const childData = await Child.findById(profile.childId);
       childPersonality = childData?.preferences?.personality || '';
       childMedia       = childData?.preferences?.favoriteMedia || '';
+      narratorVoiceId  = childData?.narratorVoiceId || undefined;
     }
 
     // Phase 1: story text (Claude)
@@ -307,7 +308,7 @@ router.post('/story', async (req: AuthRequest, res: Response) => {
     console.log(`🔊 Generating ${paragraphs.length} audio clips…`);
     const audioUrls = await pMap(paragraphs, async (para, i) => {
       try {
-        const url = await generateParagraphAudio(para, i / total);
+        const url = await generateParagraphAudio(para, i / total, narratorVoiceId);
         console.log(`  🔊 Audio ${i + 1}/${paragraphs.length}: ${url}`);
         return url;
       } catch (err: any) {

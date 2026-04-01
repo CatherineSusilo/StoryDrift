@@ -11,6 +11,27 @@ export interface ChildProfile {
   favoriteCharacter?: string;
   preferredWorld?: 'forest' | 'ocean' | 'space' | 'village';
   tonightsMood?: 'wound_up' | 'normal' | 'almost_there';
+  theme?: string;           // optional story theme passed at session start
+  narratorVoiceId?: string; // ElevenLabs voice ID for this child's narrator
+}
+
+// A character that has a saved profile + reference image in the DB
+export interface KnownCharacter {
+  characterId: string;   // MongoDB _id
+  name: string;
+  description: string;   // physical appearance
+  temperament: string;   // personality traits
+  imageUrl: string;      // permanent R2 URL
+  falImageUrl: string;   // ephemeral fal.ai CDN URL for img2img anchoring
+}
+
+// A character that was auto-generated during a tick and needs to be persisted by the route
+export interface NewCharacterResult {
+  name: string;
+  description: string;
+  temperament: string;
+  imageUrl: string;
+  falImageUrl: string;
 }
 
 export interface CharacterState {
@@ -98,6 +119,7 @@ export interface BedtimeState {
   current_audio_url?: string;
   current_strategy?: BedtimeStrategy;
 
+  knownCharacters: KnownCharacter[];
   segments: StorySegment[];
   sleep_onset_time?: string;
   session_complete: boolean;
@@ -115,6 +137,7 @@ export interface EducationalState {
   engagement_trajectory: DriftTrajectory;
   engagement_score_history: number[];
 
+  curriculumLessonId?: string;  // links to hardcoded curriculum lesson (drives minigame placement)
   lesson_name: string;
   lesson_description: string;
   lesson_plan?: LessonPlan;
@@ -132,6 +155,7 @@ export interface EducationalState {
   current_audio_url?: string;
   current_strategy?: EducationalStrategy;
 
+  knownCharacters: KnownCharacter[];
   segments: StorySegment[];
   minigame_events: MinigameEvent[];
   segments_since_last_minigame: number;

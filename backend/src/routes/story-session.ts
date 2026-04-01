@@ -2,7 +2,10 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
 import { Child } from '../models/Child';
+import { Character } from '../models/Character';
+import { User } from '../models/User';
 import { StoryGraphSession } from '../models/StoryGraphSession';
+import { LessonProgress } from '../models/LessonProgress';
 import {
   createBedtimeSession,
   createEducationalSession,
@@ -11,7 +14,8 @@ import {
   tick,
   recordMinigameResult,
 } from '../lib/story-graph/graph';
-import { ChildProfile, BiometricInput } from '../lib/story-graph/types';
+import { ChildProfile, BiometricInput, KnownCharacter } from '../lib/story-graph/types';
+import { findLesson } from '../lib/curriculum';
 
 const router = Router();
 
@@ -37,15 +41,20 @@ const BiometricSchema = z.object({
 
 const StartSchema = z.discriminatedUnion('mode', [
   z.object({
-    mode:         z.literal('bedtime'),
-    childProfile: ChildProfileSchema,
+    mode:           z.literal('bedtime'),
+    childProfile:   ChildProfileSchema,
+    characterIds:   z.array(z.string()).optional(),  // pre-existing character IDs to load
+    theme:          z.string().optional(),            // optional story theme
   }),
   z.object({
-    mode:               z.literal('educational'),
-    childProfile:       ChildProfileSchema,
-    lessonName:         z.string().min(1),
-    lessonDescription:  z.string().min(1),
-    minigameFrequency:  z.enum(['none', 'every_5th', 'every_3rd', 'every_paragraph']).optional(),
+    mode:                z.literal('educational'),
+    childProfile:        ChildProfileSchema,
+    curriculumLessonId:  z.string().optional(),        // if set, drives lesson from hardcoded curriculum
+    lessonName:          z.string().min(1).optional(),  // required if no curriculumLessonId
+    lessonDescription:   z.string().min(1).optional(),  // required if no curriculumLessonId
+    minigameFrequency:   z.enum(['none', 'every_5th', 'every_3rd', 'every_paragraph']).optional(),
+    characterIds:        z.array(z.string()).optional(),
+    theme:               z.string().optional(),
   }),
 ]);
 
@@ -64,17 +73,66 @@ router.post('/start', async (req: AuthRequest, res: Response) => {
     const child = await Child.findById(childProfile.childId);
     if (!child) return res.status(404).json({ error: 'Child not found' });
 
+    // Load pre-selected characters from DB and map to KnownCharacter
+    const knownCharacters: KnownCharacter[] = [];
+    if (body.characterIds?.length) {
+      const docs = await Character.find({ _id: { $in: body.characterIds } });
+      for (const doc of docs) {
+        knownCharacters.push({
+          characterId: doc._id.toString(),
+          name:        doc.name,
+          description: doc.description,
+          temperament: doc.temperament,
+          imageUrl:    doc.imageUrl,
+          falImageUrl: doc.falImageUrl ?? '',
+        });
+      }
+    }
+
+    // Inject optional theme + narrator voice into child profile
+    const profileWithTheme: ChildProfile = {
+      ...(childProfile as ChildProfile),
+      theme:            body.theme,
+      narratorVoiceId:  child.narratorVoiceId,  // use child's saved narrator voice if set
+    };
+
     let state;
     if (body.mode === 'bedtime') {
       console.log(`🌙 Starting bedtime session for ${childProfile.name}`);
-      state = createBedtimeSession(childProfile as ChildProfile);
+      state = createBedtimeSession(profileWithTheme, knownCharacters);
     } else {
-      console.log(`📚 Starting educational session: "${body.lessonName}" for ${childProfile.name}`);
+      // Resolve lesson from curriculum or use freeform inputs
+      let lessonName = body.lessonName ?? '';
+      let lessonDescription = body.lessonDescription ?? '';
+      let curriculumLessonId: string | undefined;
+      let storyTheme = body.theme;
+
+      if (body.curriculumLessonId) {
+        const found = findLesson(body.curriculumLessonId);
+        if (!found) return res.status(404).json({ error: `Curriculum lesson "${body.curriculumLessonId}" not found` });
+        curriculumLessonId = found.lesson.id;
+        lessonName = found.lesson.name;
+        lessonDescription = found.lesson.description;
+        storyTheme = storyTheme || found.lesson.storyTheme;
+        // Inject curriculum concepts into description for the AI planner
+        lessonDescription += `\n\nConcepts to cover: ${found.lesson.concepts.join(', ')}`;
+      }
+
+      if (!lessonName || !lessonDescription) {
+        return res.status(400).json({ error: 'Either curriculumLessonId or both lessonName and lessonDescription are required' });
+      }
+
+      // Override theme with curriculum storyTheme if available
+      if (storyTheme) profileWithTheme.theme = storyTheme;
+
+      console.log(`📚 Starting educational session: "${lessonName}" for ${childProfile.name}`);
       state = await createEducationalSession(
-        childProfile as ChildProfile,
-        body.lessonName,
-        body.lessonDescription,
+        profileWithTheme,
+        lessonName,
+        lessonDescription,
         body.minigameFrequency ?? 'every_5th',
+        knownCharacters,
+        curriculumLessonId,
       );
     }
 
@@ -83,7 +141,7 @@ router.post('/start', async (req: AuthRequest, res: Response) => {
       childId:    childProfile.childId,
       mode:       body.mode,
       state,
-      lessonName: body.mode === 'educational' ? body.lessonName : undefined,
+      lessonName: body.mode === 'educational' ? (body.curriculumLessonId ? (state as any).lesson_name : body.lessonName) : undefined,
     });
 
     return res.json({ sessionId: state.sessionId, mode: state.mode, state });
@@ -116,6 +174,32 @@ router.post('/:sessionId/tick', async (req: AuthRequest, res: Response) => {
 
     console.log(`⏱️  Tick for session ${sessionId} | mode: ${session.mode} | camera: ${cameraEnabled}`);
     const result = await tick(sessionId, biometrics, cameraEnabled);
+
+    // Persist any new characters auto-generated this tick
+    if (result.newCharacters?.length) {
+      const auth0Id = req.auth?.payload?.sub;
+      const user = auth0Id ? await User.findOne({ auth0Id }) : null;
+      for (const nc of result.newCharacters) {
+        try {
+          const saved = await Character.create({
+            childId:     session.childId,
+            userId:      user?._id ?? session.childId, // fallback
+            name:        nc.name,
+            description: nc.description,
+            temperament: nc.temperament,
+            imageUrl:    nc.imageUrl,
+            falImageUrl: nc.falImageUrl,
+          });
+          // Back-fill characterId in the session's knownCharacters
+          const inSession = result.state.knownCharacters.find(
+            k => k.name === nc.name && k.characterId === '',
+          );
+          if (inSession) inSession.characterId = saved._id.toString();
+        } catch (err: any) {
+          console.warn(`⚠️ Could not save character "${nc.name}":`, err.message);
+        }
+      }
+    }
 
     await StoryGraphSession.findByIdAndUpdate(sessionId, {
       state:     result.state,
@@ -203,6 +287,48 @@ router.post('/:sessionId/end', async (req: AuthRequest, res: Response) => {
       completed: true,
       endTime:   new Date(),
     });
+
+    // Auto-update curriculum progress if this was a curriculum-driven lesson
+    if (session.mode === 'educational') {
+      const edu = session as any;
+      if (edu.curriculumLessonId) {
+        const lessonComplete = edu.lesson_progress >= 100;
+        const stars = lessonComplete
+          ? (edu.lesson_progress >= 100 && edu.engagement_score_history.length > 0
+              ? Math.min(3, Math.max(1, Math.round(
+                  (edu.engagement_score_history.reduce((a: number, b: number) => a + b, 0) /
+                  edu.engagement_score_history.length) / 33,
+                )))
+              : 1)
+          : 0;
+
+        try {
+          const found = findLesson(edu.curriculumLessonId);
+          if (found) {
+            await LessonProgress.findOneAndUpdate(
+              { childId: session.childId, lessonId: edu.curriculumLessonId },
+              {
+                $set: {
+                  sectionId:     found.section.id,
+                  lastSessionId: sessionId,
+                  ...(lessonComplete ? { completed: true, completedAt: new Date() } : {}),
+                },
+                $max: { stars, bestScore: edu.lesson_progress },
+                $inc: { attempts: 1 },
+                $setOnInsert: {
+                  childId:   session.childId,
+                  lessonId:  edu.curriculumLessonId,
+                  sectionId: found.section.id,
+                },
+              },
+              { upsert: true },
+            );
+          }
+        } catch (err: any) {
+          console.warn('⚠️ Failed to update curriculum progress:', err.message);
+        }
+      }
+    }
 
     deleteSession(sessionId);
     return res.json({ summary });

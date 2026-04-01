@@ -16,6 +16,8 @@ export interface IChild extends Document {
   dateOfBirth?: Date;
   avatar?: string;
   preferences?: IChildPreferences;
+  narratorVoiceId?: string;    // ElevenLabs voice ID (preset or cloned)
+  narratorVoiceName?: string;  // Display name shown in UI
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,12 +36,14 @@ const PreferencesSchema = new Schema<IChildPreferences>(
 
 const ChildSchema = new Schema<IChild>(
   {
-    userId:      { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    name:        { type: String, required: true },
-    age:         { type: Number, required: true },
-    dateOfBirth: { type: Date },
-    avatar:      { type: String },
-    preferences: { type: PreferencesSchema, default: null },
+    userId:             { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    name:               { type: String, required: true },
+    age:                { type: Number, required: true },
+    dateOfBirth:        { type: Date },
+    avatar:             { type: String },
+    preferences:        { type: PreferencesSchema, default: null },
+    narratorVoiceId:    { type: String },   // ElevenLabs voice ID
+    narratorVoiceName:  { type: String },   // Display name
   },
   {
     timestamps: true,
