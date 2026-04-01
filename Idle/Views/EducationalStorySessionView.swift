@@ -388,10 +388,35 @@ struct EducationalStorySessionView: View {
         showMinigame = false
         activeTrigger = nil
 
+        print("🎮 Minigame completed: type=\(result.type), completed=\(result.completed), hasData=\(result.responseData != nil)")
+
         // Collect drawing results for later saving to collection
-        if result.type == .drawing, result.completed, let base64 = result.responseData {
-            minigameDrawings.append((base64: base64, timestamp: Date()))
-            print("📝 Collected drawing #\(minigameDrawings.count) from minigame")
+        if result.type == .drawing {
+            if result.completed {
+                if let base64 = result.responseData {
+                    let previewLength = min(base64.count, 50)
+                    print("📝 Drawing base64 preview: \(String(base64.prefix(previewLength)))... (total: \(base64.count) chars)")
+                    
+                    // Validate base64 can be decoded
+                    if let testData = Data(base64Encoded: base64) {
+                        print("✅ Base64 decodes to \(testData.count) bytes")
+                        if UIImage(data: testData) != nil {
+                            print("✅ Data creates valid UIImage")
+                        } else {
+                            print("⚠️ Data doesn't create valid UIImage")
+                        }
+                    } else {
+                        print("❌ Base64 string cannot be decoded!")
+                    }
+                    
+                    minigameDrawings.append((base64: base64, timestamp: Date()))
+                    print("📝 Collected drawing #\(minigameDrawings.count) from minigame")
+                } else {
+                    print("⚠️ Drawing completed but no responseData!")
+                }
+            } else {
+                print("ℹ️ Drawing minigame not completed (skipped)")
+            }
         }
 
         // Send result to backend
@@ -417,24 +442,43 @@ struct EducationalStorySessionView: View {
     
     // MARK: - Save drawings to collection
     
+    @MainActor
     private func saveMinigameDrawings() {
-        guard !minigameDrawings.isEmpty else { return }
+        guard !minigameDrawings.isEmpty else {
+            print("ℹ️ No drawings to save")
+            return
+        }
         
         print("💾 Saving \(minigameDrawings.count) drawings to collection for child \(child.id)")
         
         // Load existing drawings for this child
         let drawingsKey = "drawings_\(child.id)"
         var existingDrawings: [ChildDrawing] = []
-        if let data = UserDefaults.standard.data(forKey: drawingsKey),
-           let decoded = try? JSONDecoder().decode([ChildDrawing].self, from: data) {
-            existingDrawings = decoded
+        
+        // Load existing drawings with error handling
+        if let data = UserDefaults.standard.data(forKey: drawingsKey) {
+            do {
+                existingDrawings = try JSONDecoder().decode([ChildDrawing].self, from: data)
+                print("📂 Loaded \(existingDrawings.count) existing drawings")
+            } catch {
+                print("⚠️ Failed to decode existing drawings: \(error)")
+                // Continue with empty array - don't lose new drawings
+            }
+        } else {
+            print("📂 No existing drawings for this child")
         }
         
         // Convert base64 drawings to ChildDrawing objects
         for (index, drawing) in minigameDrawings.enumerated() {
             // Decode base64 to PNG data
             guard let imageData = Data(base64Encoded: drawing.base64) else {
-                print("⚠️ Failed to decode drawing #\(index + 1)")
+                print("❌ Failed to decode drawing #\(index + 1) - invalid base64")
+                continue
+            }
+            
+            // Verify we got valid PNG data
+            guard UIImage(data: imageData) != nil else {
+                print("❌ Failed to create image from data for drawing #\(index + 1)")
                 continue
             }
             
@@ -451,15 +495,33 @@ struct EducationalStorySessionView: View {
             )
             
             existingDrawings.append(childDrawing)
-            print("✅ Added drawing: \(name)")
+            print("✅ Added drawing: \(name) (size: \(imageData.count) bytes)")
         }
         
-        // Save back to UserDefaults
-        if let encoded = try? JSONEncoder().encode(existingDrawings) {
+        // Save back to UserDefaults with error handling
+        do {
+            let encoded = try JSONEncoder().encode(existingDrawings)
             UserDefaults.standard.set(encoded, forKey: drawingsKey)
-            print("💾 Saved \(minigameDrawings.count) new drawings to collection")
-        } else {
-            print("❌ Failed to encode drawings")
+            
+            // CRITICAL: Force synchronization to disk
+            let synced = UserDefaults.standard.synchronize()
+            if synced {
+                print("💾 Successfully saved and synchronized \(minigameDrawings.count) new drawings")
+                print("📊 Total drawings for child: \(existingDrawings.count)")
+            } else {
+                print("⚠️ synchronize() returned false - data may not be persisted")
+            }
+            
+            // Verify the save by reading back
+            if let verifyData = UserDefaults.standard.data(forKey: drawingsKey),
+               let verifyDecoded = try? JSONDecoder().decode([ChildDrawing].self, from: verifyData) {
+                print("✅ Verified: \(verifyDecoded.count) drawings in UserDefaults")
+            } else {
+                print("❌ Verification failed - drawings may not be readable")
+            }
+            
+        } catch {
+            print("❌ Failed to encode drawings: \(error)")
         }
     }
 

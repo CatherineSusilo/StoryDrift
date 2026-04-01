@@ -36,6 +36,24 @@ struct DrawingsManagerView: View {
         }
         .navigationBarHidden(true)
         .task { await loadChildren() }
+        .onAppear {
+            // Refresh drawings when view appears (picks up new minigame drawings)
+            if let childId = selectedChild?.id {
+                print("🔄 DrawingsManagerView appeared - refreshing drawings")
+                
+                // Debug: Show all drawings keys in UserDefaults
+                let allKeys = UserDefaults.standard.dictionaryRepresentation().keys
+                let drawingKeys = allKeys.filter { $0.hasPrefix("drawings_") }
+                print("🔍 Found \(drawingKeys.count) drawings keys in UserDefaults:")
+                for key in drawingKeys.sorted() {
+                    if let data = UserDefaults.standard.data(forKey: key) {
+                        print("   - \(key): \(data.count) bytes")
+                    }
+                }
+                
+                loadDrawings(childId: childId)
+            }
+        }
         .photosPicker(
             isPresented: $showPhotoPicker,
             selection: $pickerItems,
@@ -252,17 +270,44 @@ struct DrawingsManagerView: View {
     private func drawingsKey(childId: String) -> String { "drawings_\(childId)" }
 
     private func loadDrawings(childId: String) {
-        guard let data = UserDefaults.standard.data(forKey: drawingsKey(childId: childId)),
-              let decoded = try? JSONDecoder().decode([ChildDrawing].self, from: data) else {
+        print("📂 Loading drawings for child \(childId)")
+        
+        // Force synchronization to get latest data
+        UserDefaults.standard.synchronize()
+        
+        guard let data = UserDefaults.standard.data(forKey: drawingsKey(childId: childId)) else {
+            print("ℹ️ No drawings data found for key: drawings_\(childId)")
             drawings = []
             return
         }
-        drawings = decoded
+        
+        do {
+            let decoded = try JSONDecoder().decode([ChildDrawing].self, from: data)
+            drawings = decoded
+            print("✅ Loaded \(decoded.count) drawings successfully")
+        } catch {
+            print("❌ Failed to decode drawings: \(error)")
+            drawings = []
+        }
     }
 
     private func saveDrawings(childId: String) {
-        guard let data = try? JSONEncoder().encode(drawings) else { return }
-        UserDefaults.standard.set(data, forKey: drawingsKey(childId: childId))
+        print("💾 Saving \(drawings.count) drawings for child \(childId)")
+        
+        do {
+            let data = try JSONEncoder().encode(drawings)
+            UserDefaults.standard.set(data, forKey: drawingsKey(childId: childId))
+            
+            // Force synchronization
+            let synced = UserDefaults.standard.synchronize()
+            if synced {
+                print("✅ Drawings saved and synchronized")
+            } else {
+                print("⚠️ synchronize() returned false")
+            }
+        } catch {
+            print("❌ Failed to encode drawings: \(error)")
+        }
     }
 
     private func performDelete(_ drawing: ChildDrawing) {
