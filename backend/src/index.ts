@@ -29,6 +29,7 @@ import audioRoutes from './routes/audio';
 import generateRoutes from './routes/generate';
 import vitalsRoutes from './routes/vitals';
 import storySessionRoutes from './routes/story-session';
+import drawingsRoutes from './routes/drawings';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -67,6 +68,7 @@ app.use('/api/audio', authMiddleware, audioRoutes);
 app.use('/api/generate', authMiddleware, generateRoutes);
 app.use('/api/vitals', authMiddleware, vitalsRoutes);
 app.use('/api/story-session', authMiddleware, storySessionRoutes);
+app.use('/api/drawings', authMiddleware, drawingsRoutes);
 
 // Error handling
 app.use(errorHandler);

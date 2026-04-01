@@ -209,6 +209,69 @@ class APIService: ObservableObject {
     func getSleepStatistics(childId: String, token: String) async throws -> SleepStatisticsResponse {
         return try await request(endpoint: "/api/statistics/sleep/\(childId)", token: token)
     }
+    
+    // MARK: - Drawings
+    
+    /// Get all drawings for a child from MongoDB
+    func getDrawings(childId: String, token: String) async throws -> [DrawingResponse] {
+        return try await request(endpoint: "/api/drawings/child/\(childId)", token: token)
+    }
+    
+    /// Upload a single drawing to MongoDB
+    func uploadDrawing(drawing: DrawingUploadRequest, token: String) async throws -> DrawingResponse {
+        return try await request(endpoint: "/api/drawings", method: "POST", body: drawing, token: token)
+    }
+    
+    /// Batch upload multiple drawings (for syncing local storage to backend)
+    func uploadDrawingsBatch(childId: String, drawings: [DrawingUploadRequest], token: String) async throws -> DrawingBatchResponse {
+        struct BatchRequest: Encodable {
+            let childId: String
+            let drawings: [DrawingUploadRequest]
+        }
+        let body = BatchRequest(childId: childId, drawings: drawings)
+        return try await request(endpoint: "/api/drawings/batch", method: "POST", body: body, token: token)
+    }
+    
+    /// Delete a drawing from MongoDB
+    func deleteDrawing(drawingId: String, token: String) async throws {
+        struct DeleteResponse: Codable {
+            let message: String
+            let id: String
+        }
+        let _: DeleteResponse = try await request(endpoint: "/api/drawings/\(drawingId)", method: "DELETE", token: token)
+    }
+}
+
+// MARK: - Drawing API Models
+
+struct DrawingResponse: Codable, Identifiable {
+    let id: String
+    let childId: String
+    let name: String
+    let imageData: String  // base64 encoded PNG
+    let uploadedAt: Date
+    let source: String
+    let lessonName: String?
+    let lessonEmoji: String?
+    let createdAt: Date
+    let updatedAt: Date
+}
+
+struct DrawingUploadRequest: Codable {
+    let childId: String
+    let name: String
+    let imageData: String  // base64 encoded PNG
+    let uploadedAt: Date
+    let source: String
+    let lessonName: String?
+    let lessonEmoji: String?
+}
+
+struct DrawingBatchResponse: Codable {
+    let message: String
+    let success: Int
+    let failed: Int
+    let errors: [String]?
 }
 
 // MARK: - Story Configuration

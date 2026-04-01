@@ -301,9 +301,14 @@ struct DrawingsManagerView: View {
             // Force synchronization
             let synced = UserDefaults.standard.synchronize()
             if synced {
-                print("✅ Drawings saved and synchronized")
+                print("✅ Drawings saved and synchronized to UserDefaults")
             } else {
                 print("⚠️ synchronize() returned false")
+            }
+            
+            // Sync to MongoDB in background
+            Task {
+                await syncDrawingsToBackend(childId: childId)
             }
         } catch {
             print("❌ Failed to encode drawings: \(error)")
@@ -314,7 +319,83 @@ struct DrawingsManagerView: View {
         withAnimation {
             drawings.removeAll { $0.id == drawing.id }
         }
-        if let cid = selectedChild?.id { saveDrawings(childId: cid) }
+        if let cid = selectedChild?.id {
+            saveDrawings(childId: cid)
+            
+            // Delete from backend too
+            Task {
+                await deleteDrawingFromBackend(drawingId: drawing.id)
+            }
+        }
+    }
+    
+    // MARK: - Backend Sync
+    
+    /// Sync all local drawings to MongoDB backend
+    private func syncDrawingsToBackend(childId: String) async {
+        guard let token = authManager.accessToken else {
+            print("⚠️ No auth token - skipping backend sync")
+            return
+        }
+        
+        print("☁️ Syncing \(drawings.count) drawings to MongoDB...")
+        
+        // Convert ChildDrawing to DrawingUploadRequest
+        let uploadRequests = drawings.map { drawing -> DrawingUploadRequest in
+            DrawingUploadRequest(
+                childId: childId,
+                name: drawing.name,
+                imageData: drawing.imageData.base64EncodedString(),
+                uploadedAt: drawing.uploadedAt,
+                source: drawing.name.contains("🔢") || drawing.name.contains("📚") || 
+                        drawing.name.contains("🔤") ? "minigame" : "manual_upload",
+                lessonName: extractLessonName(from: drawing.name),
+                lessonEmoji: extractLessonEmoji(from: drawing.name)
+            )
+        }
+        
+        do {
+            let result = try await APIService.shared.uploadDrawingsBatch(
+                childId: childId,
+                drawings: uploadRequests,
+                token: token
+            )
+            print("✅ Backend sync complete: \(result.success) uploaded, \(result.failed) failed")
+            if let errors = result.errors, !errors.isEmpty {
+                print("⚠️ Sync errors: \(errors.joined(separator: ", "))")
+            }
+        } catch {
+            print("❌ Backend sync failed: \(error)")
+        }
+    }
+    
+    /// Delete drawing from MongoDB backend
+    private func deleteDrawingFromBackend(drawingId: String) async {
+        guard let token = authManager.accessToken else { return }
+        
+        do {
+            try await APIService.shared.deleteDrawing(drawingId: drawingId, token: token)
+            print("✅ Drawing deleted from backend: \(drawingId)")
+        } catch {
+            print("⚠️ Failed to delete from backend: \(error)")
+        }
+    }
+    
+    // Helper to extract lesson info from drawing name
+    private func extractLessonName(from name: String) -> String? {
+        // Format: "🔢 Lesson Name - timestamp"
+        let components = name.components(separatedBy: " - ")
+        guard let first = components.first else { return nil }
+        // Remove emoji
+        let withoutEmoji = first.drop(while: { $0.unicodeScalars.first?.properties.isEmoji == true })
+        return withoutEmoji.trimmingCharacters(in: .whitespaces)
+    }
+    
+    private func extractLessonEmoji(from name: String) -> String? {
+        // Get first character if it's an emoji
+        guard let first = name.first,
+              first.unicodeScalars.first?.properties.isEmoji == true else { return nil }
+        return String(first)
     }
 
     // MARK: - Loading

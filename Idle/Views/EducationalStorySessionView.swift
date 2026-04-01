@@ -516,12 +516,59 @@ struct EducationalStorySessionView: View {
             if let verifyData = UserDefaults.standard.data(forKey: drawingsKey),
                let verifyDecoded = try? JSONDecoder().decode([ChildDrawing].self, from: verifyData) {
                 print("✅ Verified: \(verifyDecoded.count) drawings in UserDefaults")
+                
+                // Sync to MongoDB in background
+                Task {
+                    await syncMinigameDrawingsToBackend(drawings: Array(existingDrawings.suffix(minigameDrawings.count)))
+                }
             } else {
                 print("❌ Verification failed - drawings may not be readable")
             }
             
         } catch {
             print("❌ Failed to encode drawings: \(error)")
+        }
+    }
+    
+    // MARK: - Backend Sync
+    
+    /// Sync newly saved minigame drawings to MongoDB
+    @MainActor
+    private func syncMinigameDrawingsToBackend(drawings: [ChildDrawing]) async {
+        guard let token = authManager.accessToken else {
+            print("⚠️ No auth token - skipping backend sync")
+            return
+        }
+        
+        guard !drawings.isEmpty else { return }
+        
+        print("☁️ Syncing \(drawings.count) minigame drawings to MongoDB...")
+        
+        // Convert to upload requests
+        let uploadRequests = drawings.map { drawing -> DrawingUploadRequest in
+            DrawingUploadRequest(
+                childId: child.id,
+                name: drawing.name,
+                imageData: drawing.imageData.base64EncodedString(),
+                uploadedAt: drawing.uploadedAt,
+                source: "minigame",
+                lessonName: lesson.name,
+                lessonEmoji: lesson.emoji
+            )
+        }
+        
+        do {
+            let result = try await APIService.shared.uploadDrawingsBatch(
+                childId: child.id,
+                drawings: uploadRequests,
+                token: token
+            )
+            print("✅ MongoDB sync complete: \(result.success) uploaded, \(result.failed) failed")
+            if let errors = result.errors, !errors.isEmpty {
+                print("⚠️ Sync errors: \(errors.joined(separator: ", "))")
+            }
+        } catch {
+            print("❌ MongoDB sync failed: \(error)")
         }
     }
 
