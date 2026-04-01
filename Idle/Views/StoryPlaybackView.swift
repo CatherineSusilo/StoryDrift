@@ -403,10 +403,10 @@ struct StoryPlaybackView: View {
     private func startImagePolling(jobId: String) {
         guard let token = authManager.accessToken else { return }
 
-        // Fetch immediately so image 0 shows up as soon as Vertex AI returns it (~5s)
+        // Fetch immediately so image 0 shows up as soon as available
         fetchImages(jobId: jobId, token: token)
 
-        // Then poll every 2s (down from 5s) to keep subsequent images snappy
+        // Then poll every 2s to keep subsequent images snappy as fal.ai background generation completes
         imagePollingTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
             self.fetchImages(jobId: jobId, token: token)
         }

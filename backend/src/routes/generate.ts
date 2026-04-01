@@ -239,43 +239,71 @@ router.post('/story', async (req: AuthRequest, res: Response) => {
     const storyContext = `${profile.parentPrompt} — ${profile.storytellingTone} tone`;
     console.log(`✅ Story text (${storyText.length} chars, ${paragraphs.length} paragraphs)`);
 
-    // ── Set up image job immediately after story text — don't wait for audio ──
+    // ── Set up image job immediately after story text ──
     const tempStoryId = uuid();
     const pending = new Array(paragraphs.length).fill('');
     imageProgress.set(tempStoryId, pending);
 
-    // Phase 2 + 3: audio and images run concurrently
-    // Image 0 starts RIGHT NOW so it's ready within ~5s when the app opens the story.
-    // Remaining images follow sequentially, each referencing the previous for style consistency.
-    console.log(`🎨 Starting fal.ai image generation for ${tempStoryId}…`);
-    const imageGenPromise = (async () => {
-      let firstFalUrl = '';
-      let prevFalUrl = '';
+    // Phase 2: Generate FIRST image synchronously (blocks until ready)
+    // This ensures the story doesn't start until at least the first image is available
+    console.log(`🎨 Generating first image for ${tempStoryId}…`);
+    let firstFalUrl = '';
+    let firstImageUrl = '';
+    
+    try {
+      const { r2Url, falUrl } = await generateParagraphImage(
+        paragraphs[0],
+        storyContext,
+        0,
+        undefined,
+        undefined
+      );
       
-      for (let i = 0; i < paragraphs.length; i++) {
-        try {
-          const { r2Url, falUrl } = await generateParagraphImage(
-            paragraphs[i],
-            storyContext,
-            i / total,
-            firstFalUrl || undefined,
-            prevFalUrl || undefined
-          );
-          
-          pending[i] = r2Url;
-          if (i === 0) firstFalUrl = falUrl;
-          prevFalUrl = falUrl;
-          
-          console.log(`  🖼  Image ${i + 1}/${paragraphs.length}: ${r2Url} (drift ${((i / total) * 100).toFixed(0)}%)`);
-        } catch (err: any) {
-          console.warn(`  ⚠️  Image ${i + 1} failed: ${err.message}`);
-        }
-      }
-      console.log(`✅ All images done for ${tempStoryId}`);
-      setTimeout(() => imageProgress.delete(tempStoryId), 60 * 60 * 1000);
-    })();
+      firstImageUrl = r2Url;
+      firstFalUrl = falUrl;
+      pending[0] = r2Url;
+      console.log(`  ✅ First image ready: ${r2Url}`);
+    } catch (err: any) {
+      console.error(`  ❌ First image failed: ${err.message}`);
+      throw new Error(`Failed to generate first image: ${err.message}`);
+    }
 
-    // Phase 2: ElevenLabs audio (concurrency 3) — runs in parallel with images
+    // Phase 3: Generate remaining images in background (async, non-blocking)
+    // Images 1+ will be available as the story progresses
+    if (paragraphs.length > 1) {
+      console.log(`🎨 Starting background generation for remaining ${paragraphs.length - 1} images…`);
+      const imageGenPromise = (async () => {
+        let prevFalUrl = firstFalUrl;
+        
+        for (let i = 1; i < paragraphs.length; i++) {
+          try {
+            const { r2Url, falUrl } = await generateParagraphImage(
+              paragraphs[i],
+              storyContext,
+              i / total,
+              firstFalUrl,
+              prevFalUrl
+            );
+            
+            pending[i] = r2Url;
+            prevFalUrl = falUrl;
+            
+            console.log(`  🖼  Image ${i + 1}/${paragraphs.length}: ${r2Url} (drift ${((i / total) * 100).toFixed(0)}%)`);
+          } catch (err: any) {
+            console.warn(`  ⚠️  Image ${i + 1} failed: ${err.message}`);
+          }
+        }
+        console.log(`✅ All ${paragraphs.length} images done for ${tempStoryId}`);
+        setTimeout(() => imageProgress.delete(tempStoryId), 60 * 60 * 1000);
+      })();
+      
+      // Fire-and-forget the remaining image work
+      imageGenPromise.catch((err) => {
+        console.error(`❌ Background image generation error: ${err.message}`);
+      });
+    }
+
+    // Phase 4: ElevenLabs audio (concurrency 3) — runs in parallel with background images
     console.log(`🔊 Generating ${paragraphs.length} audio clips…`);
     const audioUrls = await pMap(paragraphs, async (para, i) => {
       try {
@@ -289,10 +317,14 @@ router.post('/story', async (req: AuthRequest, res: Response) => {
     }, 3);
     console.log(`✅ Audio: ${audioUrls.filter(Boolean).length}/${paragraphs.length}`);
 
-    // Fire-and-forget the remaining image work (imageGenPromise keeps running in background)
-    imageGenPromise.catch(() => {});
-
-    return res.json({ story: storyText, generatedImages: [], audioUrls, imageJobId: tempStoryId, modelUsed: 'claude-sonnet-4-5' });
+    // Return response with first image immediately available
+    return res.json({
+      story: storyText,
+      generatedImages: [firstImageUrl], // First image is ready immediately
+      audioUrls,
+      imageJobId: tempStoryId,
+      modelUsed: 'claude-sonnet-4-5'
+    });
   } catch (error: any) {
     console.error('❌ Story generation error:', error.message);
     res.status(500).json({ error: 'Failed to generate story', details: error.message });

@@ -122,7 +122,7 @@ class APIService: ObservableObject {
     }
 
     func generateStory(config: StoryConfig, token: String) async throws -> Story {
-        // Step 1: Generate story text + image prompts via Gemini
+        // Step 1: Generate story text + first image via fal.ai (backend blocks until first image ready)
         let generateBody: [String: Any] = ["profile": [
             "childId": config.childId,
             "name": config.name,
@@ -139,6 +139,8 @@ class APIService: ObservableObject {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.httpBody = try JSONSerialization.data(withJSONObject: generateBody)
+        // Generous timeout: story text (Claude ~10s) + first image (fal.ai ~5s) + audio (~20s) = ~60s
+        req.timeoutInterval = 180
 
         let (genData, genResp) = try await URLSession.shared.data(for: req)
         if let http = genResp as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
