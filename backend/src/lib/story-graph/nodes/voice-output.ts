@@ -9,7 +9,8 @@ interface VoiceParams {
 }
 
 interface VoiceResult {
-  audioUrl: string;
+  audioUrl: string;   // permanent R2 CDN URL
+  contentType: string;
 }
 
 // Map drift/engagement score to ElevenLabs voice parameters
@@ -92,10 +93,9 @@ export async function generateVoice(
       },
     );
 
-    const buffer = Buffer.from(response.data);
-    const audioUrl = await uploadToR2(buffer, 'mp3', 'audio/mpeg');
-    console.log(`☁️  Audio uploaded to R2: ${audioUrl}`);
-    return { audioUrl };
+    const audioUrl = await uploadToR2(Buffer.from(response.data), 'mp3', 'audio/mpeg');
+    console.log(`✅ Audio uploaded to R2: ${audioUrl}`);
+    return { audioUrl, contentType: 'audio/mpeg' };
   } catch (err: any) {
     console.error('❌ ElevenLabs voice error:', err.response?.data || err.message);
     return null;

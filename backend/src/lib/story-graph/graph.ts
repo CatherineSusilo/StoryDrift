@@ -163,14 +163,14 @@ async function tickBedtime(state: BedtimeState, biometrics: BiometricInput): Pro
     const voice = await generateVoice(segment, drift_score, 'bedtime');
 
     const updated = await updateBedtimeState(
-      state, segment, imageUrl, falUrl, voice?.audioUrl ?? null,
+      state, segment, imageUrl, falUrl, voice?.audioBase64 ?? null,
       drift_score, drift_trajectory, 'resolved', 'resolution', false,
     );
     updated.sleep_onset_time = new Date().toISOString();
     updated.session_complete = true;
     sessions.set(state.sessionId, updated);
 
-    return toTickResult(updated, segment, imageUrl, voice?.audioUrl ?? null, 'resolution');
+    return toTickResult(updated, segment, imageUrl, voice?.audioBase64 ?? null, 'resolution');
   }
 
   // Node 3 — Narrative Strategy Router
@@ -206,12 +206,12 @@ async function tickBedtime(state: BedtimeState, biometrics: BiometricInput): Pro
 
   // Node 8 — State Updater
   const updated = await updateBedtimeState(
-    state, segment, imageUrl, falUrl, voice?.audioUrl ?? null,
+    state, segment, imageUrl, falUrl, voice?.audioBase64 ?? null,
     drift_score, drift_trajectory, arc_position, strategy.strategy, guardFailed,
   );
   sessions.set(state.sessionId, updated);
 
-  return toTickResult(updated, segment, imageUrl, voice?.audioUrl ?? null, strategy.strategy);
+  return toTickResult(updated, segment, imageUrl, voice?.audioBase64 ?? null, strategy.strategy);
 }
 
 // ── EDUCATIONAL TICK ───────────────────────────────────────────────────────────
@@ -254,7 +254,7 @@ async function tickEducational(
     const voice = await generateVoice(segment, engagement_score, 'educational');
 
     const updated = await updateEducationalState(
-      state, segment, imageUrl, falUrl, voice?.audioUrl ?? null,
+      state, segment, imageUrl, falUrl, voice?.audioBase64 ?? null,
       engagement_score, engagement_trajectory, 100,
       'consolidation', undefined, undefined, false,
     );
@@ -262,7 +262,7 @@ async function tickEducational(
     updated.session_complete = true;
     sessions.set(state.sessionId, updated);
 
-    return toTickResult(updated, segment, imageUrl, voice?.audioUrl ?? null, 'consolidation');
+    return toTickResult(updated, segment, imageUrl, voice?.audioBase64 ?? null, 'consolidation');
   }
 
   // Node 5 — Story Generator
@@ -306,7 +306,7 @@ async function tickEducational(
       : undefined;
 
   const updated = await updateEducationalState(
-    state, segment, imageUrl, falUrl, voice?.audioUrl ?? null,
+    state, segment, imageUrl, falUrl, voice?.audioBase64 ?? null,
     engagement_score, engagement_trajectory, lesson_progress,
     strategy.strategy, conceptIntroduced, conceptReinforced, guardFailed,
   );
@@ -330,18 +330,20 @@ async function tickEducational(
 
   sessions.set(state.sessionId, updatedWithMeta);
 
-  return { ...toTickResult(updatedWithMeta, segment, imageUrl, voice?.audioUrl ?? null, strategy.strategy), minigame };
+  return { ...toTickResult(updatedWithMeta, segment, imageUrl, voice?.audioBase64 ?? null, strategy.strategy), minigame };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-// Returns [firstFalUrl, prevFalUrl] — the style anchor (segment 1) and the most
-// recent FAL CDN URL. Both are ephemeral FAL CDN URLs valid for ~1h within an
-// active session, so they are always reachable by fal.ai's servers.
+// Returns the last 2 *Fal.ai CDN URLs* — these are what we pass as the
+// image-to-image reference, because Fal.ai's servers can only reach their
+// own CDN, not our local Express /images/ endpoint.
+// CDN URLs are valid for ~1h, which is always enough within an active session.
 function getLastFalUrls(state: GraphState): string[] {
-  const first = state.segments[0]?.falImageUrl;
-  const prev  = state.segments[state.segments.length - 1]?.falImageUrl;
-  return [first, prev].filter((u): u is string => !!u);
+  return state.segments
+    .slice(-2)
+    .map((s) => s.falImageUrl)
+    .filter((u): u is string => !!u);
 }
 
 function toTickResult(
@@ -358,7 +360,7 @@ function toTickResult(
   return {
     segment,
     imageUrl: imageUrl || undefined,
-    audioUrl: audioUrl || undefined,
+    audioUrl: audioBase64 ? `data:audio/mpeg;base64,${audioBase64}` : undefined,
     strategy,
     score,
     trajectory,

@@ -352,8 +352,8 @@ struct EducationalStorySessionView: View {
         engagementHistory.append(resp.score)
 
         // Play audio if present
-        if let audioUrl = resp.audioUrl, let audioData = Data(base64Encoded: audioUrl.components(separatedBy: ",").last ?? "") {
-            playAudio(data: audioData)
+        if let audioUrl = resp.audioUrl, !audioUrl.isEmpty {
+            playAudio(url: audioUrl)
         }
 
         // Session complete
@@ -595,17 +595,47 @@ struct EducationalStorySessionView: View {
 
     // MARK: - Audio
 
-    private func playAudio(data: Data) {
+    private func playAudio(url: String) {
+        guard !url.isEmpty else { return }
+        
+        // Handle both R2 URLs (https://...) and legacy local URLs (/images/...)
+        let fullUrl: URL?
+        if url.hasPrefix("http") {
+            fullUrl = URL(string: url)
+        } else {
+            fullUrl = URL(string: "\(APIService.baseURL)\(url)")
+        }
+        
+        guard let audioUrl = fullUrl else {
+            print("⚠️ Invalid audio URL: \(url)")
+            return
+        }
+        
         DispatchQueue.main.async {
             do {
                 let session = AVAudioSession.sharedInstance()
                 try session.setCategory(.playback, mode: .default, options: [])
                 try session.setActive(true)
-                self.audioPlayer = try AVAudioPlayer(data: data)
-                self.audioPlayer?.prepareToPlay()
-                self.audioPlayer?.play()
+                
+                // Fetch audio data from URL
+                URLSession.shared.dataTask(with: audioUrl) { data, _, error in
+                    guard let data = data, error == nil else {
+                        print("⚠️ Failed to fetch audio from \(audioUrl): \(error?.localizedDescription ?? "unknown error")")
+                        return
+                    }
+                    
+                    DispatchQueue.main.async {
+                        do {
+                            self.audioPlayer = try AVAudioPlayer(data: data)
+                            self.audioPlayer?.prepareToPlay()
+                            self.audioPlayer?.play()
+                        } catch {
+                            print("⚠️ Audio playback error: \(error)")
+                        }
+                    }
+                }.resume()
             } catch {
-                print("Audio error: \(error)")
+                print("⚠️ AVAudioSession error: \(error)")
             }
         }
     }
