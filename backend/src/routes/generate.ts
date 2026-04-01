@@ -6,22 +6,17 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuid } from 'uuid';
 import Anthropic from '@anthropic-ai/sdk';
-import { GoogleAuth } from 'google-auth-library';
+import { fal } from '@fal-ai/client';
+import { uploadToR2 } from '../lib/r2';
+
+// Configure fal client
+fal.config({ credentials: process.env.FAL_API_KEY ?? '' });
 
 const router = Router();
 const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'story-images');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-
-// Google Auth for Vertex AI REST API
-const auth = new GoogleAuth({
-  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS || './vertex-ai-key.json',
-  scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-});
-
-const VERTEX_PROJECT  = process.env.VERTEX_AI_PROJECT  || 'hackcanada-489602';
-const VERTEX_LOCATION = process.env.VERTEX_AI_LOCATION || 'us-central1';
 
 interface ChildProfile {
   childId: string;
@@ -37,58 +32,120 @@ function paragraphCountForDuration(minutes: number): number {
   return Math.round((minutes * 60) / 30);
 }
 
-// ── Vertex AI Imagen via REST API ─────────────────────────────────────────────
+// ── fal.ai image generation with advanced drift adaptation ───────────────────
+//
+// Reference strategy:
+//   Paragraph 1: Flux Schnell text-to-image — establishes art style
+//   Paragraph 2: Flux Dev image-to-image with paragraph-1 FAL URL (style anchor)
+//   Paragraph 3+: Flux Dev image-to-image with previous paragraph FAL URL
+//                 + dynamic strength based on drift score (vitals + eyes)
+//
+// FAL CDN URLs returned by each call are stored temporarily for next iteration.
 
-const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+const FAL_STYLE_SUFFIX =
+  "children's storybook illustration, painterly watercolor style, " +
+  'no text, no words, no letters, soft edges, landscape 4:3 aspect ratio';
 
+function driftPalette(driftPercent: number): string {
+  if (driftPercent < 0.33) return 'warm golden light, soft amber tones, cozy and inviting';
+  if (driftPercent < 0.66) return 'soft twilight, muted purples and blues, dreamy atmosphere';
+  return 'cool moonlit night, deep indigo, gentle silver glow, tranquil';
+}
+
+function strengthForDrift(driftPercent: number): number {
+  // Scene evolves more freely early in the story (lower strength),
+  // stays closer to reference as the story winds down (higher strength).
+  // This creates visual consistency that mirrors the child's drowsiness progression.
+  return Math.min(0.88, 0.75 + driftPercent * 0.13);
+}
+
+async function storeR2(falUrl: string): Promise<string> {
+  const isJpeg = !falUrl.includes('.png');
+  const [ext, ct] = isJpeg ? ['jpg', 'image/jpeg'] : ['png', 'image/png'];
+  const resp = await axios.get(falUrl, { responseType: 'arraybuffer', timeout: 20000 });
+  return uploadToR2(Buffer.from(resp.data), ext, ct);
+}
+
+/**
+ * Generates one paragraph image and returns both the permanent R2 URL
+ * and the ephemeral FAL CDN URL (needed as a reference for the next call).
+ *
+ * @param firstFalUrl  FAL CDN URL of paragraph 1 — style anchor for all images
+ * @param prevFalUrl   FAL CDN URL of the immediately preceding paragraph
+ */
 async function generateParagraphImage(
   paragraphText: string,
-  storyContext: string,
-  driftPercent: number,
-): Promise<string> {
-  try {
-    const palette =
-      driftPercent < 0.33 ? 'warm golden light, soft amber tones, cozy' :
-      driftPercent < 0.66 ? 'soft twilight, muted purples and blues, dreamy' :
-                            'cool moonlit night, deep indigo, silver glow, tranquil';
+  storyContext:  string,
+  driftPercent:  number,
+  firstFalUrl?:  string,   // undefined for paragraph 1
+  prevFalUrl?:   string,   // undefined for paragraph 1
+): Promise<{ r2Url: string; falUrl: string }> {
+  if (!process.env.FAL_API_KEY) throw new Error('FAL_API_KEY not configured');
 
-    const prompt =
-      `Children's bedtime storybook illustration. ` +
-      `Story: ${storyContext.slice(0, 150)}. Scene: ${paragraphText.slice(0, 250)}. ` +
-      `Watercolor style, ${palette}, soft edges, no text, 4:3 landscape, dreamy calming atmosphere.`;
+  const palette = driftPalette(driftPercent);
+  const basePrompt =
+    `${paragraphText.slice(0, 300)}. ` +
+    `${storyContext ? `Context: ${storyContext.slice(0, 150)}. ` : ''}` +
+    `${palette}, ${FAL_STYLE_SUFFIX}`;
 
-    const client = await auth.getClient();
-    const accessToken = await client.getAccessToken();
-    if (!accessToken.token) throw new Error('Failed to get access token');
+  let falUrl: string;
 
-    const endpoint =
-      `https://${VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/${VERTEX_PROJECT}` +
-      `/locations/${VERTEX_LOCATION}/publishers/google/models/imagen-3.0-fast-generate-001:predict`;
-
-    const response = await axios.post(endpoint, {
-      instances:  [{ prompt }],
-      parameters: { sampleCount: 1, aspectRatio: '4:3', safetyFilterLevel: 'block_some', personGeneration: 'dont_allow' },
-    }, {
-      headers: { Authorization: `Bearer ${accessToken.token}`, 'Content-Type': 'application/json' },
-      timeout: 60_000,
+  if (!firstFalUrl) {
+    // ── Paragraph 1: text-to-image (Flux Schnell) ─────────────────────────────
+    console.log('🎨 Para 1 — Flux Schnell text-to-image');
+    const result = await fal.subscribe('fal-ai/flux/schnell', {
+      input: {
+        prompt:               basePrompt,
+        image_size:           'landscape_4_3',
+        num_inference_steps:  4,
+        num_images:           1,
+        enable_safety_checker: true,
+        output_format:        'jpeg',
+      },
     });
+    falUrl = (result.data as any).images?.[0]?.url ?? '';
 
-    const predictions = response.data?.predictions || [];
-    if (!predictions.length) throw new Error('No image generated');
+  } else if (!prevFalUrl || prevFalUrl === firstFalUrl) {
+    // ── Paragraph 2: style anchor — image-to-image with paragraph-1 URL ──────
+    console.log('🎨 Para 2 — Flux Dev img2img (style anchor)');
+    const result = await fal.subscribe('fal-ai/flux/dev/image-to-image', {
+      input: {
+        prompt:               basePrompt,
+        image_url:            firstFalUrl,
+        strength:             0.80,
+        num_inference_steps:  28,
+        guidance_scale:       3.5,
+        num_images:           1,
+        enable_safety_checker: true,
+        output_format:        'jpeg',
+      },
+    });
+    falUrl = (result.data as any).images?.[0]?.url ?? '';
 
-    const base64Data = predictions[0].bytesBase64Encoded;
-    if (!base64Data) throw new Error('No image data in response');
-
-    const mimeType = predictions[0].mimeType || 'image/png';
-    const ext      = mimeType.includes('jpeg') ? 'jpg' : 'png';
-    const filename = `${uuid()}.${ext}`;
-    fs.writeFileSync(path.join(UPLOADS_DIR, filename), Buffer.from(base64Data, 'base64'));
-    return `/images/${filename}`;
-  } catch (err: any) {
-    console.error('⚠️ Vertex AI image error:', err.message);
-    if (err.response?.data) console.error('Response:', JSON.stringify(err.response.data).slice(0, 300));
-    throw err;
+  } else {
+    // ── Paragraph 3+: scene continuity with DYNAMIC strength based on drift ──
+    const strength = strengthForDrift(driftPercent);
+    const anchored = `${basePrompt} Maintain the exact same storybook art style as the opening illustration.`;
+    console.log(`🎨 Para N — Flux Dev img2img (continuity, strength ${strength.toFixed(2)}, drift ${(driftPercent * 100).toFixed(0)}%)`);
+    const result = await fal.subscribe('fal-ai/flux/dev/image-to-image', {
+      input: {
+        prompt:               anchored,
+        image_url:            prevFalUrl,
+        strength,
+        num_inference_steps:  28,
+        guidance_scale:       3.5,
+        num_images:           1,
+        enable_safety_checker: true,
+        output_format:        'jpeg',
+      },
+    });
+    falUrl = (result.data as any).images?.[0]?.url ?? '';
   }
+
+  if (!falUrl) throw new Error('No image URL returned from fal.ai');
+
+  const r2Url = await storeR2(falUrl);
+  return { r2Url, falUrl };
 }
 
 // ── ElevenLabs paragraph audio ────────────────────────────────────────────────
@@ -189,15 +246,27 @@ router.post('/story', async (req: AuthRequest, res: Response) => {
 
     // Phase 2 + 3: audio and images run concurrently
     // Image 0 starts RIGHT NOW so it's ready within ~5s when the app opens the story.
-    // Remaining images follow sequentially with a small delay to respect Vertex AI quota.
-    console.log(`🎨 Starting Vertex AI image generation for ${tempStoryId}…`);
+    // Remaining images follow sequentially, each referencing the previous for style consistency.
+    console.log(`🎨 Starting fal.ai image generation for ${tempStoryId}…`);
     const imageGenPromise = (async () => {
+      let firstFalUrl = '';
+      let prevFalUrl = '';
+      
       for (let i = 0; i < paragraphs.length; i++) {
-        if (i > 0) await delay(1_500);   // 1.5s between requests — fast enough, quota-safe
         try {
-          const url = await generateParagraphImage(paragraphs[i], storyContext, i / total);
-          pending[i] = url;
-          console.log(`  🖼  Image ${i + 1}/${paragraphs.length}: ${url}`);
+          const { r2Url, falUrl } = await generateParagraphImage(
+            paragraphs[i],
+            storyContext,
+            i / total,
+            firstFalUrl || undefined,
+            prevFalUrl || undefined
+          );
+          
+          pending[i] = r2Url;
+          if (i === 0) firstFalUrl = falUrl;
+          prevFalUrl = falUrl;
+          
+          console.log(`  🖼  Image ${i + 1}/${paragraphs.length}: ${r2Url} (drift ${((i / total) * 100).toFixed(0)}%)`);
         } catch (err: any) {
           console.warn(`  ⚠️  Image ${i + 1} failed: ${err.message}`);
         }
@@ -247,8 +316,8 @@ router.post('/paragraph-image', async (req: AuthRequest, res: Response) => {
     };
     if (!paragraphText) return res.status(400).json({ error: 'paragraphText required' });
     const drift = totalParagraphs > 1 ? paragraphIndex / (totalParagraphs - 1) : 0;
-    const imageUrl = await generateParagraphImage(paragraphText, storyContext ?? '', drift);
-    return res.json({ imageUrl });
+    const { r2Url } = await generateParagraphImage(paragraphText, storyContext ?? '', drift);
+    return res.json({ imageUrl: r2Url });
   } catch (error: any) {
     console.error('❌ Paragraph image error:', error.message);
     res.status(500).json({ error: 'Failed to generate image', details: error.message });
@@ -261,8 +330,8 @@ router.post('/image', async (req: AuthRequest, res: Response) => {
   try {
     const { prompt } = req.body;
     if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
-    const imageUrl = await generateParagraphImage(prompt, '', 0.5);
-    return res.json({ imageUrl });
+    const { r2Url } = await generateParagraphImage(prompt, '', 0.5);
+    return res.json({ imageUrl: r2Url });
   } catch (error: any) {
     console.error('❌ Image generation error:', error.message);
     res.status(500).json({ error: 'Failed to generate image', details: error.message });
