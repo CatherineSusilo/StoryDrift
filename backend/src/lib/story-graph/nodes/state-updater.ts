@@ -49,9 +49,9 @@ Rules:
 export async function updateBedtimeState(
   state: BedtimeState,
   segment: string,
-  imageUrl: string,      // local /images/... URL — permanent
+  imageUrl: string,      // permanent R2 URL
   falImageUrl: string,   // Fal.ai CDN URL — temporary, for next image-to-image reference
-  audioBase64: string | null,
+  audioUrl: string | null,
   drift_score: number,
   drift_trajectory: BedtimeState['drift_trajectory'],
   arc_position: ArcPosition,
@@ -72,7 +72,7 @@ export async function updateBedtimeState(
     guard_failures: guardFailed ? state.guard_failures + 1 : 0,
     current_segment: segment,
     current_image_url: imageUrl || state.current_image_url,
-    current_audio_url: audioBase64 ? `data:audio/mpeg;base64,${audioBase64}` : undefined,
+    current_audio_url: audioUrl || undefined,
     current_strategy: strategy,
     segments: [
       ...state.segments,
@@ -80,7 +80,7 @@ export async function updateBedtimeState(
         text: segment,
         imageUrl,
         falImageUrl: falImageUrl || undefined,
-        audioUrl: audioBase64 ? `data:audio/mpeg;base64,${audioBase64}` : undefined,
+        audioUrl: audioUrl || undefined,
         timestamp: Date.now(),
         score: drift_score,
         strategy: strategy ?? 'engagement',
@@ -101,9 +101,9 @@ export async function updateBedtimeState(
 export async function updateEducationalState(
   state: EducationalState,
   segment: string,
-  imageUrl: string,      // local permanent URL
+  imageUrl: string,      // permanent R2 URL
   falImageUrl: string,   // temporary Fal.ai CDN URL
-  audioBase64: string | null,
+  audioUrl: string | null,
   engagement_score: number,
   engagement_trajectory: EducationalState['engagement_trajectory'],
   lesson_progress: number,
@@ -136,7 +136,7 @@ export async function updateEducationalState(
     guard_failures: guardFailed ? state.guard_failures + 1 : 0,
     current_segment: segment,
     current_image_url: imageUrl || state.current_image_url,
-    current_audio_url: audioBase64 ? `data:audio/mpeg;base64,${audioBase64}` : undefined,
+    current_audio_url: audioUrl || undefined,
     current_strategy: strategy,
     segments: [
       ...state.segments,
@@ -144,7 +144,7 @@ export async function updateEducationalState(
         text: segment,
         imageUrl,
         falImageUrl: falImageUrl || undefined,
-        audioUrl: audioBase64 ? `data:audio/mpeg;base64,${audioBase64}` : undefined,
+        audioUrl: audioUrl || undefined,
         timestamp: Date.now(),
         score: engagement_score,
         strategy: strategy ?? 're_engagement',

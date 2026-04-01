@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import { User } from '../models/User';
 import { Child } from '../models/Child';
 import { Drawing } from '../models/Drawing';
+import { uploadToR2, deleteFromR2 } from '../lib/r2';
 import { z } from 'zod';
 
 const router = Router();
@@ -40,24 +41,9 @@ router.get('/child/:childId', async (req: AuthRequest, res) => {
     if (!child) return res.status(404).json({ error: 'Child not found' });
 
     const drawings = await Drawing.find({ childId })
-      .sort({ uploadedAt: -1 })
-      .lean();
+      .sort({ uploadedAt: -1 });
 
-    // Transform for response (toJSON already handles base64 conversion)
-    const transformed = drawings.map(d => ({
-      id: d._id.toString(),
-      childId: d.childId.toString(),
-      name: d.name,
-      imageData: d.imageData.toString('base64'),
-      uploadedAt: d.uploadedAt,
-      source: d.source,
-      lessonName: d.lessonName,
-      lessonEmoji: d.lessonEmoji,
-      createdAt: d.createdAt,
-      updatedAt: d.updatedAt,
-    }));
-
-    return res.json(transformed);
+    return res.json(drawings.map(d => d.toJSON()));
   } catch (error) {
     console.error('Get drawings error:', error instanceof Error ? error.message : String(error));
     res.status(500).json({ error: 'Failed to get drawings' });
@@ -81,17 +67,20 @@ router.post('/', async (req: AuthRequest, res) => {
 
     // Decode base64 image data
     const imageBuffer = Buffer.from(body.imageData, 'base64');
-    
+
     // Validate it's reasonable size (max 5MB)
     if (imageBuffer.length > 5 * 1024 * 1024) {
       return res.status(400).json({ error: 'Image too large (max 5MB)' });
     }
 
+    // Upload to R2
+    const imageUrl = await uploadToR2(imageBuffer, 'png', 'image/png');
+
     const drawing = await Drawing.create({
       userId: user._id,
       childId: body.childId,
       name: body.name,
-      imageData: imageBuffer,
+      imageUrl,
       uploadedAt: body.uploadedAt ? new Date(body.uploadedAt) : new Date(),
       source: body.source || 'manual_upload',
       lessonName: body.lessonName,
@@ -118,7 +107,7 @@ router.post('/batch', async (req: AuthRequest, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const { childId, drawings } = req.body;
-    
+
     if (!childId || !Array.isArray(drawings)) {
       return res.status(400).json({ error: 'childId and drawings array required' });
     }
@@ -138,18 +127,20 @@ router.post('/batch', async (req: AuthRequest, res) => {
       try {
         const validated = createDrawingSchema.parse({ ...drawingData, childId });
         const imageBuffer = Buffer.from(validated.imageData, 'base64');
-        
+
         if (imageBuffer.length > 5 * 1024 * 1024) {
           results.failed++;
           results.errors.push(`${validated.name}: Image too large`);
           continue;
         }
 
+        const imageUrl = await uploadToR2(imageBuffer, 'png', 'image/png');
+
         await Drawing.create({
           userId: user._id,
           childId: validated.childId,
           name: validated.name,
-          imageData: imageBuffer,
+          imageUrl,
           uploadedAt: validated.uploadedAt ? new Date(validated.uploadedAt) : new Date(),
           source: validated.source || 'manual_upload',
           lessonName: validated.lessonName,
@@ -216,6 +207,13 @@ router.delete('/:drawingId', async (req: AuthRequest, res) => {
 
     const drawing = await Drawing.findOneAndDelete({ _id: drawingId, userId: user._id });
     if (!drawing) return res.status(404).json({ error: 'Drawing not found' });
+
+    // Delete from R2
+    try {
+      await deleteFromR2(drawing.imageUrl);
+    } catch (err: any) {
+      console.warn(`⚠️ Failed to delete drawing from R2: ${err.message}`);
+    }
 
     return res.json({ message: 'Drawing deleted', id: drawingId });
   } catch (error) {

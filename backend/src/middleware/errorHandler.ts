@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 
 export const errorHandler = (
-  err: Error,
+  err: any,
   req: Request,
   res: Response,
   next: NextFunction
@@ -17,8 +17,14 @@ export const errorHandler = (
     });
   }
 
+  // JWT / Auth errors (express-oauth2-jwt-bearer sets err.status)
+  const status = err.status ?? err.statusCode ?? 500;
+  if (status === 401 || status === 403) {
+    return res.status(status).json({ error: 'Unauthorized' });
+  }
+
   // Default error response
-  res.status(500).json({
+  res.status(status).json({
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });

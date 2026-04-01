@@ -272,7 +272,7 @@ struct StoryStatsSummary: Codable {
 
 struct StoryTrendPoint: Codable {
     let date: String
-    let count: Int
+    let count: Int?
     let avgDuration: Int
     let avgDriftImprovement: Double
 }

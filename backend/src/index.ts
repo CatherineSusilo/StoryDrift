@@ -3,15 +3,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
 
 // IMPORTANT: Load environment variables FIRST before importing auth middleware
 dotenv.config();
-
-// Ensure story image/audio uploads directory exists
-const uploadsDir = path.join(process.cwd(), 'uploads', 'story-images');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 import { connectDB } from './lib/db';
 import { authMiddleware } from './middleware/auth';
@@ -44,11 +38,6 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
-
-// ── Static: story images + audio (no auth required) ──────────────────────────
-// Served at GET /images/{filename} — matches the /images/xxx.mp3 and /images/xxx.png URLs
-// stored in MongoDB. Files are immutable so we cache them for a year client-side.
-app.use('/images', express.static(uploadsDir, { maxAge: '365d', immutable: true }));
 
 // Health check
 app.get('/health', (req, res) => {

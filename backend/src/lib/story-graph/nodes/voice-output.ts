@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { uploadToR2 } from '../../r2';
 
 interface VoiceParams {
   stability: number;
@@ -8,8 +9,7 @@ interface VoiceParams {
 }
 
 interface VoiceResult {
-  audioBase64: string;
-  contentType: string;
+  audioUrl: string;
 }
 
 // Map drift/engagement score to ElevenLabs voice parameters
@@ -92,8 +92,10 @@ export async function generateVoice(
       },
     );
 
-    const audioBase64 = Buffer.from(response.data).toString('base64');
-    return { audioBase64, contentType: 'audio/mpeg' };
+    const buffer = Buffer.from(response.data);
+    const audioUrl = await uploadToR2(buffer, 'mp3', 'audio/mpeg');
+    console.log(`☁️  Audio uploaded to R2: ${audioUrl}`);
+    return { audioUrl };
   } catch (err: any) {
     console.error('❌ ElevenLabs voice error:', err.response?.data || err.message);
     return null;

@@ -30,7 +30,7 @@ export async function uploadToR2(
     ContentType: contentType,
   }));
 
-  return `${process.env.R2_PUBLIC_URL}/${key}`;
+  return `${(process.env.R2_PUBLIC_URL ?? '').replace(/\/$/, '')}/${key}`;
 }
 
 /**

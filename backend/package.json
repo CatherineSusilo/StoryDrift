@@ -26,7 +26,6 @@
     "express": "^4.18.2",
     "express-oauth2-jwt-bearer": "^1.6.0",
     "express-rate-limit": "^7.5.1",
-    "google-auth-library": "^10.6.2",
     "helmet": "^7.1.0",
     "mongoose": "^8.9.0",
     "uuid": "^9.0.1",

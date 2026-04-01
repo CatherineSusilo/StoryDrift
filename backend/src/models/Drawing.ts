@@ -4,7 +4,7 @@ export interface IDrawing extends Document {
   userId: Types.ObjectId;
   childId: Types.ObjectId;
   name: string;
-  imageData: Buffer;      // PNG image stored as binary
+  imageUrl: string;       // Permanent R2 URL
   uploadedAt: Date;
   source: 'manual_upload' | 'minigame';  // Track where drawing came from
   lessonName?: string;    // If from minigame, which lesson
@@ -18,7 +18,7 @@ const DrawingSchema = new Schema<IDrawing>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     childId: { type: Schema.Types.ObjectId, ref: 'Child', required: true, index: true },
     name: { type: String, required: true },
-    imageData: { type: Buffer, required: true },  // Store PNG as binary blob
+    imageUrl: { type: String, required: true },   // Permanent R2 URL
     uploadedAt: { type: Date, required: true },
     source: { type: String, enum: ['manual_upload', 'minigame'], default: 'manual_upload' },
     lessonName: { type: String },
@@ -31,10 +31,6 @@ const DrawingSchema = new Schema<IDrawing>(
         ret.id = ret._id.toString();
         ret.childId = ret.childId?.toString();
         ret.userId = ret.userId?.toString();
-        // Convert binary buffer to base64 for JSON response
-        if (ret.imageData) {
-          ret.imageData = ret.imageData.toString('base64');
-        }
         ret._id = undefined;
         ret.__v = undefined;
         return ret;

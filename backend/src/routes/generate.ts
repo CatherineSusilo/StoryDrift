@@ -60,10 +60,11 @@ function strengthForDrift(driftPercent: number): number {
 }
 
 async function storeR2(falUrl: string): Promise<string> {
-  const isJpeg = !falUrl.includes('.png');
-  const [ext, ct] = isJpeg ? ['jpg', 'image/jpeg'] : ['png', 'image/png'];
   const resp = await axios.get(falUrl, { responseType: 'arraybuffer', timeout: 20000 });
-  return uploadToR2(Buffer.from(resp.data), ext, ct);
+  // Determine format from Content-Type header — more reliable than URL parsing
+  const contentType = (resp.headers['content-type'] as string) || 'image/jpeg';
+  const ext = contentType.includes('png') ? 'png' : 'jpg';
+  return uploadToR2(Buffer.from(resp.data), ext, contentType.split(';')[0].trim());
 }
 
 /**
@@ -152,7 +153,7 @@ async function generateParagraphImage(
 
 async function generateParagraphAudio(text: string, driftPercent: number): Promise<string> {
   const apiKey  = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'XrExE9yKIg1WjnnlVkGX'; // Matilda
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';
   if (!apiKey) throw new Error('ELEVENLABS_API_KEY not configured');
 
   const speed      = 0.55 - driftPercent * 0.17;
@@ -174,9 +175,8 @@ async function generateParagraphAudio(text: string, driftPercent: number): Promi
     },
   );
 
-  const filename = `${uuid()}.mp3`;
-  fs.writeFileSync(path.join(UPLOADS_DIR, filename), Buffer.from(resp.data));
-  return `/images/${filename}`;
+  // Upload to R2 for permanent cloud storage (same as images)
+  return uploadToR2(Buffer.from(resp.data), 'mp3', 'audio/mpeg');
 }
 
 // ── Concurrency helper ────────────────────────────────────────────────────────
