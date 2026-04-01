@@ -80,6 +80,14 @@ class StoryVitalsStore {
 /// Wraps SmartSpectra in continuous headless mode during a story session.
 /// Call startTracking() when the story begins playing and stopTracking() when it ends.
 /// Works identically for normal storytime and the DEBUG 2-minute mode.
+///
+/// **Local On-Device Operation:**
+/// SmartSpectra SDK runs entirely on-device using the phone's camera and processors.
+/// No USB connection is required — the SDK continues working even when unplugged.
+/// USB is only needed for Xcode debugging; the app and vitals tracking work independently.
+///
+/// When `cameraEnabled` is false, the tracker switches to synthetic drift mode,
+/// which provides realistic simulated vitals for testing or privacy-focused scenarios.
 class StoryVitalsTracker: ObservableObject {
     static let shared = StoryVitalsTracker()
 
@@ -160,7 +168,9 @@ class StoryVitalsTracker: ObservableObject {
         sdk.setImageOutputEnabled(false)      // disable camera preview output for performance
 
         statusHint = "Starting camera…"
-        print("[StoryVitalsTracker] ▶️  Configuring SDK — will start in 0.5 s, story: \(storyId)")
+        print("[StoryVitalsTracker] ▶️  Configuring SDK for local on-device operation")
+        print("[StoryVitalsTracker] 📱 SDK runs entirely on-device — USB connection not required")
+        print("[StoryVitalsTracker] ⚙️  Mode: continuous, camera: front, story: \(storyId)")
 
         // Always stop any lingering session BEFORE starting a new one.
         // stopRecording/stopProcessing are internally async (MediaPipe graph teardown).

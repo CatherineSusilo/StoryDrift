@@ -181,6 +181,23 @@ export ELEVENLABS_API_KEY="your_api_key_here"
 1. Launch app → "Sign in with Auth0"
 2. Create child profile (name, age, interests, bedtime)
 
+### Running Without USB Connection
+
+**Good news!** SmartSpectra SDK runs **entirely on-device** and does **not require a USB connection**. The cable is only needed for Xcode debugging.
+
+**Options for standalone operation:**
+1. **Wireless Debugging** (Recommended): Xcode → Window → Devices → "Connect via network"
+2. **Build & Unplug**: Run from Xcode, then stop and launch from home screen
+3. **TestFlight**: Archive and distribute for true production experience
+
+See [RUNNING_WITHOUT_USB.md](RUNNING_WITHOUT_USB.md) for detailed instructions.
+
+**On-device processing:**
+- ✅ Camera vitals tracking works without USB
+- ✅ All ML processing happens locally on iPhone
+- ✅ No external servers needed (except your backend)
+- ✅ Full functionality when unplugged
+
 ### Creating Stories
 1. Dashboard → "New Story"
 2. Select theme or search
