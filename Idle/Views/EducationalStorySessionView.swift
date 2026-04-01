@@ -59,6 +59,9 @@ struct EducationalStorySessionView: View {
 
     // Score history for summary
     @State private var engagementHistory: [Int] = []
+    
+    // Minigame drawing results to save to collection after story
+    @State private var minigameDrawings: [(base64: String, timestamp: Date)] = []
 
     enum SessionPhase { case loading, story, minigame, complete, error(String) }
 
@@ -357,6 +360,10 @@ struct EducationalStorySessionView: View {
         if resp.sessionComplete {
             tickTimer?.invalidate()
             vitalsManager.stopMonitoring()
+            
+            // Save any collected drawings to the drawings collection
+            saveMinigameDrawings()
+            
             phase = .complete
             onComplete(EducationalSummary(
                 lessonName: lesson.name,
@@ -381,6 +388,12 @@ struct EducationalStorySessionView: View {
         showMinigame = false
         activeTrigger = nil
 
+        // Collect drawing results for later saving to collection
+        if result.type == .drawing, result.completed, let base64 = result.responseData {
+            minigameDrawings.append((base64: base64, timestamp: Date()))
+            print("📝 Collected drawing #\(minigameDrawings.count) from minigame")
+        }
+
         // Send result to backend
         if let sid = sessionId, let token = authManager.accessToken {
             Task {
@@ -401,11 +414,65 @@ struct EducationalStorySessionView: View {
         // Resume tick timer
         startTickTimer()
     }
+    
+    // MARK: - Save drawings to collection
+    
+    private func saveMinigameDrawings() {
+        guard !minigameDrawings.isEmpty else { return }
+        
+        print("💾 Saving \(minigameDrawings.count) drawings to collection for child \(child.id)")
+        
+        // Load existing drawings for this child
+        let drawingsKey = "drawings_\(child.id)"
+        var existingDrawings: [ChildDrawing] = []
+        if let data = UserDefaults.standard.data(forKey: drawingsKey),
+           let decoded = try? JSONDecoder().decode([ChildDrawing].self, from: data) {
+            existingDrawings = decoded
+        }
+        
+        // Convert base64 drawings to ChildDrawing objects
+        for (index, drawing) in minigameDrawings.enumerated() {
+            // Decode base64 to PNG data
+            guard let imageData = Data(base64Encoded: drawing.base64) else {
+                print("⚠️ Failed to decode drawing #\(index + 1)")
+                continue
+            }
+            
+            // Create drawing with timestamp-based name
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd_HHmmss"
+            let timestamp = formatter.string(from: drawing.timestamp)
+            let name = "\(lesson.emoji) \(lesson.name) - \(timestamp)"
+            
+            let childDrawing = ChildDrawing(
+                name: name,
+                imageData: imageData,
+                uploadedAt: drawing.timestamp
+            )
+            
+            existingDrawings.append(childDrawing)
+            print("✅ Added drawing: \(name)")
+        }
+        
+        // Save back to UserDefaults
+        if let encoded = try? JSONEncoder().encode(existingDrawings) {
+            UserDefaults.standard.set(encoded, forKey: drawingsKey)
+            print("💾 Saved \(minigameDrawings.count) new drawings to collection")
+        } else {
+            print("❌ Failed to encode drawings")
+        }
+    }
 
     private func tearDown() {
         tickTimer?.invalidate()
         audioPlayer?.stop()
         vitalsManager.stopMonitoring()
+        
+        // Save any collected drawings even if story wasn't completed
+        if !minigameDrawings.isEmpty {
+            print("📝 Story ended early - saving \(minigameDrawings.count) drawings")
+            saveMinigameDrawings()
+        }
 
         if let sid = sessionId, let token = authManager.accessToken {
             Task {

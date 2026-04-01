@@ -314,21 +314,6 @@ struct DrawingsManagerView: View {
     }
 }
 
-// MARK: - ChildDrawing Model (local persistence only)
-struct ChildDrawing: Codable, Identifiable {
-    let id: String
-    let name: String
-    let imageData: Data
-    let uploadedAt: Date
-
-    init(id: String = UUID().uuidString, name: String, imageData: Data, uploadedAt: Date) {
-        self.id = id
-        self.name = name
-        self.imageData = imageData
-        self.uploadedAt = uploadedAt
-    }
-}
-
 #Preview {
     DrawingsManagerView(onBack: {})
         .environmentObject(AuthManager())

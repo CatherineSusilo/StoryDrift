@@ -499,3 +499,20 @@ struct MinigameResult {
     let responseData: String?   // base64 image / transcribed word / choice id
 }
 
+// MARK: - Drawings Collection
+
+/// A child's drawing stored in the local collection.
+/// Used by DrawingsManagerView and saved from minigames.
+struct ChildDrawing: Codable, Identifiable {
+    let id: String
+    let name: String
+    let imageData: Data
+    let uploadedAt: Date
+
+    init(id: String = UUID().uuidString, name: String, imageData: Data, uploadedAt: Date) {
+        self.id = id
+        self.name = name
+        self.imageData = imageData
+        self.uploadedAt = uploadedAt
+    }
+}
