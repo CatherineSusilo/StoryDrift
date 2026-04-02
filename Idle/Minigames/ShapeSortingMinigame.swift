@@ -5,6 +5,7 @@ import SwiftUI
 /// Child drags coloured shapes to their matching outlines.
 struct ShapeSortingMinigame: View {
     let shapes: [ShapeSlot]
+    let onActivity: () -> Void
     let onComplete: (MinigameResult) -> Void
 
     // Maps shapeId → its current slotId (nil = still in tray)
@@ -52,6 +53,7 @@ struct ShapeSortingMinigame: View {
 
                 if allPlaced {
                     Button {
+                        onActivity()
                         celebrating = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                             onComplete(MinigameResult(type: .shape_sorting, completed: true,
@@ -126,6 +128,7 @@ struct ShapeSortingMinigame: View {
 
     private func handleDrop(shapeId: String, onto slotId: String, expectedSlot: String) {
         guard let shape = shapes.first(where: { $0.id == shapeId }) else { return }
+        onActivity()
         if slotId == shape.targetSlotId {
             withAnimation(.spring()) {
                 placements[shapeId] = slotId

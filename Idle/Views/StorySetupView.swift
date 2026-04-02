@@ -381,12 +381,17 @@ struct StorySetupView: View {
         let isActive = selectedTheme?.id == theme.id
         Button {
             withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                selectedTheme = isActive ? nil : theme
-                if !isActive {
-                    // Reflect theme in prompt when nothing else typed yet
-                    if parentPrompt.isEmpty { parentPrompt = theme.name }
-                } else {
+                if isActive {
+                    // Deselect — clear prompt if it still holds this theme's name
+                    selectedTheme = nil
                     if parentPrompt == theme.name { parentPrompt = "" }
+                } else {
+                    // Select — replace prompt if it's empty or held the previous theme's name
+                    let previousThemeName = selectedTheme?.name
+                    selectedTheme = theme
+                    if parentPrompt.isEmpty || parentPrompt == previousThemeName {
+                        parentPrompt = theme.name
+                    }
                 }
             }
         } label: {
@@ -431,7 +436,24 @@ struct StorySetupView: View {
         } label: {
             ZStack(alignment: .topTrailing) {
                 VStack(spacing: 4) {
-                    if let uiImage = UIImage(data: drawing.imageData) {
+                    // Display from cloud URL or local data
+                    if let imageUrl = drawing.imageUrl {
+                        AsyncImage(url: URL(string: imageUrl)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(height: 80)
+                                    .clipped()
+                                    .cornerRadius(4)
+                            default:
+                                Color.gray.opacity(0.3)
+                                    .frame(height: 80)
+                                    .cornerRadius(4)
+                            }
+                        }
+                    } else if let imageData = drawing.imageData, let uiImage = UIImage(data: imageData) {
                         Image(uiImage: uiImage)
                             .resizable()
                             .scaledToFill()
@@ -439,11 +461,11 @@ struct StorySetupView: View {
                             .clipped()
                             .cornerRadius(4)
                     } else {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(cardBg)
+                        Color.gray.opacity(0.3)
                             .frame(height: 80)
-                            .overlay(Image(systemName: "photo").foregroundColor(ink.opacity(0.3)))
+                            .cornerRadius(4)
                     }
+                    
                     Text(drawing.name)
                         .font(.custom("PatrickHand-Regular", size: 11))
                         .foregroundColor(ink.opacity(0.7))
@@ -670,7 +692,15 @@ struct StorySetupView: View {
     private func selectedDrawingBase64() -> [String] {
         let fromLibrary = savedDrawings
             .filter { selectedDrawingIds.contains($0.id) }
-            .map { $0.imageData.base64EncodedString() }
+            .compactMap { drawing -> String? in
+                if let imageUrl = drawing.imageUrl {
+                    // For cloud URLs, we'd need to download first - skip for now
+                    return nil
+                } else if let imageData = drawing.imageData {
+                    return imageData.base64EncodedString()
+                }
+                return nil
+            }
         let fromCustom = customDrawings.map { $0.data.base64EncodedString() }
         return fromLibrary + fromCustom
     }

@@ -11,6 +11,13 @@ final class AudioFinishDelegate: NSObject, AVAudioPlayerDelegate {
     }
 }
 
+final class TTSFinishDelegate: NSObject, AVSpeechSynthesizerDelegate {
+    var onFinish: (() -> Void)?
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        DispatchQueue.main.async { self.onFinish?() }
+    }
+}
+
 struct StoryPlaybackView: View {
     @EnvironmentObject var vitalsManager: VitalsManager
     @EnvironmentObject var authManager: AuthManager
@@ -30,27 +37,21 @@ struct StoryPlaybackView: View {
     @State private var paragraphImages: [String] = []
     @State private var imagePollingTimer: Timer? = nil
 
+    @StateObject private var vitalsTracker = StoryVitalsTracker()
+    @State private var audioDelegate = AudioFinishDelegate()
+    @State private var ttsDelegate = TTSFinishDelegate()
+    private let synthesizer = AVSpeechSynthesizer()
+
     // Minigame
     @State private var activeTrigger: MinigameTrigger? = nil
     @State private var showMinigame = false
     @State private var paragraphsSinceLastMinigame = 0
     @State private var isGeneratingMinigame = false
-    /// When true, advance to the next paragraph as soon as any shown minigame is dismissed
     @State private var pendingAdvanceAfterMinigame = false
-
-    @StateObject private var vitalsTracker = StoryVitalsTracker()
-    @State private var audioDelegate = AudioFinishDelegate()
+    /// Drawings collected from minigames during this session — saved to cloud on completion
+    @State private var minigameDrawings: [(base64: String, timestamp: Date)] = []
 
     // MARK: - Computed
-
-    private var minigameGap: Int {
-        switch story.minigameFrequency {
-        case "every_paragraph": return 1
-        case "every_3rd":       return 3
-        case "every_5th":       return 5
-        default:                return Int.max
-        }
-    }
 
     private var minSecondsPerParagraph: TimeInterval {
         let targetSeconds = TimeInterval((story.targetDuration ?? 15) * 60)
@@ -64,17 +65,29 @@ struct StoryPlaybackView: View {
 
     private var currentImage: String? {
         let idx = currentParagraphIndex
+        // Use polled image for this paragraph if available
         if paragraphImages.indices.contains(idx), !paragraphImages[idx].isEmpty {
             return paragraphImages[idx]
         }
-        guard !story.images.isEmpty else { return nil }
-        let raw = story.images[min(idx, story.images.count - 1)]
-        return raw.isEmpty ? nil : raw
+        // Fall back to story.images only at the exact same index (no clamping — let each paragraph have its own image)
+        if story.images.indices.contains(idx), !story.images[idx].isEmpty {
+            return story.images[idx]
+        }
+        return nil
     }
 
     private var progress: Double {
         guard !story.paragraphs.isEmpty else { return 0 }
         return Double(currentParagraphIndex) / Double(story.paragraphs.count)
+    }
+
+    private var minigameGap: Int {
+        switch story.minigameFrequency {
+        case "every_paragraph": return 1
+        case "every_3rd":       return 3
+        case "every_5th":       return 5
+        default:                return Int.max
+        }
     }
 
     // MARK: - State for stats panel
@@ -178,15 +191,6 @@ struct StoryPlaybackView: View {
                 }
                 .zIndex(2)
 
-                // ── Minigame overlay ─────────────────────────────────────────
-                if showMinigame, let trigger = activeTrigger {
-                    MinigameOverlay(trigger: trigger) { result in
-                        handleMinigameComplete(result)
-                    }
-                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
-                    .zIndex(50)
-                }
-
                 // ── Menu sheet (bottom-up) ───────────────────────────────────
                 if showMenu {
                     Color.black.opacity(0.45)
@@ -284,6 +288,15 @@ struct StoryPlaybackView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(100)
                 }
+
+                // ── Minigame overlay ─────────────────────────────────────────
+                if showMinigame, let trigger = activeTrigger {
+                    MinigameOverlay(trigger: trigger) { result in
+                        handleMinigameComplete(result)
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                    .zIndex(50)
+                }
             }
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showMenu)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showStats)
@@ -343,7 +356,6 @@ struct StoryPlaybackView: View {
             self.elapsedTime += 1
             self.paragraphElapsed += 1
             self.driftHistory.append(self.vitalsManager.driftScore)
-
             if self.vitalsManager.driftScore >= 90 { self.completeStory(); return }
         }
 
@@ -354,8 +366,10 @@ struct StoryPlaybackView: View {
         timer?.invalidate(); timer = nil
         stopImagePolling()
         audioPlayer?.stop()
+        synthesizer.stopSpeaking(at: .immediate)
         vitalsManager.stopMonitoring()
         vitalsTracker.stopTracking()
+        if !minigameDrawings.isEmpty { saveMinigameDrawings() }
     }
 
     private func togglePlayback() {
@@ -378,7 +392,7 @@ struct StoryPlaybackView: View {
         playCurrentParagraph()
     }
 
-    /// Hooked up in playAudio() — called by AudioFinishDelegate when audio ends.
+    /// Called by AudioFinishDelegate when a paragraph's audio finishes.
     private func audioDidFinish() {
         guard isPlaying else { return }
         if shouldTriggerMinigame() {
@@ -390,6 +404,7 @@ struct StoryPlaybackView: View {
     }
 
     private func completeStory() {
+        saveMinigameDrawings()
         stopStory()
         onComplete(driftHistory, elapsedTime)
     }
@@ -403,10 +418,10 @@ struct StoryPlaybackView: View {
     private func startImagePolling(jobId: String) {
         guard let token = authManager.accessToken else { return }
 
-        // Fetch immediately so image 0 shows up as soon as Vertex AI returns it (~5s)
+        // Fetch immediately so image 0 shows up as soon as available
         fetchImages(jobId: jobId, token: token)
 
-        // Then poll every 2s (down from 5s) to keep subsequent images snappy
+        // Then poll every 2s to keep subsequent images snappy as fal.ai background generation completes
         imagePollingTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
             self.fetchImages(jobId: jobId, token: token)
         }
@@ -432,73 +447,6 @@ struct StoryPlaybackView: View {
     private func stopImagePolling() {
         imagePollingTimer?.invalidate()
         imagePollingTimer = nil
-    }
-
-    // MARK: - Minigame
-
-    private func shouldTriggerMinigame() -> Bool {
-        return !showMinigame
-            && !isGeneratingMinigame
-            && minigameGap < Int.max
-            && paragraphsSinceLastMinigame >= minigameGap
-    }
-
-    private func triggerMinigame() {
-        guard let paragraph = currentParagraph,
-              let token = authManager.accessToken else { return }
-
-        isGeneratingMinigame = true
-        Task {
-            do {
-                let body: [String: Any] = [
-                    "paragraphText":  paragraph.text,
-                    "storyContext":   story.parentPrompt,
-                    "childAge":       6,
-                    "paragraphIndex": currentParagraphIndex,
-                ]
-                let data = try await APIService.shared.post(
-                    path: "/api/generate/minigame", body: body, token: token)
-                var trigger = try JSONDecoder().decode(MinigameTrigger.self, from: data)
-                // Ensure shape_sorting always has shapes
-                trigger = trigger.withFallbackShapes()
-                await MainActor.run {
-                    self.activeTrigger = trigger
-                    self.showMinigame  = true
-                    self.paragraphsSinceLastMinigame = 0
-                    self.isGeneratingMinigame = false
-                    self.audioPlayer?.pause()
-                }
-            } catch {
-                print("⚠️ Minigame generation failed: \(error)")
-                await MainActor.run {
-                    self.isGeneratingMinigame = false
-                    // If we were pending advance, still advance
-                    if self.pendingAdvanceAfterMinigame {
-                        self.pendingAdvanceAfterMinigame = false
-                        self.nextParagraph()
-                    }
-                }
-            }
-        }
-    }
-
-    private func checkAndTriggerMinigame() {
-        if shouldTriggerMinigame() {
-            pendingAdvanceAfterMinigame = false
-            triggerMinigame()
-        }
-    }
-
-    private func handleMinigameComplete(_ result: MinigameResult) {
-        showMinigame  = false
-        activeTrigger = nil
-        if pendingAdvanceAfterMinigame {
-            pendingAdvanceAfterMinigame = false
-            nextParagraph()
-        } else {
-            // Minigame was triggered by menu "next paragraph" — just resume audio
-            audioPlayer?.play()
-        }
     }
 
     // MARK: - Audio
@@ -546,12 +494,136 @@ struct StoryPlaybackView: View {
     }
 
     private func speakText(_ text: String) {
+        synthesizer.stopSpeaking(at: .immediate)
+        ttsDelegate.onFinish = { self.audioDidFinish() }
+        synthesizer.delegate = ttsDelegate
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
         utterance.rate = 0.35
         utterance.pitchMultiplier = 0.85
         utterance.volume = 0.9
-        AVSpeechSynthesizer().speak(utterance)
+        synthesizer.speak(utterance)
+    }
+
+    // MARK: - Minigame
+
+    private func shouldTriggerMinigame() -> Bool {
+        return !showMinigame
+            && !isGeneratingMinigame
+            && minigameGap < Int.max
+            && paragraphsSinceLastMinigame >= minigameGap
+    }
+
+    private func triggerMinigame() {
+        guard let paragraph = currentParagraph,
+              let token = authManager.accessToken else { return }
+        isGeneratingMinigame = true
+        Task {
+            do {
+                let body: [String: Any] = [
+                    "paragraphText":  paragraph.text,
+                    "storyContext":   story.parentPrompt,
+                    "childAge":       6,
+                    "paragraphIndex": currentParagraphIndex,
+                ]
+                let data = try await APIService.shared.post(
+                    path: "/api/generate/minigame", body: body, token: token)
+                var trigger = try JSONDecoder().decode(MinigameTrigger.self, from: data)
+                trigger = trigger.withFallbackShapes()
+                await MainActor.run {
+                    self.activeTrigger = trigger
+                    self.showMinigame  = true
+                    self.paragraphsSinceLastMinigame = 0
+                    self.isGeneratingMinigame = false
+                    self.audioPlayer?.pause()
+                }
+            } catch {
+                print("⚠️ Minigame generation failed: \(error)")
+                await MainActor.run {
+                    self.isGeneratingMinigame = false
+                    if self.pendingAdvanceAfterMinigame {
+                        self.pendingAdvanceAfterMinigame = false
+                        self.nextParagraph()
+                    }
+                }
+            }
+        }
+    }
+
+    private func handleMinigameComplete(_ result: MinigameResult) {
+        showMinigame  = false
+        activeTrigger = nil
+
+        // Collect completed drawings for cloud save
+        if result.type == .drawing && result.completed, let base64 = result.responseData {
+            minigameDrawings.append((base64: base64, timestamp: Date()))
+            print("📝 Collected drawing #\(minigameDrawings.count) from bedtime minigame")
+        }
+
+        if pendingAdvanceAfterMinigame {
+            pendingAdvanceAfterMinigame = false
+            nextParagraph()
+        } else {
+            audioPlayer?.play()
+        }
+    }
+
+    // MARK: - Save minigame drawings to cloud
+
+    @MainActor
+    private func saveMinigameDrawings() {
+        guard !minigameDrawings.isEmpty else { return }
+        let drawingsToSave = minigameDrawings
+        minigameDrawings = []
+
+        let drawingsKey = "drawings_\(story.childId)"
+        var existing: [ChildDrawing] = []
+        if let data = UserDefaults.standard.data(forKey: drawingsKey),
+           let decoded = try? JSONDecoder().decode([ChildDrawing].self, from: data) {
+            existing = decoded
+        }
+
+        var newDrawings: [ChildDrawing] = []
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
+
+        for drawing in drawingsToSave {
+            guard let imageData = Data(base64Encoded: drawing.base64),
+                  UIImage(data: imageData) != nil else {
+                print("❌ Invalid drawing data — skipping"); continue
+            }
+            let name = "🌙 \(story.title) - \(formatter.string(from: drawing.timestamp))"
+            let childDrawing = ChildDrawing(name: name, imageData: imageData, uploadedAt: drawing.timestamp)
+            existing.append(childDrawing)
+            newDrawings.append(childDrawing)
+        }
+
+        if let encoded = try? JSONEncoder().encode(existing) {
+            UserDefaults.standard.set(encoded, forKey: drawingsKey)
+            UserDefaults.standard.synchronize()
+        }
+
+        Task { await syncDrawingsToBackend(newDrawings) }
+    }
+
+    private func syncDrawingsToBackend(_ drawings: [ChildDrawing]) async {
+        guard let token = authManager.accessToken, !drawings.isEmpty else { return }
+        let requests = drawings.compactMap { d -> DrawingUploadRequest? in
+            guard let data = d.imageData else { return nil }
+            return DrawingUploadRequest(
+                childId: story.childId, name: d.name,
+                imageData: data.base64EncodedString(),
+                uploadedAt: d.uploadedAt, source: "minigame",
+                lessonName: story.title, lessonEmoji: "🌙"
+            )
+        }
+        do {
+            let result = try await APIService.shared.uploadDrawingsBatch(
+                childId: story.childId, drawings: requests, token: token)
+            print("✅ Cloud sync: \(result.success) uploaded, \(result.failed) failed")
+        } catch {
+            print("❌ Cloud sync failed: \(error)")
+        }
     }
 }
 

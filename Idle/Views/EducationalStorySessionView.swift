@@ -275,7 +275,11 @@ struct EducationalStorySessionView: View {
         }
 
         do {
-            let body: [String: Any] = [
+            // Check if this is a curriculum lesson
+            let curriculumLessonId = UserDefaults.standard.string(forKey: "pendingCurriculumLessonId")
+            UserDefaults.standard.removeObject(forKey: "pendingCurriculumLessonId")
+            
+            var body: [String: Any] = [
                 "mode": "educational",
                 "childProfile": [
                     "childId": child.id,
@@ -283,10 +287,18 @@ struct EducationalStorySessionView: View {
                     "age": child.age,
                     "favoriteCharacter": child.name,
                 ],
-                "lessonName": lesson.name,
-                "lessonDescription": lesson.description,
                 "minigameFrequency": minigameFrequency.rawValue,
             ]
+            
+            // If we have a curriculum lesson ID, use it (backend will auto-resolve lesson data)
+            // Otherwise, use the legacy lesson name/description
+            if let curriculumId = curriculumLessonId {
+                body["curriculumLessonId"] = curriculumId
+                print("📚 Starting curriculum lesson: \(curriculumId)")
+            } else {
+                body["lessonName"] = lesson.name
+                body["lessonDescription"] = lesson.description
+            }
 
             let data = try await APIService.shared.post(
                 path: "/api/story-session/start",
@@ -352,8 +364,8 @@ struct EducationalStorySessionView: View {
         engagementHistory.append(resp.score)
 
         // Play audio if present
-        if let audioUrl = resp.audioUrl, let audioData = Data(base64Encoded: audioUrl.components(separatedBy: ",").last ?? "") {
-            playAudio(data: audioData)
+        if let audioUrl = resp.audioUrl, !audioUrl.isEmpty {
+            playAudio(url: audioUrl)
         }
 
         // Session complete
@@ -532,7 +544,7 @@ struct EducationalStorySessionView: View {
     
     // MARK: - Backend Sync
     
-    /// Sync newly saved minigame drawings to MongoDB
+    /// Sync newly saved minigame drawings to MongoDB with cloud storage
     @MainActor
     private func syncMinigameDrawingsToBackend(drawings: [ChildDrawing]) async {
         guard let token = authManager.accessToken else {
@@ -542,14 +554,15 @@ struct EducationalStorySessionView: View {
         
         guard !drawings.isEmpty else { return }
         
-        print("☁️ Syncing \(drawings.count) minigame drawings to MongoDB...")
+        print("☁️ Syncing \(drawings.count) minigame drawings to MongoDB with cloud upload...")
         
-        // Convert to upload requests
-        let uploadRequests = drawings.map { drawing -> DrawingUploadRequest in
-            DrawingUploadRequest(
+        // Convert to upload requests - backend will upload to R2
+        let uploadRequests = drawings.compactMap { drawing -> DrawingUploadRequest? in
+            guard let imageData = drawing.imageData else { return nil }
+            return DrawingUploadRequest(
                 childId: child.id,
                 name: drawing.name,
-                imageData: drawing.imageData.base64EncodedString(),
+                imageData: imageData.base64EncodedString(),
                 uploadedAt: drawing.uploadedAt,
                 source: "minigame",
                 lessonName: lesson.name,
@@ -563,12 +576,12 @@ struct EducationalStorySessionView: View {
                 drawings: uploadRequests,
                 token: token
             )
-            print("✅ MongoDB sync complete: \(result.success) uploaded, \(result.failed) failed")
+            print("✅ MongoDB cloud sync complete: \(result.success) uploaded to R2, \(result.failed) failed")
             if let errors = result.errors, !errors.isEmpty {
                 print("⚠️ Sync errors: \(errors.joined(separator: ", "))")
             }
         } catch {
-            print("❌ MongoDB sync failed: \(error)")
+            print("❌ Backend cloud sync failed: \(error)")
         }
     }
 
@@ -595,17 +608,47 @@ struct EducationalStorySessionView: View {
 
     // MARK: - Audio
 
-    private func playAudio(data: Data) {
+    private func playAudio(url: String) {
+        guard !url.isEmpty else { return }
+        
+        // Handle both R2 URLs (https://...) and legacy local URLs (/images/...)
+        let fullUrl: URL?
+        if url.hasPrefix("http") {
+            fullUrl = URL(string: url)
+        } else {
+            fullUrl = URL(string: "\(APIService.baseURL)\(url)")
+        }
+        
+        guard let audioUrl = fullUrl else {
+            print("⚠️ Invalid audio URL: \(url)")
+            return
+        }
+        
         DispatchQueue.main.async {
             do {
                 let session = AVAudioSession.sharedInstance()
                 try session.setCategory(.playback, mode: .default, options: [])
                 try session.setActive(true)
-                self.audioPlayer = try AVAudioPlayer(data: data)
-                self.audioPlayer?.prepareToPlay()
-                self.audioPlayer?.play()
+                
+                // Fetch audio data from URL
+                URLSession.shared.dataTask(with: audioUrl) { data, _, error in
+                    guard let data = data, error == nil else {
+                        print("⚠️ Failed to fetch audio from \(audioUrl): \(error?.localizedDescription ?? "unknown error")")
+                        return
+                    }
+                    
+                    DispatchQueue.main.async {
+                        do {
+                            self.audioPlayer = try AVAudioPlayer(data: data)
+                            self.audioPlayer?.prepareToPlay()
+                            self.audioPlayer?.play()
+                        } catch {
+                            print("⚠️ Audio playback error: \(error)")
+                        }
+                    }
+                }.resume()
             } catch {
-                print("Audio error: \(error)")
+                print("⚠️ AVAudioSession error: \(error)")
             }
         }
     }

@@ -103,6 +103,10 @@ class StoryVitalsTracker: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     /// Tracks whether the SmartSpectra SDK was actually started this session.
     private var sdkStarted = false
+    /// Tracks whether SDK is currently in the process of starting (prevents race conditions)
+    private var sdkStarting = false
+    /// Last time the SDK was stopped (prevents rapid restart cycles)
+    private var lastStopTime: Date?
 
     // MARK: - Eye tracking state (fed from SmartSpectra edgeMetrics)
     /// Rolling window of blink timestamps used to compute blink rate (blinks/min).
@@ -124,13 +128,26 @@ class StoryVitalsTracker: ObservableObject {
     /// Call this the moment the story begins playing (normal or debug mode).
     /// Pass `cameraEnabled: false` to skip all SmartSpectra SDK calls (synthetic drift mode).
     func startTracking(storyId: String, childId: String, vitalsManager: VitalsManager, cameraEnabled: Bool = true) {
-        guard !isTracking else { return }
+        guard !isTracking else { 
+            print("[StoryVitalsTracker] ⚠️ Already tracking, ignoring start request")
+            return 
+        }
+        
+        // Prevent rapid restart cycles that can cause MediaPipe graph issues
+        if let lastStop = lastStopTime, Date().timeIntervalSince(lastStop) < 2.0 {
+            print("[StoryVitalsTracker] ⏳ Waiting for cooldown period (2s) before restarting")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                self?.startTracking(storyId: storyId, childId: childId, vitalsManager: vitalsManager, cameraEnabled: cameraEnabled)
+            }
+            return
+        }
 
         self.storyId = storyId
         self.childId = childId
         self.snapshots = []
         self.isTracking = true
         self.sdkStarted = false
+        self.sdkStarting = false
 
         // Always cancel any lingering Combine subscriptions from a prior session
         // BEFORE the cameraEnabled check so old sdk.$metricsBuffer / $edgeMetrics
@@ -159,6 +176,13 @@ class StoryVitalsTracker: ObservableObject {
             isTracking = false
             return
         }
+        
+        guard !sdkStarting else {
+            print("[StoryVitalsTracker] ⚠️ SDK already starting, ignoring duplicate request")
+            return
+        }
+
+        sdkStarting = true
 
         // Configure SDK for continuous background monitoring
         sdk.setApiKey(apiKey)
@@ -179,55 +203,55 @@ class StoryVitalsTracker: ObservableObject {
         processor.stopRecording()
         processor.stopProcessing()
 
-        // Delay long enough for the MediaPipe graph to complete teardown (~500 ms is sufficient).
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            guard let self, self.isTracking else { return }
-            self.processor.startProcessing()
-            self.processor.startRecording()
-            self.sdkStarted = true
-            self.statusHint = self.processor.statusHint
-            print("[StoryVitalsTracker] ▶️  SDK started — continuous mode")
+        // Delay long enough for the MediaPipe graph to complete teardown.
+        // Increased from 500ms to 2000ms to ensure complete graph shutdown.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self, self.isTracking, self.sdkStarting else { 
+                print("[StoryVitalsTracker] ⚠️ Tracking stopped or cancelled before SDK startup completed")
+                self?.sdkStarting = false
+                return 
+            }
+            
+            print("[StoryVitalsTracker] 🔄 MediaPipe graph teardown complete, starting new session")
+            
+            do {
+                self.processor.startProcessing()
+                
+                // Extended delay between startProcessing and startRecording to ensure
+                // MediaPipe graph's internal StartRun() completes fully.
+                // Increased from 0.2s to 1.0s based on observed MediaPipe behavior.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                    guard let self, self.isTracking, self.sdkStarting else { 
+                        self?.sdkStarting = false
+                        return 
+                    }
+                    
+                    do {
+                        print("[StoryVitalsTracker] 📸 Starting camera recording after graph initialization")
+                        self.processor.startRecording()
+                        self.sdkStarted = true
+                        self.sdkStarting = false
+                        self.statusHint = self.processor.statusHint
+                        
+                        // Set up observers ONLY after MediaPipe graph is fully initialized and recording has started
+                        // This prevents packets from arriving before StartRun() completes
+                        self.setupSDKObservers(vitalsManager: vitalsManager)
+                        
+                        print("[StoryVitalsTracker] ✅ SDK started — continuous mode (graph fully ready)")
+                    } catch {
+                        print("[StoryVitalsTracker] ❌ Error starting recording: \(error)")
+                        self.sdkStarting = false
+                        self.statusHint = "Recording start failed: \(error.localizedDescription)"
+                    }
+                }
+            } catch {
+                print("[StoryVitalsTracker] ❌ Error starting processing: \(error)")
+                self.sdkStarting = false
+                self.statusHint = "Processing start failed: \(error.localizedDescription)"
+            }
         }
 
-        // Observe metrics buffer — fires whenever SmartSpectra produces new measurements
-        sdk.$metricsBuffer
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self, weak vitalsManager] buffer in
-                guard let self, let buffer, let vitalsManager else { return }
-
-                // Pull the latest pulse rate measurement
-                let hr     = buffer.pulse.rate.last.map { Double($0.value) } ?? 0
-                let hrConf = buffer.pulse.rate.last.map { $0.confidence } ?? 0
-
-                // Pull the latest breathing rate measurement
-                let br = buffer.breathing.rate.last.map { Double($0.value) } ?? 0
-
-                self.currentHeartRate     = hr
-                self.currentBreathingRate = br
-                self.statusHint           = self.processor.statusHint
-
-                // Forward live values + eye drowsiness into VitalsManager
-                vitalsManager.updateVitals(
-                    heartRate: hr,
-                    breathingRate: br,
-                    signalQuality: Int(hrConf * 100),
-                    eyeDrowsiness: self.eyeDrowsinessScore
-                )
-            }
-            .store(in: &cancellables)
-
-        // Observe edgeMetrics for eye-state analysis (blink rate + lid openness)
-        // edgeMetrics is published as Metrics? (typealias for Presage_Physiology_Metrics)
-        sdk.$edgeMetrics
-            .receive(on: DispatchQueue.main)
-            .compactMap { $0 as? Metrics }
-            .sink { [weak self] edge in
-                guard let self else { return }
-                self.processEyeMetrics(edge: edge)
-            }
-            .store(in: &cancellables)
-
-        print("[StoryVitalsTracker] ▶️  Started — continuous mode, story: \(storyId)")
+        print("[StoryVitalsTracker] ▶️  MediaPipe initialization started, story: \(storyId)")
 #else
         statusHint = "SmartSpectra SDK not linked"
         print("[StoryVitalsTracker] ⚠️  SmartSpectraSwiftSDK not found. Add the package via File → Add Package Dependencies in Xcode.")
@@ -246,6 +270,8 @@ class StoryVitalsTracker: ObservableObject {
     func stopTracking() -> StoryVitalsSummary? {
         guard isTracking else { return nil }
         isTracking = false
+        sdkStarting = false
+        lastStopTime = Date()
 
         snapshotTimer?.invalidate()
         snapshotTimer = nil
@@ -256,11 +282,19 @@ class StoryVitalsTracker: ObservableObject {
             // Stop recording first, then processing — give the graph 200 ms to flush
             // its final packets before tearing down, which prevents the next
             // startProcessing() from racing with an in-flight graph shutdown.
-            processor.stopRecording()
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.2) {
-                self.processor.stopProcessing()
+            do {
+                processor.stopRecording()
+                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.2) {
+                    do {
+                        self.processor.stopProcessing()
+                        print("[StoryVitalsTracker] ⏹  SDK stopped cleanly")
+                    } catch {
+                        print("[StoryVitalsTracker] ⚠️ Warning during stop processing: \(error)")
+                    }
+                }
+            } catch {
+                print("[StoryVitalsTracker] ⚠️ Warning during stop recording: \(error)")
             }
-            print("[StoryVitalsTracker] ⏹  SDK stopped")
         }
         sdkStarted = false
 #endif
@@ -303,6 +337,55 @@ class StoryVitalsTracker: ObservableObject {
     }
 
 #if canImport(SmartSpectraSwiftSDK)
+    // MARK: - SDK Observers Setup
+    
+    /// Set up SDK observers AFTER MediaPipe graph is fully initialized.
+    /// This prevents packets from arriving before StartRun() completes.
+    private func setupSDKObservers(vitalsManager: VitalsManager) {
+        // Clear any existing observers first
+        cancellables.removeAll()
+        
+        // Observe metrics buffer — fires whenever SmartSpectra produces new measurements
+        sdk.$metricsBuffer
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self, weak vitalsManager] buffer in
+                guard let self, let buffer, let vitalsManager else { return }
+
+                // Pull the latest pulse rate measurement
+                let hr     = buffer.pulse.rate.last.map { Double($0.value) } ?? 0
+                let hrConf = buffer.pulse.rate.last.map { $0.confidence } ?? 0
+
+                // Pull the latest breathing rate measurement
+                let br = buffer.breathing.rate.last.map { Double($0.value) } ?? 0
+
+                self.currentHeartRate     = hr
+                self.currentBreathingRate = br
+                self.statusHint           = self.processor.statusHint
+
+                // Forward live values + eye drowsiness into VitalsManager
+                vitalsManager.updateVitals(
+                    heartRate: hr,
+                    breathingRate: br,
+                    signalQuality: Int(hrConf * 100),
+                    eyeDrowsiness: self.eyeDrowsinessScore
+                )
+            }
+            .store(in: &cancellables)
+
+        // Observe edgeMetrics for eye-state analysis (blink rate + lid openness)
+        // edgeMetrics is published as Metrics? (typealias for Presage_Physiology_Metrics)
+        sdk.$edgeMetrics
+            .receive(on: DispatchQueue.main)
+            .compactMap { $0 as? Metrics }
+            .sink { [weak self] edge in
+                guard let self else { return }
+                self.processEyeMetrics(edge: edge)
+            }
+            .store(in: &cancellables)
+        
+        print("[StoryVitalsTracker] 📡 SDK observers activated")
+    }
+    
     // MARK: - Eye drowsiness analysis
 
     /// Called each time SmartSpectra publishes new edgeMetrics (typed as `Metrics`).

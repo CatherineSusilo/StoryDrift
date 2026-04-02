@@ -272,7 +272,7 @@ struct StoryStatsSummary: Codable {
 
 struct StoryTrendPoint: Codable {
     let date: String
-    let count: Int
+    let count: Int?
     let avgDuration: Int
     let avgDriftImprovement: Double
 }
@@ -418,6 +418,88 @@ struct PaginatedResponse<T: Codable>: Codable {
     let offset: Int
 }
 
+// MARK: - Curriculum Models (matching backend structure)
+
+struct CurriculumSection: Codable, Identifiable {
+    let id: String
+    let name: String
+    let description: String
+    let emoji: String
+    let color: String
+    var lessons: [CurriculumLesson]?
+    
+    // For lesson list preview
+    var lessonCount: Int?
+}
+
+struct CurriculumLesson: Codable, Identifiable {
+    let id: String
+    let order: Int
+    let name: String
+    let description: String
+    let concepts: [String]
+    let storyTheme: String?
+    let expectedSegments: Int
+    let minigameCount: Int?
+    let unlockAfter: String?
+}
+
+struct MinigameSlot: Codable {
+    let afterSegment: Int
+    let preferredType: String
+    let hint: String?
+}
+
+struct LessonProgress: Codable, Identifiable {
+    let id: String
+    let childId: String
+    let lessonId: String
+    let sectionId: String
+    let completed: Bool
+    let stars: Int
+    let attempts: Int
+    let bestScore: Int
+    let lastSessionId: String?
+    let completedAt: String?
+}
+
+struct ChildProgressResponse: Codable {
+    let childId: String
+    let age: Int?
+    let sections: [SectionProgress]
+}
+
+struct SectionProgress: Codable {
+    let id: String
+    let name: String
+    let emoji: String?
+    let color: String?
+    let totalLessons: Int
+    let completedCount: Int
+    let progressPct: Double?
+    let lessons: [LessonProgressDetail]
+
+    // Convenience aliases used by views
+    var sectionId: String { id }
+    var sectionName: String { name }
+    var completedLessons: Int { completedCount }
+}
+
+struct LessonProgressDetail: Codable {
+    let id: String
+    let order: Int?
+    let name: String
+    let unlocked: Bool
+    let completed: Bool
+    let stars: Int
+    let attempts: Int?
+    let bestScore: Int?
+
+    // Convenience aliases used by views
+    var lessonId: String { id }
+    var lessonName: String { name }
+}
+
 // MARK: - Minigame Models
 
 enum MinigameFrequency: String, CaseIterable, Codable {
@@ -506,13 +588,32 @@ struct MinigameResult {
 struct ChildDrawing: Codable, Identifiable {
     let id: String
     let name: String
-    let imageData: Data
+    var imageUrl: String?        // R2 cloud storage URL (preferred)
+    var imageData: Data?         // Legacy: base64 data (fallback)
     let uploadedAt: Date
+    let source: String?          // "minigame" or "manual_upload"
+    let lessonName: String?
+    let lessonEmoji: String?
 
     init(id: String = UUID().uuidString, name: String, imageData: Data, uploadedAt: Date) {
         self.id = id
         self.name = name
         self.imageData = imageData
+        self.imageUrl = nil
         self.uploadedAt = uploadedAt
+        self.source = nil
+        self.lessonName = nil
+        self.lessonEmoji = nil
+    }
+    
+    init(id: String = UUID().uuidString, name: String, imageUrl: String, uploadedAt: Date, source: String? = nil, lessonName: String? = nil, lessonEmoji: String? = nil) {
+        self.id = id
+        self.name = name
+        self.imageUrl = imageUrl
+        self.imageData = nil
+        self.uploadedAt = uploadedAt
+        self.source = source
+        self.lessonName = lessonName
+        self.lessonEmoji = lessonEmoji
     }
 }
