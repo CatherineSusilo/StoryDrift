@@ -262,8 +262,8 @@
             );
             dependencies = (
             );
-            name = Idle;
-            productName = Idle;
+            name = "Story Drift";
+            productName = "Story Drift";
             productReference = AA0000012F6CD78F001DBFE6 /* Idle.app */;
             productType = "com.apple.product-type.application";
         };

@@ -109,7 +109,10 @@ struct StoryArchiveCard: View {
     var body: some View {
         Button(action: { showingReplay = true }) {
             VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top) {
+                HStack(alignment: .top, spacing: 12) {
+                    // Thumbnail
+                    StoryThumbnailView(story: story, size: 64)
+
                     VStack(alignment: .leading, spacing: 3) {
                         Text(story.title)
                             .font(Theme.bodyFont(size: 17))

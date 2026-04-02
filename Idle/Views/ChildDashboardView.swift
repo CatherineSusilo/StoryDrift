@@ -170,27 +170,7 @@ struct StoryCardView: View {
     var body: some View {
         HStack(spacing: 14) {
             // Thumbnail
-            if let firstImage = story.images.first, let url = URL(string: firstImage) {
-                AsyncImage(url: url) { img in
-                    img.resizable().aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Theme.accent.opacity(0.4)
-                }
-                .frame(width: 72, height: 72)
-                .cornerRadius(Theme.radiusSM)
-                .overlay(
-                    RoundedRectangle(cornerRadius: Theme.radiusSM)
-                        .stroke(Theme.border, lineWidth: 1)
-                )
-            } else {
-                RoundedRectangle(cornerRadius: Theme.radiusSM)
-                    .fill(Theme.accent.opacity(0.3))
-                    .frame(width: 72, height: 72)
-                    .overlay(
-                        Image(systemName: "book.fill")
-                            .foregroundColor(Theme.inkMuted)
-                    )
-            }
+            StoryThumbnailView(story: story, size: 72)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(story.title)
@@ -287,4 +267,69 @@ struct EmptyStateView: View {
     )
     .environmentObject(VitalsManager())
     .environmentObject(AuthManager())
+}
+
+// MARK: - StoryThumbnailView
+// Shows the first image of a story. If generatedImages is empty but imageJobId exists,
+// fetches the first available image from the background job endpoint.
+struct StoryThumbnailView: View {
+    let story: Story
+    let size: CGFloat
+
+    @State private var resolvedUrl: URL? = nil
+    @State private var hasFetched = false
+
+    private var directUrl: URL? {
+        guard let first = story.images.first(where: { !$0.isEmpty }),
+              let url = URL(string: first) else { return nil }
+        return url
+    }
+
+    var body: some View {
+        Group {
+            if let url = resolvedUrl ?? directUrl {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable().aspectRatio(contentMode: .fill)
+                    default:
+                        placeholderView
+                    }
+                }
+            } else {
+                placeholderView
+            }
+        }
+        .frame(width: size, height: size)
+        .cornerRadius(8)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border, lineWidth: 1))
+        .clipped()
+        .task { await fetchIfNeeded() }
+    }
+
+    private var placeholderView: some View {
+        ZStack {
+            Theme.accent.opacity(0.3)
+            Image(systemName: "book.fill")
+                .foregroundColor(Theme.inkMuted)
+                .font(.system(size: size * 0.35))
+        }
+    }
+
+    private func fetchIfNeeded() async {
+        guard directUrl == nil, !hasFetched,
+              let jobId = story.imageJobId, !jobId.isEmpty else { return }
+        hasFetched = true
+        let token = UserDefaults.standard.string(forKey: "accessToken") ?? ""
+        guard !token.isEmpty,
+              let url = URL(string: "\(APIService.baseURL)/api/generate/story-images/\(jobId)") else { return }
+        var req = URLRequest(url: url)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        guard let (data, _) = try? await URLSession.shared.data(for: req),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let images = json["images"] as? [String],
+              let first = images.first(where: { !$0.isEmpty }),
+              let parsed = URL(string: first) else { return }
+        await MainActor.run { resolvedUrl = parsed }
+    }
 }

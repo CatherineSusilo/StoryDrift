@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Idle</string>
+	<string>Story Drift</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -67,7 +67,7 @@
 		<string>PatrickHand-Regular.ttf</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Idle uses your camera to monitor vital signs contactlessly during bedtime stories.</string>
+	<string>Story Drift uses your camera to monitor vital signs contactlessly during bedtime stories.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>StoryDrift uses the microphone for voice minigames during bedtime stories.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
@@ -79,7 +79,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>idle</string>
+				<string>storydrift</string>
 			</array>
 		</dict>
 	</array>
@@ -87,7 +87,7 @@
 	<dict>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>100.70.65.16</key>
+			<key>100.66.71.182</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>

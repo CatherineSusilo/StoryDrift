@@ -25,6 +25,8 @@ struct StoryReplayView: View {
     // Audio
     @State private var audioPlayer: AVAudioPlayer?
     @State private var audioDelegate = AudioFinishDelegate()
+    @State private var ttsDelegate = TTSFinishDelegate()
+    private let synthesizer = AVSpeechSynthesizer()
 
     // Images (polled from cloud if imageJobId is present)
     @State private var paragraphImages: [String] = []
@@ -39,12 +41,15 @@ struct StoryReplayView: View {
 
     private var currentImage: String? {
         let idx = currentParagraphIndex
+        // Use polled image for this paragraph if available
         if paragraphImages.indices.contains(idx), !paragraphImages[idx].isEmpty {
             return paragraphImages[idx]
         }
-        guard !story.images.isEmpty else { return nil }
-        let raw = story.images[min(idx, story.images.count - 1)]
-        return raw.isEmpty ? nil : raw
+        // Fall back to story.images only at the exact same index (no clamping)
+        if story.images.indices.contains(idx), !story.images[idx].isEmpty {
+            return story.images[idx]
+        }
+        return nil
     }
 
     private var progress: Double {
@@ -269,6 +274,7 @@ struct StoryReplayView: View {
         stopImagePolling()
         audioPlayer?.stop()
         audioPlayer = nil
+        synthesizer.stopSpeaking(at: .immediate)
     }
 
     private func togglePlayback() {
@@ -385,12 +391,15 @@ struct StoryReplayView: View {
     }
 
     private func speakText(_ text: String) {
+        synthesizer.stopSpeaking(at: .immediate)
+        ttsDelegate.onFinish = { self.audioDidFinish() }
+        synthesizer.delegate = ttsDelegate
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
         utterance.rate = 0.35
         utterance.pitchMultiplier = 0.85
         utterance.volume = 0.9
-        AVSpeechSynthesizer().speak(utterance)
+        synthesizer.speak(utterance)
     }
 }
 
