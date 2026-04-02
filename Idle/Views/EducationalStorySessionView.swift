@@ -275,7 +275,11 @@ struct EducationalStorySessionView: View {
         }
 
         do {
-            let body: [String: Any] = [
+            // Check if this is a curriculum lesson
+            let curriculumLessonId = UserDefaults.standard.string(forKey: "pendingCurriculumLessonId")
+            UserDefaults.standard.removeObject(forKey: "pendingCurriculumLessonId")
+            
+            var body: [String: Any] = [
                 "mode": "educational",
                 "childProfile": [
                     "childId": child.id,
@@ -283,10 +287,18 @@ struct EducationalStorySessionView: View {
                     "age": child.age,
                     "favoriteCharacter": child.name,
                 ],
-                "lessonName": lesson.name,
-                "lessonDescription": lesson.description,
                 "minigameFrequency": minigameFrequency.rawValue,
             ]
+            
+            // If we have a curriculum lesson ID, use it (backend will auto-resolve lesson data)
+            // Otherwise, use the legacy lesson name/description
+            if let curriculumId = curriculumLessonId {
+                body["curriculumLessonId"] = curriculumId
+                print("📚 Starting curriculum lesson: \(curriculumId)")
+            } else {
+                body["lessonName"] = lesson.name
+                body["lessonDescription"] = lesson.description
+            }
 
             let data = try await APIService.shared.post(
                 path: "/api/story-session/start",
@@ -532,7 +544,7 @@ struct EducationalStorySessionView: View {
     
     // MARK: - Backend Sync
     
-    /// Sync newly saved minigame drawings to MongoDB
+    /// Sync newly saved minigame drawings to MongoDB with cloud storage
     @MainActor
     private func syncMinigameDrawingsToBackend(drawings: [ChildDrawing]) async {
         guard let token = authManager.accessToken else {
@@ -542,14 +554,15 @@ struct EducationalStorySessionView: View {
         
         guard !drawings.isEmpty else { return }
         
-        print("☁️ Syncing \(drawings.count) minigame drawings to MongoDB...")
+        print("☁️ Syncing \(drawings.count) minigame drawings to MongoDB with cloud upload...")
         
-        // Convert to upload requests
-        let uploadRequests = drawings.map { drawing -> DrawingUploadRequest in
-            DrawingUploadRequest(
+        // Convert to upload requests - backend will upload to R2
+        let uploadRequests = drawings.compactMap { drawing -> DrawingUploadRequest? in
+            guard let imageData = drawing.imageData else { return nil }
+            return DrawingUploadRequest(
                 childId: child.id,
                 name: drawing.name,
-                imageData: drawing.imageData.base64EncodedString(),
+                imageData: imageData.base64EncodedString(),
                 uploadedAt: drawing.uploadedAt,
                 source: "minigame",
                 lessonName: lesson.name,
@@ -563,12 +576,12 @@ struct EducationalStorySessionView: View {
                 drawings: uploadRequests,
                 token: token
             )
-            print("✅ MongoDB sync complete: \(result.success) uploaded, \(result.failed) failed")
+            print("✅ MongoDB cloud sync complete: \(result.success) uploaded to R2, \(result.failed) failed")
             if let errors = result.errors, !errors.isEmpty {
                 print("⚠️ Sync errors: \(errors.joined(separator: ", "))")
             }
         } catch {
-            print("❌ MongoDB sync failed: \(error)")
+            print("❌ Backend cloud sync failed: \(error)")
         }
     }
 

@@ -5,6 +5,7 @@ import SwiftUI
 /// Child taps the correct button. Gives animated feedback then auto-advances.
 struct MultipleChoiceMinigame: View {
     let choices: [MinigameChoice]
+    let onActivity: () -> Void
     let onComplete: (MinigameResult) -> Void
 
     @State private var selectedId: String? = nil
@@ -38,6 +39,7 @@ struct MultipleChoiceMinigame: View {
         let state = buttonState(for: choice)
         Button {
             guard selectedId == nil else { return }
+            onActivity()
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 selectedId = choice.id; revealed = true
             }
@@ -79,6 +81,7 @@ struct MultipleChoiceMinigame: View {
 
     private func continueButton(compact: Bool) -> some View {
         Button {
+            onActivity()
             let correct = choices.first { $0.id == selectedId }?.isCorrect ?? false
             onComplete(MinigameResult(type: .multiple_choice, completed: true,
                                       correct: correct, skipped: false, responseData: selectedId))
@@ -140,7 +143,7 @@ struct MultipleChoiceMinigame: View {
             MinigameChoice(id: "b", label: "Woof", emoji: "🐕", isCorrect: false),
             MinigameChoice(id: "c", label: "Meow", emoji: "🐱", isCorrect: false),
             MinigameChoice(id: "d", label: "Baa", emoji: "🐑", isCorrect: false),
-        ]) { result in print(result) }
+        ], onActivity: {}) { result in print(result) }
         .padding()
     }
 }

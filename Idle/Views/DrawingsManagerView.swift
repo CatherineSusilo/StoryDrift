@@ -16,6 +16,7 @@ struct DrawingsManagerView: View {
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var drawingToDelete: ChildDrawing?
     @State private var showDeleteAlert = false
+    @State private var selectedDrawingForPreview: ChildDrawing? = nil
 
     // MARK: - Parchment palette
     private let bg        = Color(red: 0.894, green: 0.835, blue: 0.718)
@@ -33,7 +34,74 @@ struct DrawingsManagerView: View {
             } else {
                 mainContent
             }
+
+            // ── Full-screen drawing preview ──────────────────────────────
+            if let preview = selectedDrawingForPreview {
+                Color.black.opacity(0.85)
+                    .ignoresSafeArea()
+                    .onTapGesture { withAnimation { selectedDrawingForPreview = nil } }
+                    .transition(.opacity)
+
+                VStack(spacing: 0) {
+                    // Close button — top right
+                    HStack {
+                        Spacer()
+                        Button {
+                            withAnimation { selectedDrawingForPreview = nil }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 17, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(12)
+                                .background(Circle().fill(Color.white.opacity(0.2)))
+                        }
+                        .padding(.trailing, 20)
+                        .padding(.top, 16)
+                    }
+
+                    Spacer()
+
+                    // Image
+                    Group {
+                        if let url = preview.imageUrl, let parsed = URL(string: url) {
+                            AsyncImage(url: parsed) { phase in
+                                switch phase {
+                                case .success(let img):
+                                    img.resizable().scaledToFit()
+                                case .empty:
+                                    ProgressView().tint(.white)
+                                default:
+                                    Image(systemName: "photo.fill")
+                                        .font(.system(size: 60))
+                                        .foregroundColor(.white.opacity(0.4))
+                                }
+                            }
+                        } else if let data = preview.imageData, let uiImg = UIImage(data: data) {
+                            Image(uiImage: uiImg).resizable().scaledToFit()
+                        } else {
+                            Image(systemName: "photo.fill")
+                                .font(.system(size: 60))
+                                .foregroundColor(.white.opacity(0.4))
+                        }
+                    }
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 8)
+                    .padding(.horizontal, 24)
+
+                    Spacer()
+
+                    // Caption
+                    Text(preview.name)
+                        .font(.custom("PatrickHand-Regular", size: 16))
+                        .foregroundColor(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 40)
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: selectedDrawingForPreview == nil)
         .navigationBarHidden(true)
         .task { await loadChildren() }
         .onAppear {
@@ -216,8 +284,40 @@ struct DrawingsManagerView: View {
     @ViewBuilder
     private func drawingCard(_ drawing: ChildDrawing) -> some View {
         ZStack(alignment: .topTrailing) {
-            VStack(alignment: .leading, spacing: 6) {
-                if let uiImage = UIImage(data: drawing.imageData) {
+            // Tap anywhere on the card (except delete button) to preview
+            Button { selectedDrawingForPreview = drawing } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                // Display image from cloud URL or legacy data
+                if let imageUrl = drawing.imageUrl {
+                    // Cloud-stored image
+                    AsyncImage(url: URL(string: imageUrl)) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .frame(height: 140)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(height: 140)
+                                .clipped()
+                        case .failure:
+                            Image(systemName: "photo.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(ink.opacity(0.3))
+                                .frame(height: 140)
+                                .frame(maxWidth: .infinity)
+                                .background(cardBg.opacity(0.5))
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 0)
+                            .stroke(borderClr.opacity(0.5), lineWidth: 1)
+                    )
+                } else if let imageData = drawing.imageData, let uiImage = UIImage(data: imageData) {
+                    // Legacy local image data
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
@@ -227,7 +327,32 @@ struct DrawingsManagerView: View {
                             RoundedRectangle(cornerRadius: 0)
                                 .stroke(borderClr.opacity(0.5), lineWidth: 1)
                         )
+                } else {
+                    // Fallback placeholder
+                    Image(systemName: "photo.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(ink.opacity(0.3))
+                        .frame(height: 140)
+                        .frame(maxWidth: .infinity)
+                        .background(cardBg.opacity(0.5))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 0)
+                                .stroke(borderClr.opacity(0.5), lineWidth: 1)
+                        )
                 }
+                
+                // Display lesson emoji + name if from minigame
+                if drawing.source == "minigame", let emoji = drawing.lessonEmoji, let lessonName = drawing.lessonName {
+                    HStack(spacing: 4) {
+                        Text(emoji)
+                            .font(.system(size: 12))
+                        Text(lessonName)
+                            .font(.custom("PatrickHand-Regular", size: 11))
+                            .foregroundColor(ink.opacity(0.6))
+                            .lineLimit(1)
+                    }
+                }
+                
                 Text(drawing.name)
                     .font(.custom("PatrickHand-Regular", size: 14))
                     .foregroundColor(ink.opacity(0.75))
@@ -248,6 +373,8 @@ struct DrawingsManagerView: View {
             )
             .cornerRadius(6)
             .shadow(color: .black.opacity(0.07), radius: 3, x: 0, y: 2)
+            }  // end Button label
+            .buttonStyle(.plain)
 
             // Delete button
             Button {
@@ -278,16 +405,29 @@ struct DrawingsManagerView: View {
         guard let data = UserDefaults.standard.data(forKey: drawingsKey(childId: childId)) else {
             print("ℹ️ No drawings data found for key: drawings_\(childId)")
             drawings = []
+            // Fetch from backend in case there are cloud drawings
+            Task {
+                await fetchDrawingsFromBackend(childId: childId)
+            }
             return
         }
         
         do {
             let decoded = try JSONDecoder().decode([ChildDrawing].self, from: data)
             drawings = decoded
-            print("✅ Loaded \(decoded.count) drawings successfully")
+            print("✅ Loaded \(decoded.count) drawings from local storage")
+            
+            // Also fetch from backend to get any new cloud drawings
+            Task {
+                await fetchDrawingsFromBackend(childId: childId)
+            }
         } catch {
             print("❌ Failed to decode drawings: \(error)")
             drawings = []
+            // Try fetching from backend
+            Task {
+                await fetchDrawingsFromBackend(childId: childId)
+            }
         }
     }
 
@@ -331,6 +471,53 @@ struct DrawingsManagerView: View {
     
     // MARK: - Backend Sync
     
+    /// Fetch drawings from MongoDB backend (including minigame drawings)
+    @MainActor
+    private func fetchDrawingsFromBackend(childId: String) async {
+        guard let token = authManager.accessToken else {
+            print("⚠️ No auth token - skipping backend fetch")
+            return
+        }
+        
+        print("☁️ Fetching drawings from backend for child \(childId)...")
+        
+        do {
+            let backendDrawings = try await APIService.shared.getDrawings(childId: childId, token: token)
+            print("✅ Fetched \(backendDrawings.count) drawings from backend")
+            
+            // Merge with local drawings (prefer backend as source of truth)
+            var mergedDrawings: [ChildDrawing] = []
+            var seenIds = Set<String>()
+            
+            // Add backend drawings first
+            for backendDrawing in backendDrawings {
+                if !seenIds.contains(backendDrawing.id) {
+                    mergedDrawings.append(backendDrawing)
+                    seenIds.insert(backendDrawing.id)
+                }
+            }
+            
+            // Add local-only drawings that aren't in backend yet
+            for localDrawing in drawings {
+                if !seenIds.contains(localDrawing.id) {
+                    mergedDrawings.append(localDrawing)
+                    seenIds.insert(localDrawing.id)
+                }
+            }
+            
+            // Sort by upload date (newest first)
+            mergedDrawings.sort { $0.uploadedAt > $1.uploadedAt }
+            
+            drawings = mergedDrawings
+            print("✅ Merged drawings: \(mergedDrawings.count) total")
+            
+            // Save merged list back to local storage
+            saveDrawings(childId: childId)
+        } catch {
+            print("❌ Failed to fetch drawings from backend: \(error)")
+        }
+    }
+    
     /// Sync all local drawings to MongoDB backend
     private func syncDrawingsToBackend(childId: String) async {
         guard let token = authManager.accessToken else {
@@ -338,19 +525,28 @@ struct DrawingsManagerView: View {
             return
         }
         
-        print("☁️ Syncing \(drawings.count) drawings to MongoDB...")
+        print("☁️ Syncing local drawings to MongoDB...")
+        
+        // Only sync drawings that have imageData (not already in cloud)
+        let localOnlyDrawings = drawings.filter { $0.imageUrl == nil && $0.imageData != nil }
+        
+        guard !localOnlyDrawings.isEmpty else {
+            print("ℹ️ No local-only drawings to sync")
+            return
+        }
         
         // Convert ChildDrawing to DrawingUploadRequest
-        let uploadRequests = drawings.map { drawing -> DrawingUploadRequest in
-            DrawingUploadRequest(
+        let uploadRequests = localOnlyDrawings.compactMap { drawing -> DrawingUploadRequest? in
+            guard let imageData = drawing.imageData else { return nil }
+            return DrawingUploadRequest(
                 childId: childId,
                 name: drawing.name,
-                imageData: drawing.imageData.base64EncodedString(),
+                imageData: imageData.base64EncodedString(),
                 uploadedAt: drawing.uploadedAt,
-                source: drawing.name.contains("🔢") || drawing.name.contains("📚") || 
-                        drawing.name.contains("🔤") ? "minigame" : "manual_upload",
-                lessonName: extractLessonName(from: drawing.name),
-                lessonEmoji: extractLessonEmoji(from: drawing.name)
+                source: drawing.source ?? (drawing.name.contains("🔢") || drawing.name.contains("📚") ||
+                        drawing.name.contains("🔤") ? "minigame" : "manual_upload"),
+                lessonName: drawing.lessonName ?? extractLessonName(from: drawing.name),
+                lessonEmoji: drawing.lessonEmoji ?? extractLessonEmoji(from: drawing.name)
             )
         }
         
@@ -360,7 +556,7 @@ struct DrawingsManagerView: View {
                 drawings: uploadRequests,
                 token: token
             )
-            print("✅ Backend sync complete: \(result.success) uploaded, \(result.failed) failed")
+            print("✅ Backend sync complete: \(result.success) uploaded to R2, \(result.failed) failed")
             if let errors = result.errors, !errors.isEmpty {
                 print("⚠️ Sync errors: \(errors.joined(separator: ", "))")
             }

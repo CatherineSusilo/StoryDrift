@@ -295,6 +295,24 @@ router.post('/story', async (req: AuthRequest, res: Response) => {
           }
         }
         console.log(`✅ All ${paragraphs.length} images done for ${tempStoryId}`);
+
+        // Persist the full images array back to the story document so replays can use them
+        try {
+          const allImages = [...pending];
+          const updated = await StorySession.findOneAndUpdate(
+            { imageJobId: tempStoryId },
+            { generatedImages: allImages },
+            { new: true },
+          );
+          if (updated) {
+            console.log(`💾 Saved ${allImages.filter(Boolean).length} images to story ${updated._id}`);
+          } else {
+            console.warn(`⚠️  No story found with imageJobId=${tempStoryId} — images not persisted`);
+          }
+        } catch (dbErr: any) {
+          console.error(`❌ Failed to persist images to DB: ${dbErr.message}`);
+        }
+
         setTimeout(() => imageProgress.delete(tempStoryId), 60 * 60 * 1000);
       })();
       

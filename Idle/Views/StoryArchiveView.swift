@@ -95,6 +95,8 @@ enum SortOption: String {
 // MARK: - StoryArchiveCard
 struct StoryArchiveCard: View {
     let story: Story
+    @EnvironmentObject var authManager: AuthManager
+    @State private var showingReplay = false
     @State private var showingDetails = false
 
     private var formattedDate: String {
@@ -105,7 +107,7 @@ struct StoryArchiveCard: View {
     private var finalDrift: Int { Int(story.driftScores.last ?? 0) }
 
     var body: some View {
-        Button(action: { showingDetails = true }) {
+        Button(action: { showingReplay = true }) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 3) {
@@ -152,6 +154,10 @@ struct StoryArchiveCard: View {
             .parchmentCard(cornerRadius: Theme.radiusMD)
         }
         .buttonStyle(ScaleButtonStyle())
+        .fullScreenCover(isPresented: $showingReplay) {
+            StoryReplayView(story: story)
+                .environmentObject(authManager)
+        }
         .sheet(isPresented: $showingDetails) {
             StoryDetailsView(story: story)
         }

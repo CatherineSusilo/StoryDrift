@@ -7,8 +7,9 @@ import AVFoundation
 /// Mic opens, child speaks. SFSpeechRecognizer checks if what they said
 /// matches the target word/sound (case-insensitive, partial match).
 struct VoiceMinigame: View {
-    let target: String       // e.g. "moo", "three", "circle"
-    let hint: String         // e.g. "What sound does a cow make?"
+    let target: String
+    let hint: String
+    let onActivity: () -> Void
     let onComplete: (MinigameResult) -> Void
 
     @StateObject private var recognizer = SpeechRecognizer()
@@ -126,6 +127,7 @@ struct VoiceMinigame: View {
         Group {
             if phase == .waiting || phase == .done {
                 Button {
+                    onActivity()
                     phase == .done ? finishResult() : startListening()
                 } label: {
                     Text(phase == .done ? "Continue" : "Start Talking")
@@ -137,7 +139,10 @@ struct VoiceMinigame: View {
                         .cornerRadius(12)
                 }
             } else if phase == .listening {
-                Button { stopListening() } label: {
+                Button {
+                    onActivity()
+                    stopListening()
+                } label: {
                     Text("Done Talking")
                         .font(.system(size: compact ? 14 : 17, weight: .semibold))
                         .foregroundColor(.black)

@@ -175,6 +175,7 @@ router.patch('/:storyId', async (req: AuthRequest, res) => {
     if (body.completed         !== undefined) updateData.completed         = body.completed;
     if (body.finalDriftScore   !== undefined) updateData.finalDriftScore   = body.finalDriftScore;
     if (body.driftScoreHistory !== undefined) updateData.driftScoreHistory = body.driftScoreHistory;
+    if (body.generatedImages   !== undefined) updateData.generatedImages   = body.generatedImages;
 
     const story = await StorySession.findByIdAndUpdate(storyId, updateData, { new: true });
     return res.json(story!.toJSON());

@@ -121,6 +121,11 @@ class APIService: ObservableObject {
         return response.data
     }
 
+    func getStory(storyId: String, token: String? = nil) async throws -> Story {
+        let tok = token ?? UserDefaults.standard.string(forKey: "accessToken")
+        return try await request(endpoint: "/api/stories/\(storyId)", token: tok)
+    }
+
     func generateStory(config: StoryConfig, token: String) async throws -> Story {
         // Step 1: Generate story text + first image via fal.ai (backend blocks until first image ready)
         let generateBody: [String: Any] = ["profile": [
@@ -215,8 +220,44 @@ class APIService: ObservableObject {
     // MARK: - Drawings
     
     /// Get all drawings for a child from MongoDB
-    func getDrawings(childId: String, token: String) async throws -> [DrawingResponse] {
-        return try await request(endpoint: "/api/drawings/child/\(childId)", token: token)
+    func getDrawings(childId: String, token: String) async throws -> [ChildDrawing] {
+        let apiDrawings: [DrawingResponse] = try await request(
+            endpoint: "/api/drawings/child/\(childId)",
+            token: token
+        )
+        
+        // Convert DrawingResponse to ChildDrawing
+        return apiDrawings.map { apiDrawing in
+            if let imageUrl = apiDrawing.imageUrl {
+                // Cloud-stored drawing
+                return ChildDrawing(
+                    id: apiDrawing.id,
+                    name: apiDrawing.name,
+                    imageUrl: imageUrl,
+                    uploadedAt: apiDrawing.uploadedAt,
+                    source: apiDrawing.source,
+                    lessonName: apiDrawing.lessonName,
+                    lessonEmoji: apiDrawing.lessonEmoji
+                )
+            } else if let imageDataBase64 = apiDrawing.imageData,
+                      let imageData = Data(base64Encoded: imageDataBase64) {
+                // Legacy base64 drawing
+                return ChildDrawing(
+                    id: apiDrawing.id,
+                    name: apiDrawing.name,
+                    imageData: imageData,
+                    uploadedAt: apiDrawing.uploadedAt
+                )
+            } else {
+                // Fallback: empty image data
+                return ChildDrawing(
+                    id: apiDrawing.id,
+                    name: apiDrawing.name,
+                    imageData: Data(),
+                    uploadedAt: apiDrawing.uploadedAt
+                )
+            }
+        }
     }
     
     /// Upload a single drawing to MongoDB
@@ -250,7 +291,8 @@ struct DrawingResponse: Codable, Identifiable {
     let id: String
     let childId: String
     let name: String
-    let imageData: String  // base64 encoded PNG
+    var imageUrl: String?       // R2 cloud storage URL (preferred)
+    var imageData: String?      // Legacy: base64 encoded PNG (fallback)
     let uploadedAt: Date
     let source: String
     let lessonName: String?
@@ -302,6 +344,7 @@ enum APIError: LocalizedError {
     case invalidResponse
     case httpError(statusCode: Int)
     case noData
+    case decodingError
 
     var errorDescription: String? {
         switch self {
@@ -309,6 +352,7 @@ enum APIError: LocalizedError {
         case .invalidResponse:     return "Invalid response from server"
         case .httpError(let code): return "HTTP error: \(code)"
         case .noData:              return "No data received"
+        case .decodingError:       return "Failed to decode response"
         }
     }
 }
@@ -338,4 +382,62 @@ struct AnyCodingKey: CodingKey {
     init(_ string: String) { self.stringValue = string }
     init?(stringValue: String) { self.stringValue = stringValue }
     init?(intValue: Int) { return nil }
+}
+
+// MARK: - Curriculum API
+
+extension APIService {
+    /// Get curriculum sections for a specific age (e.g., "2" for ages 2-3)
+    func getCurriculumForAge(age: Int, token: String) async throws -> [CurriculumSection] {
+        struct AgeGroupResponse: Codable {
+            let ageRange: String
+            let sections: [CurriculumSection]
+        }
+        
+        let response: AgeGroupResponse = try await request(
+            endpoint: "/api/curriculum/\(age)",
+            token: token
+        )
+        
+        return response.sections
+    }
+    
+    /// Get section details with full lesson data
+    func getCurriculumSection(sectionId: String, token: String) async throws -> CurriculumSection {
+        return try await request(endpoint: "/api/curriculum/section/\(sectionId)", token: token)
+    }
+    
+    /// Get detailed lesson information
+    func getCurriculumLesson(lessonId: String, token: String) async throws -> CurriculumLesson {
+        return try await request(endpoint: "/api/curriculum/lesson/\(lessonId)", token: token)
+    }
+    
+    /// Get child's progress across all curriculum lessons
+    func getChildCurriculumProgress(childId: String, token: String) async throws -> ChildProgressResponse {
+        return try await request(endpoint: "/api/curriculum/progress/\(childId)", token: token)
+    }
+    
+    /// Start a curriculum lesson (marks it as attempted)
+    func startCurriculumLesson(childId: String, lessonId: String, token: String) async throws {
+        struct EmptyResponse: Codable {}
+        let _: EmptyResponse = try await request(
+            endpoint: "/api/curriculum/progress/\(childId)/\(lessonId)/start",
+            method: "POST",
+            token: token
+        )
+    }
+    
+    /// Complete a curriculum lesson (updates stars and best score)
+    func completeCurriculumLesson(childId: String, lessonId: String, score: Int, token: String) async throws {
+        struct EmptyResponse: Codable {}
+        struct CompletionBody: Codable {
+            let score: Int
+        }
+        let _: EmptyResponse = try await request(
+            endpoint: "/api/curriculum/progress/\(childId)/\(lessonId)/complete",
+            method: "POST",
+            body: CompletionBody(score: score),
+            token: token
+        )
+    }
 }

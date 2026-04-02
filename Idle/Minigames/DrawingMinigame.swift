@@ -23,6 +23,8 @@ private let _silenceMetalDrawableWarning: Void = {
 struct DrawingMinigame: View {
     let theme: String
     let darkBackground: Bool
+    let onActivity: () -> Void
+    let onDrawingStarted: () -> Void
     let onComplete: (MinigameResult) -> Void
 
     @State private var canvasView = NoScribbleCanvasView()
@@ -82,7 +84,13 @@ struct DrawingMinigame: View {
                 .cornerRadius(12)
                 .overlay(RoundedRectangle(cornerRadius: 12)
                     .stroke(Color.white.opacity(0.3), lineWidth: 1))
-                .onChange(of: strokeCount) { count in hasDrawn = count > 0 }
+                .onChange(of: strokeCount) { count in
+                    if count > 0 {
+                        if !hasDrawn { onDrawingStarted() }
+                        hasDrawn = count > 0
+                        onActivity()
+                    }
+                }
 
                 // Tool + color row
                 HStack(spacing: 0) {
@@ -91,6 +99,7 @@ struct DrawingMinigame: View {
                         Button {
                             selectedTool = tool
                             applyTool(tool)
+                            onActivity()
                         } label: {
                             Image(systemName: tool.icon)
                                 .font(.system(size: isCompact ? 13 : 15))
@@ -105,6 +114,7 @@ struct DrawingMinigame: View {
                     // Undo / clear
                     Button {
                         canvasView.undoManager?.undo()
+                        onActivity()
                     } label: {
                         Image(systemName: "arrow.uturn.backward")
                             .font(.system(size: isCompact ? 13 : 15))
@@ -113,6 +123,7 @@ struct DrawingMinigame: View {
                     }
                     Button {
                         canvasView.drawing = PKDrawing(); strokeCount = 0
+                        onActivity()
                     } label: {
                         Image(systemName: "trash")
                             .font(.system(size: isCompact ? 13 : 15))
@@ -127,6 +138,7 @@ struct DrawingMinigame: View {
                         Button {
                             selectedColor = color
                             applyTool(selectedTool)
+                            onActivity()
                         } label: {
                             Circle()
                                 .fill(color)

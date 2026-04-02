@@ -4,7 +4,8 @@ export interface IDrawing extends Document {
   userId: Types.ObjectId;
   childId: Types.ObjectId;
   name: string;
-  imageUrl: string;       // Permanent R2 URL
+  imageUrl: string;       // R2 cloud storage URL
+  imageData?: Buffer;     // Legacy: PNG image stored as binary (deprecated, kept for backwards compatibility)
   uploadedAt: Date;
   source: 'manual_upload' | 'minigame';  // Track where drawing came from
   lessonName?: string;    // If from minigame, which lesson
@@ -18,7 +19,8 @@ const DrawingSchema = new Schema<IDrawing>(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     childId: { type: Schema.Types.ObjectId, ref: 'Child', required: true, index: true },
     name: { type: String, required: true },
-    imageUrl: { type: String, required: true },   // Permanent R2 URL
+    imageUrl: { type: String },          // R2 cloud storage URL (required for new drawings)
+    imageData: { type: Buffer },         // Legacy binary blob (deprecated)
     uploadedAt: { type: Date, required: true },
     source: { type: String, enum: ['manual_upload', 'minigame'], default: 'manual_upload' },
     lessonName: { type: String },
@@ -31,6 +33,15 @@ const DrawingSchema = new Schema<IDrawing>(
         ret.id = ret._id.toString();
         ret.childId = ret.childId?.toString();
         ret.userId = ret.userId?.toString();
+        
+        // For backwards compatibility: convert binary buffer to base64 if imageUrl not present
+        if (!ret.imageUrl && ret.imageData) {
+          ret.imageData = ret.imageData.toString('base64');
+        } else if (ret.imageUrl) {
+          // If we have imageUrl, remove imageData from response
+          ret.imageData = undefined;
+        }
+        
         ret._id = undefined;
         ret.__v = undefined;
         return ret;
