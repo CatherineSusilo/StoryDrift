@@ -185,11 +185,39 @@ struct BehavioralStatsView: View {
     private var storyVitalsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
 
-            Text("vitals during storytime")
-                .font(Theme.titleFont(size: 22))
-                .foregroundColor(Theme.ink)
+            HStack(alignment: .firstTextBaseline) {
+                Text("vitals during storytime")
+                    .font(Theme.titleFont(size: 22))
+                    .foregroundColor(Theme.ink)
+                Spacer()
+                // ── Download CSV button ──
+                if storyVitalsList.indices.contains(selectedVitalsIndex) {
+                    let summary = storyVitalsList[selectedVitalsIndex]
+                    ShareLink(
+                        item: generateVitalsCSV(summary: summary),
+                        preview: SharePreview(
+                            "vitals_\(storyTabLabel(summary: summary, index: selectedVitalsIndex)).csv",
+                            icon: Image(systemName: "waveform.path.ecg")
+                        )
+                    ) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.down.doc")
+                                .font(.system(size: 13))
+                            Text("Download")
+                                .font(Theme.bodyFont(size: 13))
+                        }
+                        .foregroundColor(Theme.ink)
+                        .padding(.vertical, 7)
+                        .padding(.horizontal, 12)
+                        .background(Theme.card)
+                        .cornerRadius(Theme.radiusSM)
+                        .overlay(RoundedRectangle(cornerRadius: Theme.radiusSM)
+                            .stroke(Theme.border, lineWidth: 1.5))
+                    }
+                }
+            }
 
-            // ── Storytime tab picker ──
+            // ── Storytime tab picker (date + time) ──
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(storyVitalsList.indices, id: \.self) { i in
@@ -218,7 +246,6 @@ struct BehavioralStatsView: View {
             // ── Graphs for selected session ──
             if storyVitalsList.indices.contains(selectedVitalsIndex) {
                 let summary = storyVitalsList[selectedVitalsIndex]
-
                 VStack(spacing: 16) {
                     VitalsLineGraph(
                         snapshots: summary.snapshots,
@@ -235,11 +262,52 @@ struct BehavioralStatsView: View {
         }
     }
 
+    // Date + time label for story tab
     private func storyTabLabel(summary: StoryVitalsSummary, index: Int) -> String {
         guard let snap = summary.snapshots.first else { return "Story \(index + 1)" }
         let f = DateFormatter()
-        f.dateFormat = "MMM d"
+        f.dateFormat = "MMM d  h:mm a"
         return f.string(from: snap.timestamp)
+    }
+
+    // Generate CSV string for a single session's vitals
+    private func generateVitalsCSV(summary: StoryVitalsSummary) -> String {
+        let isoFmt = ISO8601DateFormatter()
+        isoFmt.formatOptions = [.withInternetDateTime]
+
+        // Filter to rows that have at least one real measurement
+        let rows = summary.snapshots.filter { $0.heartRate > 0 || $0.breathingRate > 0 }
+
+        var lines: [String] = []
+        lines.append("StoryDrift Vitals Export")
+        lines.append("Story ID,\(summary.storyId)")
+        lines.append("Child ID,\(summary.childId)")
+        if let first = rows.first {
+            let d = DateFormatter(); d.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            lines.append("Session start,\(d.string(from: first.timestamp))")
+        }
+        lines.append("")
+
+        // Column headers with units
+        lines.append("Timestamp (ISO 8601),Heart Rate (bpm),Breathing Rate (breaths/min)")
+
+        for row in rows {
+            let ts = isoFmt.string(from: row.timestamp)
+            let hr = row.heartRate > 0 ? String(format: "%.1f", row.heartRate) : ""
+            let br = row.breathingRate > 0 ? String(format: "%.1f", row.breathingRate) : ""
+            lines.append("\(ts),\(hr),\(br)")
+        }
+
+        // Averages row
+        let hrVals = rows.map(\.heartRate).filter { $0 > 0 }
+        let brVals = rows.map(\.breathingRate).filter { $0 > 0 }
+        let avgHR = hrVals.isEmpty ? "" : String(format: "%.1f", hrVals.reduce(0, +) / Double(hrVals.count))
+        let avgBR = brVals.isEmpty ? "" : String(format: "%.1f", brVals.reduce(0, +) / Double(brVals.count))
+        lines.append("")
+        lines.append("Average,,")
+        lines.append(",\(avgHR),\(avgBR)")
+
+        return lines.joined(separator: "\n")
     }
 
     private func buildLearningInsight(stats: ChildStatistics) -> String {

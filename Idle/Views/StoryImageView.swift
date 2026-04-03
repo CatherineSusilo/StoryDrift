@@ -69,7 +69,7 @@ struct StoryImageView: View {
         }
         .clipped()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onChange(of: imageUrl) { newUrl in
+        .onChange(of: imageUrl) { _, newUrl in
             guard let newUrl, !newUrl.isEmpty, newUrl != displayedUrl else { return }
             loadAndCrossfade(rawUrl: newUrl)
         }
@@ -84,7 +84,7 @@ struct StoryImageView: View {
 
     private func loadAndCrossfade(rawUrl: String) {
         guard let url = resolveURL(rawUrl) else { return }
-
+        print("🖼 StoryImageView loading: \(rawUrl.prefix(80))")
         Task {
             guard let image = await downloadImage(from: url) else { return }
 

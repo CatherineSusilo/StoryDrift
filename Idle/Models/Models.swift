@@ -408,6 +408,8 @@ struct LessonDefinition: Identifiable {
     let emoji: String
     let ageMin: Int
     let ageMax: Int
+    /// Set when launched from the curriculum roadmap so the backend uses the exact lesson
+    var curriculumLessonId: String? = nil
 }
 
 // Matches paginated responses like GET /api/stories/child/:id → { data: [...], total, limit, offset }
@@ -545,6 +547,11 @@ struct ShapeSlot: Codable, Identifiable {
     let shape: String      // circle | square | triangle | star | heart
     let color: String      // hex
     let targetSlotId: String
+}
+
+/// Wrapper for the /api/generate/minigame response envelope: { "trigger": { ... } }
+struct MinigameTriggerResponse: Codable {
+    let trigger: MinigameTrigger
 }
 
 struct MinigameTrigger: Codable {

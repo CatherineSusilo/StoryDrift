@@ -49,6 +49,7 @@ struct MainTabView: View {
     @State private var selectedLesson: LessonDefinition? = nil
     @State private var completedLessonIds: Set<String> = []
     @State private var pendingMinigameFrequency: MinigameFrequency = .every5th
+    @State private var journeyRefreshID: UUID = UUID()
 
     // Bedtime session sheet
     @State private var showBedtimeSession = false
@@ -124,8 +125,21 @@ struct MainTabView: View {
                     minigameFrequency: pendingMinigameFrequency
                 ) { summary in
                     selectedLesson = nil
-                    if summary.lessonProgress >= 100 {
+                    let score = summary.lessonProgress
+                    if score >= 80 {
                         completedLessonIds.insert(lesson.id)
+                    }
+                    // Post completion to backend so progress bar + unlock updates
+                    Task {
+                        guard let token = authManager.accessToken else { return }
+                        try? await APIService.shared.completeCurriculumLesson(
+                            childId: child.id,
+                            lessonId: lesson.id,
+                            score: score,
+                            token: token
+                        )
+                        // Refresh the journey roadmap
+                        journeyRefreshID = UUID()
                     }
                 }
                 .environmentObject(authManager)
@@ -353,7 +367,8 @@ struct MainTabView: View {
                 onStartLesson: { lesson in
                     selectedChild = child
                     selectedLesson = lesson
-                }
+                },
+                refreshTrigger: journeyRefreshID
             )
         case .analytics:
             BehavioralStatsView(child: child, refreshID: dashboardRefreshID)

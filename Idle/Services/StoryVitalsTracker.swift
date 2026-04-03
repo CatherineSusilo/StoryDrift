@@ -134,9 +134,9 @@ class StoryVitalsTracker: ObservableObject {
         }
         
         // Prevent rapid restart cycles that can cause MediaPipe graph issues
-        if let lastStop = lastStopTime, Date().timeIntervalSince(lastStop) < 2.0 {
-            print("[StoryVitalsTracker] ⏳ Waiting for cooldown period (2s) before restarting")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        if let lastStop = lastStopTime, Date().timeIntervalSince(lastStop) < 4.0 {
+            print("[StoryVitalsTracker] ⏳ Waiting for cooldown period (4s) before restarting")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
                 self?.startTracking(storyId: storyId, childId: childId, vitalsManager: vitalsManager, cameraEnabled: cameraEnabled)
             }
             return
@@ -204,8 +204,8 @@ class StoryVitalsTracker: ObservableObject {
         processor.stopProcessing()
 
         // Delay long enough for the MediaPipe graph to complete teardown.
-        // Increased from 500ms to 2000ms to ensure complete graph shutdown.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        // 3.5s covers the 1.5s stopProcessing delay + graph shutdown time.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) { [weak self] in
             guard let self, self.isTracking, self.sdkStarting else { 
                 print("[StoryVitalsTracker] ⚠️ Tracking stopped or cancelled before SDK startup completed")
                 self?.sdkStarting = false
@@ -217,10 +217,9 @@ class StoryVitalsTracker: ObservableObject {
             do {
                 self.processor.startProcessing()
                 
-                // Extended delay between startProcessing and startRecording to ensure
-                // MediaPipe graph's internal StartRun() completes fully.
-                // Increased from 0.2s to 1.0s based on observed MediaPipe behavior.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                // 2s between startProcessing and startRecording ensures MediaPipe's
+                // internal StartRun() fully completes before any packets are pushed.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
                     guard let self, self.isTracking, self.sdkStarting else { 
                         self?.sdkStarting = false
                         return 
@@ -279,12 +278,12 @@ class StoryVitalsTracker: ObservableObject {
 
 #if canImport(SmartSpectraSwiftSDK)
         if sdkStarted {
-            // Stop recording first, then processing — give the graph 200 ms to flush
-            // its final packets before tearing down, which prevents the next
-            // startProcessing() from racing with an in-flight graph shutdown.
+            // Stop recording first, then processing — give the graph 1.5s to fully tear down
+            // before the next startProcessing() can be called, preventing the race where
+            // packets arrive before StartRun() completes on the new graph.
             do {
                 processor.stopRecording()
-                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.2) {
+                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1.5) {
                     do {
                         self.processor.stopProcessing()
                         print("[StoryVitalsTracker] ⏹  SDK stopped cleanly")

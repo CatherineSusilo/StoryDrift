@@ -37,6 +37,8 @@ struct EducationalStorySessionView: View {
     // Session state
     @State private var sessionId: String? = nil
     @State private var phase: SessionPhase = .loading
+    /// True once the first tick has returned a segment + image — until then keep showing loading
+    @State private var hasFirstContent = false
 
     // Story display
     @State private var currentSegment = ""
@@ -75,7 +77,12 @@ struct EducationalStorySessionView: View {
             case .loading:
                 loadingOverlay
             case .story:
-                storyContent
+                // Keep showing loading until first tick has delivered content
+                if hasFirstContent {
+                    storyContent
+                } else {
+                    loadingOverlay
+                }
             case .minigame:
                 Color.clear // minigame shown as overlay below
             case .complete:
@@ -107,14 +114,7 @@ struct EducationalStorySessionView: View {
     // MARK: - Loading overlay
 
     private var loadingOverlay: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .tint(.white)
-                .scaleEffect(1.5)
-            Text("Preparing \"\(lesson.name)\"…")
-                .font(.custom("Georgia", size: 18))
-                .foregroundColor(.white)
-        }
+        LoadingView()
     }
 
     // MARK: - Story content
@@ -275,10 +275,13 @@ struct EducationalStorySessionView: View {
         }
 
         do {
-            // Check if this is a curriculum lesson
-            let curriculumLessonId = UserDefaults.standard.string(forKey: "pendingCurriculumLessonId")
+            // Prefer curriculumLessonId carried on the LessonDefinition (set by roadmap tap).
+            // Fall back to UserDefaults for any legacy callers, then clear it.
+            let curriculumLessonId: String? =
+                lesson.curriculumLessonId
+                ?? UserDefaults.standard.string(forKey: "pendingCurriculumLessonId")
             UserDefaults.standard.removeObject(forKey: "pendingCurriculumLessonId")
-            
+
             var body: [String: Any] = [
                 "mode": "educational",
                 "childProfile": [
@@ -289,9 +292,7 @@ struct EducationalStorySessionView: View {
                 ],
                 "minigameFrequency": minigameFrequency.rawValue,
             ]
-            
-            // If we have a curriculum lesson ID, use it (backend will auto-resolve lesson data)
-            // Otherwise, use the legacy lesson name/description
+
             if let curriculumId = curriculumLessonId {
                 body["curriculumLessonId"] = curriculumId
                 print("📚 Starting curriculum lesson: \(curriculumId)")
@@ -346,6 +347,7 @@ struct EducationalStorySessionView: View {
                 token: token
             )
             let resp = try JSONDecoder().decode(TickResponse.self, from: data)
+            print("🖼 Tick imageUrl: \(resp.imageUrl ?? "nil") | segment: \(resp.segment.prefix(40))")
             await MainActor.run { applyTickResponse(resp) }
         } catch {
             print("⚠️ Tick error: \(error)")
@@ -360,6 +362,9 @@ struct EducationalStorySessionView: View {
             lessonProgress   = resp.lessonProgress ?? lessonProgress
             engagementScore  = resp.score
             strategy         = resp.strategy
+            if !hasFirstContent && !resp.segment.isEmpty {
+                hasFirstContent = true
+            }
         }
         engagementHistory.append(resp.score)
 

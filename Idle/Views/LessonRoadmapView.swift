@@ -15,6 +15,7 @@ struct LessonRoadmapView: View {
     let child: ChildProfile
     let completedLessonIds: Set<String>
     let onStartLesson: (LessonDefinition) -> Void
+    var refreshTrigger: UUID = UUID()
 
     @State private var sections: [CurriculumSection] = []
     @State private var progress: ChildProgressResponse? = nil
@@ -32,12 +33,7 @@ struct LessonRoadmapView: View {
                 bg.ignoresSafeArea()
 
                 if isLoading {
-                    VStack(spacing: 14) {
-                        ProgressView().tint(ink).scaleEffect(1.3)
-                        Text("Loading journey…")
-                            .font(.custom("PatrickHand-Regular", size: 18))
-                            .foregroundColor(ink.opacity(0.7))
-                    }
+                    LoadingView()
                 } else if let error = errorMessage {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -56,54 +52,65 @@ struct LessonRoadmapView: View {
                     }
                     .padding()
                 } else {
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            // ── Greeting header ──────────────────────────────
-                            greetingHeader
-                                .padding(.horizontal, 24)
-                                .padding(.top, 12)
-                                .padding(.bottom, 24)
+                    VStack(spacing: 0) {
+                        // ── Sticky header ──────────────────────────────────
+                        stickyHeader
+                            .padding(.horizontal, 20)
+                            .padding(.top, 20)
+                            .padding(.bottom, 12)
+                            .background(bg)
 
-                            // ── One block per section ─────────────────────────
-                            ForEach(Array(sections.enumerated()), id: \.element.id) { idx, section in
-                                sectionBlock(section: section, sectionIndex: idx)
+                        // ── Scrollable roadmap ─────────────────────────────
+                        ScrollView(showsIndicators: false) {
+                            VStack(spacing: 0) {
+                                ForEach(Array(sections.enumerated()), id: \.element.id) { idx, section in
+                                    sectionBlock(section: section, sectionIndex: idx)
+                                }
+                                Spacer(minLength: 60)
                             }
-
-                            Spacer(minLength: 60)
                         }
                     }
                 }
             }
-            .navigationTitle("Journey")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarHidden(true)
             .task { await loadCurriculum() }
+            .onChange(of: refreshTrigger) { _ in Task { await loadCurriculum() } }
         }
     }
 
-    // MARK: - Greeting header
+    // MARK: - Sticky header (same style as other pages)
 
-    private var greetingHeader: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private var stickyHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Name greeting — matches other page title style
             Text("Hi, \(child.name.components(separatedBy: " ").first ?? child.name)! 👋")
-                .font(.custom("IndieFlower-Regular", size: 26))
-                .foregroundColor(ink)
+                .font(Theme.titleFont(size: 32))
+                .foregroundColor(Theme.ink)
 
             if let p = progress {
                 let total     = p.sections.reduce(0) { $0 + $1.totalLessons }
                 let completed = p.sections.reduce(0) { $0 + $1.completedLessons }
-                Text("\(completed) of \(total) lessons completed")
-                    .font(.custom("PatrickHand-Regular", size: 15))
-                    .foregroundColor(ink.opacity(0.6))
+
+                HStack {
+                    Text("\(completed) of \(total) lessons completed")
+                        .font(Theme.bodyFont(size: 14))
+                        .foregroundColor(Theme.inkMuted)
+                    Spacer()
+                }
 
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.5)).frame(height: 8)
                         RoundedRectangle(cornerRadius: 5)
-                            .fill(LinearGradient(colors: [.cyan, .blue], startPoint: .leading, endPoint: .trailing))
-                            .frame(width: geo.size.width * CGFloat(completed) / CGFloat(max(total, 1)), height: 8)
+                            .fill(Theme.border)
+                            .frame(height: 8)
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(LinearGradient(colors: [.cyan, .blue],
+                                                 startPoint: .leading, endPoint: .trailing))
+                            .frame(width: geo.size.width * CGFloat(completed) / CGFloat(max(total, 1)),
+                                   height: 8)
                     }
                 }
-                .frame(height: 8).padding(.top, 2)
+                .frame(height: 8)
             }
         }
     }
@@ -154,17 +161,17 @@ struct LessonRoadmapView: View {
             if let lessons = section.lessons, !lessons.isEmpty {
                 GeometryReader { geo in
                     let w = geo.size.width
-                    // X positions for 3-column zigzag: left, centre, right, centre, left, …
                     let xSlots: [CGFloat] = [0.18, 0.50, 0.82, 0.50]
-                    let nodeH: CGFloat = 110   // vertical spacing between nodes
+                    let nodeH: CGFloat  = 120   // vertical spacing between nodes
+                    let topOffset: CGFloat = 70 // gap between header and first node
 
                     ZStack {
                         // Dashed connector lines
                         ForEach(0..<lessons.count - 1, id: \.self) { i in
                             let fromX = w * xSlots[i % 4]
-                            let fromY = CGFloat(i) * nodeH + 40
+                            let fromY = CGFloat(i) * nodeH + topOffset
                             let toX   = w * xSlots[(i + 1) % 4]
-                            let toY   = CGFloat(i + 1) * nodeH + 40
+                            let toY   = CGFloat(i + 1) * nodeH + topOffset
                             let lessonProg = lessonProgress(id: lessons[i].id)
                             Path { p in
                                 p.move(to: CGPoint(x: fromX, y: fromY))
@@ -183,15 +190,15 @@ struct LessonRoadmapView: View {
                         // Lesson nodes
                         ForEach(Array(lessons.enumerated()), id: \.element.id) { i, lesson in
                             let x = w * xSlots[i % 4]
-                            let y = CGFloat(i) * nodeH + 40
+                            let y = CGFloat(i) * nodeH + topOffset
                             lessonNode(lesson: lesson, sectionColor: sectionColor, section: section)
                                 .position(x: x, y: y)
                         }
                     }
-                    .frame(height: CGFloat(lessons.count) * nodeH + 60)
+                    .frame(height: CGFloat(lessons.count) * nodeH + topOffset + 40)
                 }
-                .frame(height: CGFloat((section.lessons?.count ?? 0)) * 110 + 60)
-                .padding(.top, 8)
+                .frame(height: CGFloat((section.lessons?.count ?? 0)) * 120 + 110)
+                .padding(.top, 16)
             } else {
                 // Still loading lessons for this section
                 HStack {
@@ -201,7 +208,7 @@ struct LessonRoadmapView: View {
                 }
             }
         }
-        .padding(.bottom, 24)
+        .padding(.bottom, 48)  // spacious gap between sections
     }
 
     // MARK: - Single lesson node
@@ -216,9 +223,9 @@ struct LessonRoadmapView: View {
             guard unlocked else { return }
             let legacyLesson = LessonDefinition(
                 id: lesson.id, name: lesson.name, description: lesson.description,
-                emoji: section.emoji, ageMin: 2, ageMax: 5
+                emoji: section.emoji, ageMin: 2, ageMax: 5,
+                curriculumLessonId: lesson.id   // carry the ID directly — no UserDefaults race
             )
-            UserDefaults.standard.set(lesson.id, forKey: "pendingCurriculumLessonId")
             onStartLesson(legacyLesson)
         } label: {
             VStack(spacing: 5) {

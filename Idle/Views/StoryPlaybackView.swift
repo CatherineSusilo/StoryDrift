@@ -528,7 +528,7 @@ struct StoryPlaybackView: View {
                 ]
                 let data = try await APIService.shared.post(
                     path: "/api/generate/minigame", body: body, token: token)
-                var trigger = try JSONDecoder().decode(MinigameTrigger.self, from: data)
+                var trigger = try JSONDecoder().decode(MinigameTriggerResponse.self, from: data).trigger
                 trigger = trigger.withFallbackShapes()
                 await MainActor.run {
                     self.activeTrigger = trigger

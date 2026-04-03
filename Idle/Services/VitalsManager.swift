@@ -25,11 +25,14 @@ class VitalsManager: ObservableObject {
     private var monitoringTask: Task<Void, Never>?
     private var childId: String?
     private var startTime: Date?
-    
+
     // Synthetic drift score state (when camera is disabled)
     private var syntheticTimer: Timer?
-    private var targetDuration: TimeInterval = 900 // default 15 min
+    private var targetDuration: TimeInterval = 900
     private var useSyntheticDrift = false
+    /// Periodic timer that recalculates drift score in camera mode so the score
+    /// advances even while Presage is warming up and not yet sending packets.
+    private var driftTimer: Timer?
 
     let metricsPublisher = PassthroughSubject<VitalsMetrics, Never>()
 
@@ -78,6 +81,13 @@ class VitalsManager: ObservableObject {
                 self?.updateSyntheticDrift()
             }
         } else {
+            // Camera mode: recalculate drift every 5s so the score advances
+            // even during the Presage warm-up period before first packets arrive.
+            driftTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+                DispatchQueue.main.async { self?.calculateDriftScore() }
+            }
+            // Kick off immediately so drift isn't 0 for the first 5s
+            DispatchQueue.main.async { self.calculateDriftScore() }
             // Normal camera-based monitoring
             monitoringTask = Task { [weak self] in
                 while !Task.isCancelled {
@@ -132,6 +142,8 @@ class VitalsManager: ObservableObject {
         monitoringTask = nil
         syntheticTimer?.invalidate()
         syntheticTimer = nil
+        driftTimer?.invalidate()
+        driftTimer = nil
         childId = nil
         startTime = nil
         useSyntheticDrift = false
