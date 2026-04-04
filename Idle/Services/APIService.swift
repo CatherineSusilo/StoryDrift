@@ -440,4 +440,9 @@ extension APIService {
             token: token
         )
     }
+
+    /// Fetch the most recent completed StorySession for a curriculum lesson (for replay without regenerating)
+    func getCachedLessonSession(childId: String, lessonId: String, token: String) async throws -> Story {
+        return try await request(endpoint: "/api/stories/child/\(childId)/lesson/\(lessonId)", token: token)
+    }
 }
