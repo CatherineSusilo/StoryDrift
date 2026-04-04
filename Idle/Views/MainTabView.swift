@@ -131,14 +131,25 @@ struct MainTabView: View {
                     }
                     // Post completion to backend so progress bar + unlock updates
                     Task {
-                        guard let token = authManager.accessToken else { return }
-                        try? await APIService.shared.completeCurriculumLesson(
-                            childId: child.id,
-                            lessonId: lesson.id,
-                            score: score,
-                            token: token
-                        )
-                        // Refresh the journey roadmap
+                        guard let token = authManager.accessToken else {
+                            print("❌ completeCurriculumLesson: no token")
+                            journeyRefreshID = UUID()
+                            return
+                        }
+                        do {
+                            try await APIService.shared.completeCurriculumLesson(
+                                childId: child.id,
+                                lessonId: lesson.curriculumLessonId ?? lesson.id,
+                                score: score,
+                                token: token
+                            )
+                            print("✅ Lesson \(lesson.id) marked complete (score: \(score))")
+                        } catch {
+                            print("❌ completeCurriculumLesson failed: \(error)")
+                        }
+                        // Small delay so the fullScreenCover fully dismisses and
+                        // LessonRoadmapView is back in the hierarchy before we trigger reload
+                        try? await Task.sleep(nanoseconds: 500_000_000)
                         journeyRefreshID = UUID()
                     }
                 }

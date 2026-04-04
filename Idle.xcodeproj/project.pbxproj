@@ -26,8 +26,8 @@
         BB0000072F6CD78F001DBFE5 /* StorySummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000082F6CD78F001DBFE5 /* StorySummaryView.swift */; };
         BB0000092F6CD78F001DBFE5 /* StoryThemesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000A2F6CD78F001DBFE5 /* StoryThemesView.swift */; };
         BB00000B2F6CD78F001DBFE5 /* StoryArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000C2F6CD78F001DBFE5 /* StoryArchiveView.swift */; };
+        SRPL0000022F6CD78F001DBF5 /* StoryReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRPL0000012F6CD78F001DBF5 /* StoryReplayView.swift */; };
         BB00000D2F6CD78F001DBFE5 /* StoryPlaybackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000E2F6CD78F001DBFE5 /* StoryPlaybackView.swift */; };
-        BB00001D2F6CD78F001DBFE5 /* StoryReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00001E2F6CD78F001DBFE5 /* StoryReplayView.swift */; };
         BB00000F2F6CD78F001DBFE5 /* DriftMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000102F6CD78F001DBFE5 /* DriftMeterView.swift */; };
         BB0000112F6CD78F001DBFE5 /* InteractiveElementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000122F6CD78F001DBFE5 /* InteractiveElementsView.swift */; };
         BB0000132F6CD78F001DBFE5 /* VitalsMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000142F6CD78F001DBFE5 /* VitalsMonitorView.swift */; };
@@ -75,10 +75,11 @@
         BB0000042F6CD78F001DBFE5 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
         BB0000062F6CD78F001DBFE5 /* StorySetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorySetupView.swift; sourceTree = "<group>"; };
         BB0000082F6CD78F001DBFE5 /* StorySummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorySummaryView.swift; sourceTree = "<group>"; };
-        BB00000A2F6CD78F001DBFE5 /* StoryThemesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryThemesView.swift; sourceTree = "<group>"; };
+        BKND0000012F6CD78F001DBF5 /* StoryDrift-backend */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "StoryDrift-backend"; path = "/Users/catherinesusilo/StoryDrift/Idle/StoryDrift-backend"; sourceTree = "<absolute>"; };
         BB00000C2F6CD78F001DBFE5 /* StoryArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryArchiveView.swift; sourceTree = "<group>"; };
+        BB00000A2F6CD78F001DBFE5 /* StoryThemesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryThemesView.swift; sourceTree = "<group>"; };
+        SRPL0000012F6CD78F001DBF5 /* StoryReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryReplayView.swift; sourceTree = "<group>"; };
         BB00000E2F6CD78F001DBFE5 /* StoryPlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryPlaybackView.swift; sourceTree = "<group>"; };
-        BB00001E2F6CD78F001DBFE5 /* StoryReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryReplayView.swift; sourceTree = "<group>"; };
         BB0000102F6CD78F001DBFE5 /* DriftMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriftMeterView.swift; sourceTree = "<group>"; };
         BB0000122F6CD78F001DBFE5 /* InteractiveElementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractiveElementsView.swift; sourceTree = "<group>"; };
         BB0000142F6CD78F001DBFE5 /* VitalsMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VitalsMonitorView.swift; sourceTree = "<group>"; };
@@ -139,6 +140,7 @@
                 MG000000AAAABBBB00112233 /* Minigames */,
                 AA0000272F6CD78F001DBFE5 /* Resources */,
                 BD99A50AA20B23CB6260D44A /* AppDelegate.swift */,
+                BKND0000012F6CD78F001DBF5 /* StoryDrift-backend */,
             );
             path = Idle;
             sourceTree = "<group>";
@@ -193,8 +195,8 @@
                 CFEAB02D2F764F040017E426 /* EducationalStorySessionView.swift */,
                 CFEAB02E2F764F040017E426 /* LessonRoadmapView.swift */,
                 BB00000C2F6CD78F001DBFE5 /* StoryArchiveView.swift */,
+                SRPL0000012F6CD78F001DBF5 /* StoryReplayView.swift */,
                 BB00000E2F6CD78F001DBFE5 /* StoryPlaybackView.swift */,
-                BB00001E2F6CD78F001DBFE5 /* StoryReplayView.swift */,
                 DD0000022F6CD78F001DBFE5 /* AISettingsView.swift */,
                 DD0000042F6CD78F001DBFE5 /* DrawingsManagerView.swift */,
                 DD0000062F6CD78F001DBFE5 /* StoryRoadmapView.swift */,
@@ -262,8 +264,8 @@
             );
             dependencies = (
             );
-            name = "Story Drift";
-            productName = "Story Drift";
+            name = Idle;
+            productName = Idle;
             productReference = AA0000012F6CD78F001DBFE6 /* Idle.app */;
             productType = "com.apple.product-type.application";
         };
@@ -341,8 +343,8 @@
                 BB0000072F6CD78F001DBFE5 /* StorySummaryView.swift in Sources */,
                 BB0000092F6CD78F001DBFE5 /* StoryThemesView.swift in Sources */,
                 BB00000B2F6CD78F001DBFE5 /* StoryArchiveView.swift in Sources */,
+                SRPL0000022F6CD78F001DBF5 /* StoryReplayView.swift in Sources */,
                 BB00000D2F6CD78F001DBFE5 /* StoryPlaybackView.swift in Sources */,
-                BB00001D2F6CD78F001DBFE5 /* StoryReplayView.swift in Sources */,
                 BB00000F2F6CD78F001DBFE5 /* DriftMeterView.swift in Sources */,
                 BB0000112F6CD78F001DBFE5 /* InteractiveElementsView.swift in Sources */,
                 CF0000012F900000001STIMG /* StoryImageView.swift in Sources */,

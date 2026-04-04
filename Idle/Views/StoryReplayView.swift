@@ -4,10 +4,11 @@ import AVFoundation
 // MARK: - StoryReplayView
 //
 // Archive replay of a completed story.
-// • No minigames
-// • No vitals monitoring / drift tracking
-// • Loads images from the cloud (story.images / imageJobId polling)
-// • Loads audio from story.audioUrls (paragraph.audioUrl)
+// No minigames, no vitals monitoring / drift tracking.
+// On open, fetches the freshest story doc so generatedImages are up-to-date.
+// One image per paragraph loaded from cloud (story.generatedImages).
+// Falls back to imageJobId polling if images are still being generated.
+// One audio clip per paragraph loaded from story.audioUrls.
 
 struct StoryReplayView: View {
     @EnvironmentObject var authManager: AuthManager
@@ -25,36 +26,33 @@ struct StoryReplayView: View {
     // Audio
     @State private var audioPlayer: AVAudioPlayer?
     @State private var audioDelegate = AudioFinishDelegate()
-    @State private var ttsDelegate = TTSFinishDelegate()
-    private let synthesizer = AVSpeechSynthesizer()
 
-    // Images (polled from cloud if imageJobId is present)
+    // Paragraphs and images seeded from the freshest story doc
+    @State private var activeParagraphs: [StoryParagraph] = []
     @State private var paragraphImages: [String] = []
     @State private var imagePollingTimer: Timer?
 
     // MARK: - Computed
 
     private var currentParagraph: StoryParagraph? {
-        guard currentParagraphIndex < story.paragraphs.count else { return nil }
-        return story.paragraphs[currentParagraphIndex]
+        guard currentParagraphIndex < activeParagraphs.count else { return nil }
+        return activeParagraphs[currentParagraphIndex]
     }
 
     private var currentImage: String? {
         let idx = currentParagraphIndex
-        // Use polled image for this paragraph if available
         if paragraphImages.indices.contains(idx), !paragraphImages[idx].isEmpty {
             return paragraphImages[idx]
         }
-        // Fall back to story.images only at the exact same index (no clamping)
-        if story.images.indices.contains(idx), !story.images[idx].isEmpty {
-            return story.images[idx]
+        if let last = paragraphImages.lastIndex(where: { !$0.isEmpty }) {
+            return paragraphImages[last]
         }
         return nil
     }
 
     private var progress: Double {
-        guard !story.paragraphs.isEmpty else { return 0 }
-        return Double(currentParagraphIndex) / Double(story.paragraphs.count)
+        guard !activeParagraphs.isEmpty else { return 0 }
+        return Double(currentParagraphIndex) / Double(activeParagraphs.count)
     }
 
     // MARK: - Body
@@ -68,15 +66,13 @@ struct StoryReplayView: View {
             let btnPad: CGFloat = 16
 
             ZStack {
-                // ── Full-screen background ───────────────────────────────────
                 StoryImageView.bedtime(imageUrl: currentImage, driftScore: Int(progress * 100))
                     .frame(width: geo.size.width + safeLeft + safeRight,
                            height: geo.size.height + safeTop + safeBottom)
                     .offset(x: -safeLeft, y: -safeTop)
-                    .id(currentParagraphIndex)
                     .zIndex(0)
 
-                // ── Timer — top right ────────────────────────────────────────
+                // Timer — top right
                 VStack {
                     HStack {
                         Spacer()
@@ -93,7 +89,7 @@ struct StoryReplayView: View {
                 }
                 .zIndex(1)
 
-                // ── "Replaying" badge — top left ─────────────────────────────
+                // Replay badge — top left
                 VStack {
                     HStack {
                         HStack(spacing: 6) {
@@ -114,7 +110,7 @@ struct StoryReplayView: View {
                 }
                 .zIndex(1)
 
-                // ── Caption — bottom centre ──────────────────────────────────
+                // Caption — bottom centre
                 VStack {
                     Spacer()
                     if let paragraph = currentParagraph {
@@ -138,7 +134,7 @@ struct StoryReplayView: View {
                 }
                 .zIndex(1)
 
-                // ── Bottom-left: menu button ─────────────────────────────────
+                // Menu button — bottom left
                 VStack {
                     Spacer()
                     HStack {
@@ -159,13 +155,11 @@ struct StoryReplayView: View {
                 }
                 .zIndex(2)
 
-                // ── Menu sheet (bottom-up) ───────────────────────────────────
+                // Menu sheet
                 if showMenu {
                     Color.black.opacity(0.45)
                         .ignoresSafeArea()
-                        .onTapGesture {
-                            withAnimation(.spring(response: 0.3)) { showMenu = false }
-                        }
+                        .onTapGesture { withAnimation(.spring(response: 0.3)) { showMenu = false } }
                         .transition(.opacity)
                         .zIndex(90)
 
@@ -185,21 +179,18 @@ struct StoryReplayView: View {
                                 withAnimation { showMenu = false }
                             }
                             Divider().background(Color.white.opacity(0.15))
-
                             menuButton(icon: "backward.fill", label: "Previous Paragraph",
                                        color: .white) {
                                 prevParagraph()
                                 withAnimation { showMenu = false }
                             }
                             Divider().background(Color.white.opacity(0.15))
-
                             menuButton(icon: "forward.fill", label: "Next Paragraph",
                                        color: .white) {
                                 nextParagraph()
                                 withAnimation { showMenu = false }
                             }
                             Divider().background(Color.white.opacity(0.15))
-
                             menuButton(icon: "xmark.circle.fill", label: "Close Replay",
                                        color: Color(red: 1, green: 0.35, blue: 0.35)) {
                                 showMenu = false
@@ -222,11 +213,11 @@ struct StoryReplayView: View {
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showMenu)
         }
         .ignoresSafeArea()
-        .onAppear { startStory() }
+        .task { await loadAndStart() }
         .onDisappear { stopStory() }
     }
 
-    // MARK: - Menu button
+    // MARK: - Menu button helper
 
     private func menuButton(icon: String, label: String, color: Color,
                              action: @escaping () -> Void) -> some View {
@@ -248,25 +239,49 @@ struct StoryReplayView: View {
 
     // MARK: - Story lifecycle
 
-    private func startStory() {
-        // Seed paragraph images from already-stored URLs
-        paragraphImages = Array(repeating: "", count: story.paragraphs.count)
-        for (i, url) in story.images.enumerated() where i < paragraphImages.count {
-            paragraphImages[i] = url
+    /// Fetches the freshest story from the API (gets full generatedImages after background job
+    /// finishes), then seeds state and starts playback.
+    private func loadAndStart() async {
+        let token = authManager.accessToken ?? UserDefaults.standard.string(forKey: "accessToken")
+
+        var source: Story = story
+        do {
+            source = try await APIService.shared.getStory(storyId: story.id, token: token)
+        } catch {
+            print("⚠️ StoryReplayView: Could not refresh story, using cached copy: \(error)")
         }
 
-        // Poll cloud if a background image job was running when story was saved
-        if let jobId = story.imageJobId, !jobId.isEmpty {
-            startImagePolling(jobId: jobId)
-        }
+        await MainActor.run {
+            // Paragraphs from the freshest story text
+            activeParagraphs = source.paragraphs
 
-        // Elapsed-time ticker
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            guard self.isPlaying else { return }
-            self.elapsedTime += 1
-        }
+            // Seed per-paragraph images from the full generatedImages array
+            let images = source.generatedImages
+            paragraphImages = Array(repeating: "", count: activeParagraphs.count)
+            for (i, url) in images.enumerated() where i < paragraphImages.count {
+                paragraphImages[i] = url
+            }
+            // Forward-fill gaps so every paragraph has a fallback image
+            var lastGood = ""
+            for i in 0..<paragraphImages.count {
+                if !paragraphImages[i].isEmpty { lastGood = paragraphImages[i] }
+                else if !lastGood.isEmpty       { paragraphImages[i] = lastGood  }
+            }
 
-        playCurrentParagraph()
+            // Poll background image job only if there are still missing images
+            let stillMissing = paragraphImages.contains("")
+            if stillMissing, let jobId = source.imageJobId, !jobId.isEmpty {
+                startImagePolling(jobId: jobId)
+            }
+
+            // Elapsed-time ticker
+            timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+                guard self.isPlaying else { return }
+                self.elapsedTime += 1
+            }
+
+            playCurrentParagraph()
+        }
     }
 
     private func stopStory() {
@@ -274,7 +289,6 @@ struct StoryReplayView: View {
         stopImagePolling()
         audioPlayer?.stop()
         audioPlayer = nil
-        synthesizer.stopSpeaking(at: .immediate)
     }
 
     private func togglePlayback() {
@@ -283,8 +297,7 @@ struct StoryReplayView: View {
     }
 
     private func nextParagraph() {
-        guard currentParagraphIndex < story.paragraphs.count - 1 else {
-            // End of story — dismiss
+        guard currentParagraphIndex < activeParagraphs.count - 1 else {
             stopStory()
             dismiss()
             return
@@ -299,7 +312,6 @@ struct StoryReplayView: View {
         playCurrentParagraph()
     }
 
-    /// Called by AudioFinishDelegate when a paragraph's audio finishes.
     private func audioDidFinish() {
         guard isPlaying else { return }
         nextParagraph()
@@ -309,10 +321,11 @@ struct StoryReplayView: View {
         String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
     }
 
-    // MARK: - Image polling
+    // MARK: - Image polling (fallback when background job is still in progress)
 
     private func startImagePolling(jobId: String) {
-        let token = authManager.accessToken ?? UserDefaults.standard.string(forKey: "accessToken") ?? ""
+        let token = authManager.accessToken
+            ?? UserDefaults.standard.string(forKey: "accessToken") ?? ""
         guard !token.isEmpty else { return }
         fetchImages(jobId: jobId, token: token)
         imagePollingTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
@@ -331,7 +344,13 @@ struct StoryReplayView: View {
             await MainActor.run {
                 for (i, imgUrl) in images.enumerated()
                     where i < self.paragraphImages.count && !imgUrl.isEmpty {
-                    if self.paragraphImages[i].isEmpty { self.paragraphImages[i] = imgUrl }
+                    self.paragraphImages[i] = imgUrl
+                }
+                // Forward-fill gaps
+                var lastGood = ""
+                for i in 0..<self.paragraphImages.count {
+                    if !self.paragraphImages[i].isEmpty { lastGood = self.paragraphImages[i] }
+                    else if !lastGood.isEmpty           { self.paragraphImages[i] = lastGood  }
                 }
                 if json["complete"] as? Bool == true { self.stopImagePolling() }
             }
@@ -349,6 +368,7 @@ struct StoryReplayView: View {
         audioPlayer?.stop()
         guard let paragraph = currentParagraph else { return }
 
+        // Use the cloud audio URL stored per paragraph (ElevenLabs MP3 on R2)
         if let rawUrl = paragraph.audioUrl, !rawUrl.isEmpty {
             let fullUrl = rawUrl.hasPrefix("http")
                 ? URL(string: rawUrl)
@@ -358,6 +378,7 @@ struct StoryReplayView: View {
                 return
             }
         }
+        // Fallback: on-device TTS
         speakText(paragraph.text)
     }
 
@@ -391,15 +412,12 @@ struct StoryReplayView: View {
     }
 
     private func speakText(_ text: String) {
-        synthesizer.stopSpeaking(at: .immediate)
-        ttsDelegate.onFinish = { self.audioDidFinish() }
-        synthesizer.delegate = ttsDelegate
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
         utterance.rate = 0.35
         utterance.pitchMultiplier = 0.85
         utterance.volume = 0.9
-        synthesizer.speak(utterance)
+        AVSpeechSynthesizer().speak(utterance)
     }
 }
 

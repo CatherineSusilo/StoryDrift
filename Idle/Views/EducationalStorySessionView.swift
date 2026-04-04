@@ -594,7 +594,7 @@ struct EducationalStorySessionView: View {
         tickTimer?.invalidate()
         audioPlayer?.stop()
         vitalsManager.stopMonitoring()
-        
+
         // Save any collected drawings even if story wasn't completed
         if !minigameDrawings.isEmpty {
             print("📝 Story ended early - saving \(minigameDrawings.count) drawings")
@@ -602,11 +602,17 @@ struct EducationalStorySessionView: View {
         }
 
         if let sid = sessionId, let token = authManager.accessToken {
+            let capturedSid = sid
             Task {
-                _ = try? await APIService.shared.post(
-                    path: "/api/story-session/\(sid)/end",
-                    body: [:], token: token
-                )
+                do {
+                    _ = try await APIService.shared.post(
+                        path: "/api/story-session/\(capturedSid)/end",
+                        body: [:], token: token
+                    )
+                    print("✅ Session \(capturedSid) ended successfully")
+                } catch {
+                    print("⚠️ /end call failed (progress already saved in tick): \(error)")
+                }
             }
         }
     }

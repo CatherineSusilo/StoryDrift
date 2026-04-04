@@ -17,6 +17,7 @@ struct LessonRoadmapView: View {
     let onStartLesson: (LessonDefinition) -> Void
     var refreshTrigger: UUID = UUID()
 
+    @EnvironmentObject var authManager: AuthManager
     @State private var sections: [CurriculumSection] = []
     @State private var progress: ChildProgressResponse? = nil
     @State private var isLoading = true
@@ -74,8 +75,7 @@ struct LessonRoadmapView: View {
             }
             .navigationBarHidden(true)
             .task { await loadCurriculum() }
-            .onChange(of: refreshTrigger) { _ in Task { await loadCurriculum() } }
-        }
+            .onChange(of: refreshTrigger) { _, _ in Task { await loadCurriculum() } }        }
     }
 
     // MARK: - Sticky header (same style as other pages)
@@ -287,7 +287,8 @@ struct LessonRoadmapView: View {
         isLoading = true
         errorMessage = nil
 
-        guard let token = UserDefaults.standard.string(forKey: "accessToken") else {
+        let token = authManager.accessToken ?? UserDefaults.standard.string(forKey: "accessToken")
+        guard let token else {
             errorMessage = "Not logged in"; isLoading = false; return
         }
 

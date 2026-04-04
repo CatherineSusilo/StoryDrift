@@ -13,7 +13,7 @@ enum Secrets {
     // MARK: - Backend
     // ⚠️  Update this IP to your Mac's current LAN IP each time you switch WiFi.
     // Run `update-ip.sh` from the StoryDrift folder to do it automatically.
-    static let apiBaseURL: String = "http://100.66.66.162:3001"
+    static let apiBaseURL: String = "http://100.66.72.55:3001"
 
     // MARK: - AI Services
     static let geminiAPIKey: String      = value(for: "GeminiAPIKey")
