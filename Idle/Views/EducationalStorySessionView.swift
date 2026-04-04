@@ -40,10 +40,6 @@ struct EducationalStorySessionView: View {
     /// True once the first tick has returned a segment + image — until then keep showing loading
     @State private var hasFirstContent = false
 
-    // Cached lesson replay
-    @State private var cachedStory: Story? = nil
-    @State private var showCachedReplay = false
-
     // Story display
     @State private var currentSegment = ""
     @State private var currentImageUrl: String? = nil
@@ -107,20 +103,6 @@ struct EducationalStorySessionView: View {
         .animation(.easeInOut(duration: 0.4), value: showMinigame)
         .onAppear { Task { await startSession() } }
         .onDisappear { tearDown() }
-        .fullScreenCover(isPresented: $showCachedReplay, onDismiss: {
-            onComplete(EducationalSummary(
-                lessonName: lesson.name,
-                lessonEmoji: lesson.emoji,
-                lessonProgress: 100,
-                engagementHistory: [],
-                sessionDurationSeconds: 0
-            ))
-        }) {
-            if let story = cachedStory {
-                StoryReplayView(story: story)
-                    .environmentObject(authManager)
-            }
-        }
     }
 
     // MARK: - Background
@@ -299,18 +281,6 @@ struct EducationalStorySessionView: View {
                 lesson.curriculumLessonId
                 ?? UserDefaults.standard.string(forKey: "pendingCurriculumLessonId")
             UserDefaults.standard.removeObject(forKey: "pendingCurriculumLessonId")
-
-            // ── Check for a cached completed session first ──
-            if let lessonId = curriculumLessonId {
-                if let cached = try? await APIService.shared.getCachedLessonSession(
-                    childId: child.id, lessonId: lessonId, token: token
-                ) {
-                    print("📦 Using cached session for lesson: \(lessonId)")
-                    cachedStory = cached
-                    showCachedReplay = true
-                    return
-                }
-            }
 
             var body: [String: Any] = [
                 "mode": "educational",

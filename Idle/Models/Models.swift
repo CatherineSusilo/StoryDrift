@@ -124,6 +124,8 @@ struct Story: Codable, Identifiable {
     var minigameFrequency: String?
     /// Whether Presage face detection camera was enabled for this story.
     var cameraEnabled: Bool?
+    /// Set for educational stories generated from the curriculum roadmap.
+    var curriculumLessonId: String?
     let createdAt: Date
     let updatedAt: Date
 

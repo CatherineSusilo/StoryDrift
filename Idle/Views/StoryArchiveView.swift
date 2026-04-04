@@ -9,10 +9,12 @@ struct StoryArchiveView: View {
     let childId: String
 
     var sortedStories: [Story] {
+        // Only show bedtime stories — educational/lesson sessions are accessed via the Journey page
+        let bedtime = stories.filter { $0.storytellingTone != "educational" }
         switch sortBy {
-        case .date:     return stories.sorted { $0.generatedAt > $1.generatedAt }
-        case .duration: return stories.sorted { ($0.duration ?? 0) > ($1.duration ?? 0) }
-        case .drift:    return stories.sorted { ($0.driftScores.last ?? 0) > ($1.driftScores.last ?? 0) }
+        case .date:     return bedtime.sorted { $0.generatedAt > $1.generatedAt }
+        case .duration: return bedtime.sorted { ($0.duration ?? 0) > ($1.duration ?? 0) }
+        case .drift:    return bedtime.sorted { ($0.driftScores.last ?? 0) > ($1.driftScores.last ?? 0) }
         }
     }
 
@@ -27,7 +29,7 @@ struct StoryArchiveView: View {
                         Text("story archive")
                             .font(Theme.titleFont(size: 28))
                             .foregroundColor(Theme.ink)
-                        Text("\(stories.count) stories")
+                        Text("\(sortedStories.count) stories")
                             .font(Theme.bodyFont(size: 14))
                             .foregroundColor(Theme.inkMuted)
                     }

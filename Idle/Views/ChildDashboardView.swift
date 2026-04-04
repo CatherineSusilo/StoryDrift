@@ -97,7 +97,7 @@ struct ChildDashboardView: View {
             let stats = try await statsTask
             
             await MainActor.run {
-                recentStories = stories
+                recentStories = stories.filter { $0.storytellingTone != "educational" }
                 statistics = stats
                 print("✅ Dashboard: Loaded \(stories.count) stories, stats: \(stats.summary.totalSessions) sessions")
             }

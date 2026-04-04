@@ -22,6 +22,8 @@ struct LessonRoadmapView: View {
     @State private var progress: ChildProgressResponse? = nil
     @State private var isLoading = true
     @State private var errorMessage: String? = nil
+    @State private var loadingLessonId: String? = nil   // node spinner
+    @State private var cachedStoryForReplay: Story? = nil  // set when cache hit found
 
     // Parchment palette
     private let bg     = Color(red: 0.929, green: 0.894, blue: 0.827)
@@ -75,7 +77,12 @@ struct LessonRoadmapView: View {
             }
             .navigationBarHidden(true)
             .task { await loadCurriculum() }
-            .onChange(of: refreshTrigger) { _, _ in Task { await loadCurriculum() } }        }
+            .onChange(of: refreshTrigger) { _, _ in Task { await loadCurriculum() } }
+        }
+        .fullScreenCover(item: $cachedStoryForReplay) { story in
+            StoryReplayView(story: story)
+                .environmentObject(authManager)
+        }
     }
 
     // MARK: - Sticky header (same style as other pages)
@@ -220,13 +227,23 @@ struct LessonRoadmapView: View {
         let stars     = prog?.stars ?? 0
 
         return Button {
-            guard unlocked else { return }
+            guard unlocked, loadingLessonId == nil else { return }
             let legacyLesson = LessonDefinition(
                 id: lesson.id, name: lesson.name, description: lesson.description,
                 emoji: section.emoji, ageMin: 2, ageMax: 5,
-                curriculumLessonId: lesson.id   // carry the ID directly — no UserDefaults race
+                curriculumLessonId: lesson.id
             )
-            onStartLesson(legacyLesson)
+            loadingLessonId = lesson.id
+            Task {
+                defer { loadingLessonId = nil }
+                if let token = authManager.accessToken,
+                   let cached = try? await APIService.shared.getCachedLessonSession(
+                       childId: child.id, lessonId: lesson.id, token: token) {
+                    cachedStoryForReplay = cached
+                } else {
+                    onStartLesson(legacyLesson)
+                }
+            }
         } label: {
             VStack(spacing: 5) {
                 ZStack {
@@ -238,7 +255,9 @@ struct LessonRoadmapView: View {
                         .stroke(completed ? sectionColor : unlocked ? sectionColor.opacity(0.6) : Color(white: 0.75), lineWidth: 3)
                         .frame(width: 64, height: 64)
 
-                    if completed {
+                    if loadingLessonId == lesson.id {
+                        ProgressView().tint(completed ? .white : sectionColor)
+                    } else if completed {
                         Image(systemName: "checkmark")
                             .font(.system(size: 26, weight: .bold))
                             .foregroundColor(.white)
