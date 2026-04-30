@@ -9,7 +9,7 @@ PORT=3001
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SECRETS="$SCRIPT_DIR/Idle/Services/Secrets.swift"
 PLIST="$SCRIPT_DIR/Idle/Resources/Info.plist"
-BACKEND="$SCRIPT_DIR/StoryDrift-backend"
+BACKEND="$SCRIPT_DIR/Idle/StoryDrift-backend"
 LOG="/tmp/storydrift-backend.log"
 
 # ── 1. Detect current LAN IP ─────────────────────────────────────────────────

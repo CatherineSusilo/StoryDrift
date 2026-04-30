@@ -26,6 +26,8 @@ struct StoryReplayView: View {
     // Audio
     @State private var audioPlayer: AVAudioPlayer?
     @State private var audioDelegate = AudioFinishDelegate()
+    @State private var ttsDelegate = TTSFinishDelegate()
+    private let synthesizer = AVSpeechSynthesizer()
 
     // Paragraphs and images seeded from the freshest story doc
     @State private var activeParagraphs: [StoryParagraph] = []
@@ -289,6 +291,7 @@ struct StoryReplayView: View {
         stopImagePolling()
         audioPlayer?.stop()
         audioPlayer = nil
+        synthesizer.stopSpeaking(at: .immediate)
     }
 
     private func togglePlayback() {
@@ -302,14 +305,18 @@ struct StoryReplayView: View {
             dismiss()
             return
         }
+        audioPlayer?.stop()
+        synthesizer.stopSpeaking(at: .immediate)
         withAnimation { currentParagraphIndex += 1 }
-        playCurrentParagraph()
+        DispatchQueue.main.async { self.playCurrentParagraph() }
     }
 
     private func prevParagraph() {
         guard currentParagraphIndex > 0 else { return }
+        audioPlayer?.stop()
+        synthesizer.stopSpeaking(at: .immediate)
         withAnimation { currentParagraphIndex -= 1 }
-        playCurrentParagraph()
+        DispatchQueue.main.async { self.playCurrentParagraph() }
     }
 
     private func audioDidFinish() {
@@ -412,12 +419,15 @@ struct StoryReplayView: View {
     }
 
     private func speakText(_ text: String) {
+        synthesizer.stopSpeaking(at: .immediate)
+        ttsDelegate.onFinish = { self.audioDidFinish() }
+        synthesizer.delegate = ttsDelegate
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
         utterance.rate = 0.35
         utterance.pitchMultiplier = 0.85
         utterance.volume = 0.9
-        AVSpeechSynthesizer().speak(utterance)
+        synthesizer.speak(utterance)
     }
 }
 

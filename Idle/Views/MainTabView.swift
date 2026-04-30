@@ -29,6 +29,11 @@ enum NavDestination: Int, CaseIterable {
         case .settings:   return "gearshape.fill"
         }
     }
+
+    /// Destinations that live inside the "collections" dropdown group
+    static let collectionItems: [NavDestination] = [.drawings, .themes, .characters]
+    /// Top-level destinations shown directly (not inside a group)
+    static let topLevel: [NavDestination] = [.home, .journey, .analytics, .stories, .settings]
 }
 
 // MARK: - MainTabView
@@ -44,6 +49,15 @@ struct MainTabView: View {
     @State private var isLoading = true
     @State private var selectedDest: NavDestination = .home
     @State private var menuOpen = false
+    @State private var collectionsExpanded = false
+
+    // Parental gate
+    @StateObject private var gateManager = ParentalGateManager.shared
+    @State private var showPasscodeGate = false   // passcode prompt before settings
+    @State private var pendingSettingsDest: NavDestination? = nil
+
+    /// Destinations available to child (non-parent) mode
+    private let childModeDestinations: Set<NavDestination> = [.home, .stories, .journey, .settings]
 
     // Educational lesson selection
     @State private var selectedLesson: LessonDefinition? = nil
@@ -56,6 +70,19 @@ struct MainTabView: View {
 
     /// True when running on iPhone (compact horizontal size class)
     private var isCompact: Bool { hSizeClass == .compact }
+
+    /// Navigate to a destination, showing the passcode gate for Settings in child mode.
+    private func navigate(to dest: NavDestination) {
+        if dest == .settings && !gateManager.isParentMode {
+            pendingSettingsDest = dest
+            showPasscodeGate = true
+        } else {
+            withAnimation(.spring(response: 0.3)) {
+                selectedDest = dest
+                menuOpen = false
+            }
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -108,6 +135,30 @@ struct MainTabView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: menuOpen)
+        .onAppear {
+            if NavDestination.collectionItems.contains(selectedDest) {
+                collectionsExpanded = true
+            }
+        }
+        .fullScreenCover(isPresented: $showPasscodeGate) {
+            PasscodeEntryView(
+                mode: .unlock,
+                title: "parent access",
+                subtitle: "enter your passcode to open settings"
+            ) { _ in
+                gateManager.enterParentMode()
+                showPasscodeGate = false
+                if let dest = pendingSettingsDest {
+                    withAnimation(.spring(response: 0.3)) { selectedDest = dest; menuOpen = false }
+                    pendingSettingsDest = nil
+                }
+            } onCancel: {
+                showPasscodeGate = false
+                pendingSettingsDest = nil
+                withAnimation(.spring(response: 0.3)) { selectedDest = .home }
+            }
+            .environmentObject(authManager)
+        }
         .fullScreenCover(isPresented: $showBedtimeSession) {
             if let child = selectedChild ?? children.first.map({ $0 }) {
                 BedtimeStorySessionView(child: child) { _, _ in
@@ -219,17 +270,78 @@ struct MainTabView: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 8)
 
-                // 2-column grid of all nav destinations
-                LazyVGrid(
-                    columns: [GridItem(.flexible()), GridItem(.flexible())],
-                    spacing: 0
-                ) {
-                    ForEach(NavDestination.allCases, id: \.self) { dest in
+                // 2-column grid of top-level nav destinations
+                let collectionsActive = NavDestination.collectionItems.contains(selectedDest)
+                let visibleTopLevel = gateManager.isParentMode
+                    ? NavDestination.topLevel
+                    : NavDestination.topLevel.filter { childModeDestinations.contains($0) }
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 0) {
+                    ForEach(visibleTopLevel, id: \.self) { dest in
                         compactNavTile(dest)
+                    }
+                    if gateManager.isParentMode {
+                        Button {
+                            withAnimation(.spring(response: 0.3)) { collectionsExpanded.toggle() }
+                        } label: {
+                            VStack(spacing: 6) {
+                                ZStack(alignment: .topTrailing) {
+                                    Image(systemName: "folder.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(collectionsActive ? Theme.ink : Theme.inkMuted)
+                                        .frame(width: 36, height: 36)
+                                        .background(Circle().fill(collectionsActive ? Theme.accent.opacity(0.4) : Color.clear))
+                                    Image(systemName: collectionsExpanded ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(Theme.inkMuted)
+                                        .offset(x: 4, y: -4)
+                                }
+                                Text("collections")
+                                    .font(Theme.bodyFont(size: 11))
+                                    .foregroundColor(collectionsActive ? Theme.ink : Theme.inkMuted)
+                                    .fontWeight(collectionsActive ? .bold : .regular)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(RoundedRectangle(cornerRadius: Theme.radiusSM)
+                                .fill(collectionsActive ? Theme.accent.opacity(0.2) : Color.clear))
+                            .padding(.horizontal, 4)
+                        }
                     }
                 }
                 .padding(.horizontal, 8)
-                .padding(.bottom, 8)
+
+                if gateManager.isParentMode && collectionsExpanded {
+                    VStack(spacing: 0) {
+                        ForEach(NavDestination.collectionItems, id: \.self) { dest in
+                            compactCollectionRow(dest)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
+                Spacer().frame(height: 8)
+
+                Divider()
+                    .background(Theme.border)
+                    .padding(.horizontal, 16)
+
+                Button(action: { authManager.logout() }) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.system(size: 16))
+                        Text("sign out")
+                            .font(Theme.bodyFont(size: 16))
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(Theme.destructive)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                }
+
+                Spacer().frame(height: 4)
             }
             .background(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
@@ -245,10 +357,7 @@ struct MainTabView: View {
     private func compactNavTile(_ dest: NavDestination) -> some View {
         let isActive = selectedDest == dest
         return Button {
-            withAnimation(.spring(response: 0.3)) {
-                selectedDest = dest
-                menuOpen = false
-            }
+            navigate(to: dest)
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: dest.icon)
@@ -273,6 +382,33 @@ struct MainTabView: View {
                     .fill(isActive ? Theme.accent.opacity(0.2) : Color.clear)
             )
             .padding(.horizontal, 4)
+        }
+    }
+
+    // MARK: - Compact collection row (expanded sub-item in bottom sheet)
+    private func compactCollectionRow(_ dest: NavDestination) -> some View {
+        let isActive = selectedDest == dest
+        return Button {
+            navigate(to: dest)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: dest.icon)
+                    .font(.system(size: 16))
+                    .foregroundColor(isActive ? Theme.ink : Theme.inkMuted)
+                    .frame(width: 28)
+                Text(dest.label)
+                    .font(Theme.bodyFont(size: 15))
+                    .foregroundColor(isActive ? Theme.ink : Theme.inkMuted)
+                    .fontWeight(isActive ? .bold : .regular)
+                Spacer()
+            }
+            .padding(.vertical, 11)
+            .padding(.horizontal, 14)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.radiusSM)
+                    .fill(isActive ? Theme.accent.opacity(0.2) : Theme.background.opacity(0.5))
+            )
+            .padding(.vertical, 2)
         }
     }
 
@@ -312,13 +448,78 @@ struct MainTabView: View {
 
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(NavDestination.allCases, id: \.self) { dest in
+                        let visibleTop = gateManager.isParentMode
+                            ? NavDestination.topLevel
+                            : NavDestination.topLevel.filter { childModeDestinations.contains($0) }
+                        ForEach(visibleTop, id: \.self) { dest in
                             navRow(dest)
                         }
+
+                        // Collections expandable group — parent mode only
+                        if gateManager.isParentMode {
+                        let collectionsActive = NavDestination.collectionItems.contains(selectedDest)
+                        Button {
+                            withAnimation(.spring(response: 0.3)) { collectionsExpanded.toggle() }
+                        } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: "folder.fill")
+                                    .font(.system(size: 17))
+                                    .foregroundColor(collectionsActive ? Theme.ink : Theme.inkMuted)
+                                    .frame(width: 24)
+                                Text("collections")
+                                    .font(Theme.bodyFont(size: 17))
+                                    .fontWeight(collectionsActive ? .bold : .regular)
+                                    .foregroundColor(collectionsActive ? Theme.ink : Theme.inkMuted)
+                                Spacer()
+                                Image(systemName: collectionsExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(Theme.inkMuted)
+                            }
+                            .padding(.vertical, 12)
+                            .padding(.horizontal, 20)
+                            .background(
+                                collectionsActive
+                                    ? Theme.accent.opacity(0.35)
+                                        .cornerRadius(Theme.radiusSM)
+                                        .padding(.horizontal, 8)
+                                    : nil
+                            )
+                        }
+
+                        if collectionsExpanded {
+                            VStack(spacing: 0) {
+                                ForEach(NavDestination.collectionItems, id: \.self) { dest in
+                                    navRow(dest, indented: true)
+                                }
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+                        } // end if gateManager.isParentMode
                     }
                 }
 
                 Spacer()
+
+                Divider()
+                    .background(Theme.border)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 4)
+
+                Button(action: { authManager.logout() }) {
+                    HStack(spacing: 14) {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.system(size: 17))
+                            .foregroundColor(Theme.destructive)
+                            .frame(width: 24)
+                        Text("sign out")
+                            .font(Theme.bodyFont(size: 17))
+                            .foregroundColor(Theme.destructive)
+                        Spacer()
+                    }
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 20)
+                }
+                .padding(.bottom, 16)
             }
         }
         .frame(width: 280)
@@ -327,26 +528,30 @@ struct MainTabView: View {
 
     // MARK: - Nav row (iPad sidebar)
     @ViewBuilder
-    private func navRow(_ dest: NavDestination) -> some View {
+    private func navRow(_ dest: NavDestination, indented: Bool = false) -> some View {
         let isActive = selectedDest == dest
         Button {
-            withAnimation(.spring(response: 0.3)) {
-                selectedDest = dest
-                menuOpen = false
-            }
+            navigate(to: dest)
         } label: {
             HStack(spacing: 14) {
+                if indented {
+                    Rectangle().fill(Color.clear).frame(width: 16)
+                    Rectangle()
+                        .fill(Theme.border)
+                        .frame(width: 2, height: 20)
+                        .cornerRadius(1)
+                }
                 Image(systemName: dest.icon)
-                    .font(.system(size: 17))
+                    .font(.system(size: indented ? 15 : 17))
                     .foregroundColor(isActive ? Theme.ink : Theme.inkMuted)
                     .frame(width: 24)
                 Text(dest.label)
-                    .font(Theme.bodyFont(size: 17))
+                    .font(Theme.bodyFont(size: indented ? 15 : 17))
                     .fontWeight(isActive ? .bold : .regular)
                     .foregroundColor(isActive ? Theme.ink : Theme.inkMuted)
                 Spacer()
             }
-            .padding(.vertical, 12)
+            .padding(.vertical, indented ? 10 : 12)
             .padding(.horizontal, 20)
             .background(
                 isActive

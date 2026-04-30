@@ -9,10 +9,15 @@ struct ChildOnboardingView: View {
     @State private var selectedTone: StorytellingTone = .calming
     @State private var parentPrompt = ""
     @State private var selectedState: InitialState = .normal
+    @State private var passcode = ""          // set during step 4
+    @State private var passcodeConfirm = ""
+    @State private var passcodeError = ""
     @State private var isCreating = false
-    
+
+    private let totalSteps = 5   // 0-4
+
     let onComplete: (ChildProfile) -> Void
-    
+
     var body: some View {
         ZStack {
             // Background
@@ -25,11 +30,11 @@ struct ChildOnboardingView: View {
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            
+
             VStack(spacing: 24) {
-                // Progress indicator
+                // Progress indicator — now 5 steps
                 HStack(spacing: 8) {
-                    ForEach(0..<4) { index in
+                    ForEach(0..<totalSteps) { index in
                         RoundedRectangle(cornerRadius: 4)
                             .fill(index <= currentStep ? Color.purple : Color.white.opacity(0.3))
                             .frame(height: 4)
@@ -37,32 +42,29 @@ struct ChildOnboardingView: View {
                 }
                 .padding(.horizontal)
                 .padding(.top)
-                
+
                 ScrollView {
                     VStack(spacing: 32) {
                         switch currentStep {
-                        case 0:
-                            Step1View(name: $childName, age: $childAge)
-                        case 1:
-                            Step2View(tone: $selectedTone)
-                        case 2:
-                            Step3View(prompt: $parentPrompt)
-                        case 3:
-                            Step4View(state: $selectedState)
-                        default:
-                            EmptyView()
+                        case 0: Step1View(name: $childName, age: $childAge)
+                        case 1: Step2View(tone: $selectedTone)
+                        case 2: Step3View(prompt: $parentPrompt)
+                        case 3: Step4View(state: $selectedState)
+                        case 4: PasscodeSetupStepView(
+                                    passcode: $passcode,
+                                    confirm: $passcodeConfirm,
+                                    errorMessage: $passcodeError)
+                        default: EmptyView()
                         }
                     }
                     .padding()
                 }
-                
+
                 // Navigation buttons
                 HStack(spacing: 16) {
                     if currentStep > 0 {
                         Button("Back") {
-                            withAnimation {
-                                currentStep -= 1
-                            }
+                            withAnimation { currentStep -= 1 }
                         }
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -70,25 +72,20 @@ struct ChildOnboardingView: View {
                         .background(Color.white.opacity(0.1))
                         .cornerRadius(16)
                     }
-                    
-                    Button(currentStep == 3 ? "Create Profile" : "Next") {
-                        if currentStep == 3 {
+
+                    Button(currentStep == totalSteps - 1 ? "Create Profile" : "Next") {
+                        if currentStep == totalSteps - 1 {
+                            guard validatePasscode() else { return }
                             createChild()
                         } else {
-                            withAnimation {
-                                currentStep += 1
-                            }
+                            withAnimation { currentStep += 1 }
                         }
                     }
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 56)
                     .background(
-                        LinearGradient(
-                            colors: [.purple, .blue],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
+                        LinearGradient(colors: [.purple, .blue], startPoint: .leading, endPoint: .trailing)
                     )
                     .cornerRadius(16)
                     .disabled(isCreating || !canProceed)
@@ -97,21 +94,27 @@ struct ChildOnboardingView: View {
             }
         }
     }
-    
+
     private var canProceed: Bool {
         switch currentStep {
-        case 0:
-            return !childName.isEmpty && childAge >= 2 && childAge <= 12
-        case 2:
-            return !parentPrompt.isEmpty
-        default:
-            return true
+        case 0: return !childName.isEmpty && childAge >= 2 && childAge <= 12
+        case 2: return !parentPrompt.isEmpty
+        case 4: return passcode.count == 6 && passcodeConfirm.count == 6
+        default: return true
         }
     }
-    
+
+    private func validatePasscode() -> Bool {
+        if passcode != passcodeConfirm {
+            passcodeError = "passcodes don't match"
+            return false
+        }
+        passcodeError = ""
+        return true
+    }
+
     private func createChild() {
         guard let token = authManager.accessToken else { return }
-
         isCreating = true
 
         let request = CreateChildRequest(
@@ -131,13 +134,11 @@ struct ChildOnboardingView: View {
 
         Task {
             do {
-                let createdChild = try await APIService.shared.createChild(
-                    request: request,
-                    token: token
-                )
+                let createdChild = try await APIService.shared.createChild(request: request, token: token)
                 DispatchQueue.main.async {
-                    onComplete(createdChild)
-                    dismiss()
+                    ParentalGateManager.shared.setPasscode(self.passcode, token: self.authManager.accessToken)
+                    self.onComplete(createdChild)
+                    self.dismiss()
                 }
             } catch {
                 print("Error creating child: \(error)")
@@ -379,6 +380,54 @@ struct StateOptionView: View {
                             )
                     )
             )
+        }
+    }
+}
+
+struct PasscodeSetupStepView: View {
+    @Binding var passcode: String
+    @Binding var confirm: String
+    @Binding var errorMessage: String
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 60))
+                .foregroundColor(.purple)
+            
+            Text("Set a Passcode")
+                .font(.system(size: 28, weight: .bold))
+                .foregroundColor(.white)
+            
+            Text("Choose a 6-digit passcode for parental controls")
+                .font(.system(size: 16))
+                .foregroundColor(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+            
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Passcode")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white.opacity(0.8))
+                
+                SecureField("Enter passcode", text: $passcode)
+                    .textFieldStyle(CustomTextFieldStyle())
+                
+                Text("Confirm Passcode")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white.opacity(0.8))
+                    .padding(.top, 8)
+                
+                SecureField("Re-enter passcode", text: $confirm)
+                    .textFieldStyle(CustomTextFieldStyle())
+                
+                if !errorMessage.isEmpty {
+                    Text(errorMessage)
+                        .font(.system(size: 14))
+                        .foregroundColor(.red)
+                        .padding(.top, 8)
+                }
+            }
+            .padding(.top, 16)
         }
     }
 }

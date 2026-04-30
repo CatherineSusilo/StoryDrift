@@ -6,9 +6,11 @@ struct SettingsView: View {
     @Binding var children: [ChildProfile]
     @Binding var selectedChild: ChildProfile?
 
+    @StateObject private var gateManager = ParentalGateManager.shared
+
     @State private var showingAddChild = false
-    @State private var debugMode = false
     @State private var showAISettings = false
+    @State private var showResetPasscode = false   // reset passcode sheet
 
     var body: some View {
         ZStack {
@@ -74,20 +76,49 @@ struct SettingsView: View {
                         parchmentNavRow(icon: "paintpalette.fill", label: "ai customization")   { showAISettings = true }
                     }
 
-                    // ── Advanced ──
-                    settingsSection(title: "advanced") {
-                        SettingsRow(icon: "ladybug.fill", title: "debug mode", subtitle: "show technical information", toggle: $debugMode)
-                        if debugMode {
-                            VStack(alignment: .leading, spacing: 8) {
-                                DebugInfoRow(label: "heart rate",    value: "\(Int(vitalsManager.currentHeartRate)) bpm")
-                                DebugInfoRow(label: "breathing",     value: String(format: "%.1f rpm", vitalsManager.currentBreathingRate))
-                                DebugInfoRow(label: "signal quality",value: "\(vitalsManager.signalQuality)%")
-                                DebugInfoRow(label: "drift score",   value: "\(Int(vitalsManager.driftScore))%")
+                    // ── Parental Controls ──
+                    settingsSection(title: "parental controls") {
+                        // Current mode badge
+                        HStack(spacing: 10) {
+                            Image(systemName: gateManager.isParentMode ? "lock.open.fill" : "lock.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(gateManager.isParentMode ? Theme.success : Theme.inkMuted)
+                                .frame(width: 28)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(gateManager.isParentMode ? "parent mode" : "child mode")
+                                    .font(Theme.bodyFont(size: 16))
+                                    .foregroundColor(Theme.ink)
+                                Text(gateManager.isParentMode ? "full access enabled" : "limited access")
+                                    .font(Theme.bodyFont(size: 12))
+                                    .foregroundColor(Theme.inkMuted)
                             }
-                            .padding(12)
-                            .background(Theme.background)
-                            .cornerRadius(Theme.radiusSM)
-                            .overlay(RoundedRectangle(cornerRadius: Theme.radiusSM).stroke(Theme.border, lineWidth: 1))
+                            Spacer()
+                            // Mode toggle button
+                            Button {
+                                if gateManager.isParentMode {
+                                    gateManager.enterChildMode()
+                                }
+                                // Switching TO parent mode is handled via settings gate (already unlocked since we're in settings)
+                            } label: {
+                                Text(gateManager.isParentMode ? "switch to child" : "in parent mode")
+                                    .font(Theme.bodyFont(size: 13))
+                                    .foregroundColor(gateManager.isParentMode ? Theme.destructive : Theme.success)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        (gateManager.isParentMode ? Theme.destructive : Theme.success).opacity(0.12)
+                                    )
+                                    .cornerRadius(Theme.radiusSM)
+                            }
+                            .disabled(!gateManager.isParentMode)
+                        }
+                        .padding(.vertical, 4)
+
+                        Divider().background(Theme.border)
+
+                        // Reset passcode
+                        parchmentNavRow(icon: "key.fill", label: "reset passcode") {
+                            showResetPasscode = true
                         }
                     }
 
@@ -104,22 +135,6 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity)
                     .padding(20)
 
-                    // ── Sign out ──
-                    Button(action: { authManager.logout() }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "rectangle.portrait.and.arrow.right")
-                            Text("sign out")
-                                .fontWeight(.semibold)
-                        }
-                        .font(Theme.bodyFont(size: 17))
-                        .foregroundColor(Theme.destructive)
-                        .frame(maxWidth: .infinity)
-                        .padding(16)
-                        .background(Theme.destructive.opacity(0.08))
-                        .cornerRadius(Theme.radiusMD)
-                        .overlay(RoundedRectangle(cornerRadius: Theme.radiusMD).stroke(Theme.destructive.opacity(0.25), lineWidth: 1.5))
-                    }
-
                     Spacer(minLength: 32)
                 }
                 .padding(.horizontal, 20)
@@ -135,6 +150,15 @@ struct SettingsView: View {
         .fullScreenCover(isPresented: $showAISettings) {
             AISettingsView(onBack: { showAISettings = false })
                 .environmentObject(authManager)
+        }
+        .fullScreenCover(isPresented: $showResetPasscode) {
+            PasscodeEntryView(mode: .reset, title: "reset passcode") { newPin in
+                gateManager.resetPasscode(newPin: newPin, token: authManager.accessToken)
+                showResetPasscode = false
+            } onCancel: {
+                showResetPasscode = false
+            }
+            .environmentObject(authManager)
         }
     }
 

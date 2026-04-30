@@ -370,7 +370,7 @@ struct AISettingsView: View {
         defer { voicesLoading = false }
         do {
             let response: ElevenLabsVoicesResponse = try await APIService.shared.request(
-                endpoint: "/api/voices",
+                endpoint: "/api/audio/voices",
                 token: token
             )
             await MainActor.run {

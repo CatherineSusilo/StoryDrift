@@ -216,6 +216,13 @@ struct StoryPlaybackView: View {
                             }
                             Divider().background(Color.white.opacity(0.15))
 
+                            menuButton(icon: "backward.fill", label: "Previous Paragraph", color: .white) {
+                                paragraphElapsed = 0
+                                prevParagraph()
+                                withAnimation { showMenu = false }
+                            }
+                            Divider().background(Color.white.opacity(0.15))
+
                             menuButton(icon: "forward.fill", label: "Next Paragraph", color: .white) {
                                 paragraphElapsed = 0
                                 nextParagraph()
@@ -381,15 +388,25 @@ struct StoryPlaybackView: View {
         guard currentParagraphIndex < story.paragraphs.count - 1 else {
             completeStory(); return
         }
+        audioPlayer?.stop()
+        synthesizer.stopSpeaking(at: .immediate)
         paragraphElapsed = 0
 
-        // Only increment if minigames are enabled (avoid Int.max overflow)
         if minigameGap < Int.max {
             paragraphsSinceLastMinigame += 1
         }
 
         withAnimation { currentParagraphIndex += 1 }
-        playCurrentParagraph()
+        DispatchQueue.main.async { self.playCurrentParagraph() }
+    }
+
+    private func prevParagraph() {
+        guard currentParagraphIndex > 0 else { return }
+        audioPlayer?.stop()
+        synthesizer.stopSpeaking(at: .immediate)
+        paragraphElapsed = 0
+        withAnimation { currentParagraphIndex -= 1 }
+        DispatchQueue.main.async { self.playCurrentParagraph() }
     }
 
     /// Called by AudioFinishDelegate when a paragraph's audio finishes.
