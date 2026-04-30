@@ -142,6 +142,52 @@ class AuthManager: NSObject, ObservableObject {
         }
     }
     
+    /// Re-authenticates the user via Auth0 (forces login prompt) to verify identity.
+    /// On success calls completion(true); on cancel/failure calls completion(false).
+    func reauthenticate(completion: @escaping (Bool) -> Void) {
+        let valueAllowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "+&="))
+        let encode: (String) -> String = { s in
+            s.addingPercentEncoding(withAllowedCharacters: valueAllowed) ?? s
+        }
+        let parts = [
+            "client_id=\(encode(clientId))",
+            "redirect_uri=\(encode(redirectUri))",
+            "response_type=code",
+            "scope=\(encode("openid profile email offline_access"))",
+            "audience=\(encode(audience))",
+            "prompt=login"   // force re-entry of credentials
+        ]
+        let urlString = "https://\(domain)/authorize?\(parts.joined(separator: "&"))"
+        guard let url = URL(string: urlString) else { completion(false); return }
+
+        let session = ASWebAuthenticationSession(
+            url: url,
+            callbackURLScheme: "idle"
+        ) { [weak self] callbackURL, error in
+            guard let self else { completion(false); return }
+            if let error = error {
+                let nsError = error as NSError
+                // Code 1 = user cancelled
+                if nsError.code != 1 { print("❌ Reauth error: \(error.localizedDescription)") }
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            guard let callbackURL,
+                  let code = self.extractCode(from: callbackURL) else {
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            // Exchange code for a fresh token, then signal success
+            self.exchangeCodeForToken(code: code, completion: { success in
+                DispatchQueue.main.async { completion(success) }
+            })
+        }
+        session.presentationContextProvider = self
+        session.prefersEphemeralWebBrowserSession = true
+        session.start()
+        authSession = session
+    }
+
     private func buildAuthURL() -> URL {
         var valueAllowed = CharacterSet.urlQueryAllowed
         valueAllowed.remove(charactersIn: ":/?#[]@!$&'()*+,;=")
@@ -168,6 +214,16 @@ class AuthManager: NSObject, ObservableObject {
         return components?.queryItems?.first(where: { $0.name == "code" })?.value
     }
     
+    private func exchangeCodeForToken(code: String, completion: @escaping (Bool) -> Void) {
+        // Use the existing exchange and watch isAuthenticated change
+        let before = isAuthenticated
+        exchangeCodeForToken(code: code)
+        // Poll briefly for the result (the exchange is async via dataTask)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            completion(self?.isAuthenticated == true && self?.isAuthenticated != before || self?.isAuthenticated == true)
+        }
+    }
+
     private func exchangeCodeForToken(code: String) {
         guard let url = URL(string: "https://\(domain)/oauth/token") else {
             DispatchQueue.main.async { self.isLoading = false }
@@ -277,6 +333,8 @@ class AuthManager: NSObject, ObservableObject {
                     self.loginError = nil
                     print("✅ Logged in as \(user.email)")
                 }
+                // Sync parental passcode from MongoDB (handles reinstall case)
+                Task { await ParentalGateManager.shared.syncFromBackend(token: accessToken) }
             } catch {
                 let raw = String(data: data, encoding: .utf8) ?? "nil"
                 print("❌ Profile parse error: \(error)\nRaw: \(raw)")
