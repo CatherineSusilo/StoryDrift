@@ -118,6 +118,14 @@ class StoryVitalsTracker: ObservableObject {
     /// Computed drowsiness score 0–1 forwarded to VitalsManager.
     @Published var eyeDrowsinessScore: Double = 0
 
+    // MARK: - Face loss / retry state
+    /// Timestamp of the last frame where a face WAS detected.
+    private var lastFaceDetectedTime: Date?
+    /// Whether a face-loss retry is already scheduled (prevents stacking timers).
+    private var faceRetryScheduled: Bool = false
+    /// Weak reference to the vitalsManager for face-loss restarts.
+    private weak var vitalsManagerRef: VitalsManager?
+
 #if canImport(SmartSpectraSwiftSDK)
     private lazy var sdk = SmartSpectraSwiftSDK.shared
     private lazy var processor = SmartSpectraVitalsProcessor.shared
@@ -148,6 +156,9 @@ class StoryVitalsTracker: ObservableObject {
         self.isTracking = true
         self.sdkStarted = false
         self.sdkStarting = false
+        self.vitalsManagerRef = vitalsManager
+        self.lastFaceDetectedTime = Date()   // assume face present at start
+        self.faceRetryScheduled = false
 
         // Always cancel any lingering Combine subscriptions from a prior session
         // BEFORE the cameraEnabled check so old sdk.$metricsBuffer / $edgeMetrics
@@ -271,6 +282,8 @@ class StoryVitalsTracker: ObservableObject {
         isTracking = false
         sdkStarting = false
         lastStopTime = Date()
+        faceRetryScheduled = false
+        vitalsManagerRef = nil
 
         snapshotTimer?.invalidate()
         snapshotTimer = nil
@@ -390,7 +403,16 @@ class StoryVitalsTracker: ObservableObject {
     /// Called each time SmartSpectra publishes new edgeMetrics (typed as `Metrics`).
     /// Uses face landmarks for eye openness and blinking array for blink detection.
     private func processEyeMetrics(edge: Metrics) {
-        guard edge.hasFace else { return }
+        guard edge.hasFace else {
+            // Schedule a retry if face has been absent for 60 seconds
+            scheduleFaceRetryIfNeeded()
+            return
+        }
+
+        // Face detected — reset loss tracking
+        lastFaceDetectedTime = Date()
+        faceRetryScheduled = false
+
         let face = edge.face
 
         // ── Blink detection via face.blinking array ───────────────────────────
@@ -439,6 +461,77 @@ class StoryVitalsTracker: ObservableObject {
 
         // Eye openness is the stronger signal (70%), blink rate supports it (30%)
         eyeDrowsinessScore = min(max(opennessDrowsiness * 0.70 + blinkDrowsiness * 0.30, 0), 1)
+    }
+
+    /// Schedules an SDK restart if no face has been detected for 60 seconds.
+    /// Safe to call repeatedly — only one retry timer is ever pending at a time.
+    private func scheduleFaceRetryIfNeeded() {
+        guard isTracking, !faceRetryScheduled else { return }
+
+        let faceLostDuration = lastFaceDetectedTime.map { Date().timeIntervalSince($0) } ?? 60
+        guard faceLostDuration >= 60 else { return }
+
+        faceRetryScheduled = true
+        statusHint = "No face detected — retrying in 1 minute…"
+        print("[StoryVitalsTracker] 😶 No face for 60s — scheduling SDK restart in 60s")
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
+            guard let self, self.isTracking else { return }
+            self.restartSDKAfterFaceLoss(attempt: 1)
+        }
+    }
+
+    /// Restarts the SDK to try to reacquire the child's face.
+    /// If the retry also fails to detect a face within 60s, waits another 60s and tries once more.
+    private func restartSDKAfterFaceLoss(attempt: Int) {
+        guard isTracking, let vm = vitalsManagerRef else { return }
+
+        print("[StoryVitalsTracker] 🔄 Face-loss restart attempt \(attempt)")
+        statusHint = "Restarting face detection (attempt \(attempt))…"
+
+        // Stop current recording/processing
+        processor.stopRecording()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1.5) {
+            self.processor.stopProcessing()
+        }
+
+        // Wait for teardown then restart — reuse same storyId/childId
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) { [weak self] in
+            guard let self, self.isTracking else { return }
+
+            self.lastFaceDetectedTime = Date()   // reset so we get another 60s window
+            self.faceRetryScheduled = false
+            self.sdkStarted = false
+            self.sdkStarting = true
+
+            self.processor.startProcessing()
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                guard let self, self.isTracking else { return }
+                self.processor.startRecording()
+                self.sdkStarted = true
+                self.sdkStarting = false
+                self.statusHint = self.processor.statusHint
+                self.setupSDKObservers(vitalsManager: vm)
+                print("[StoryVitalsTracker] ✅ SDK restarted after face loss (attempt \(attempt))")
+
+                // If face still not detected after another 60s, try once more
+                if attempt < 2 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
+                        guard let self, self.isTracking else { return }
+                        let gap = self.lastFaceDetectedTime.map { Date().timeIntervalSince($0) } ?? 60
+                        if gap >= 60 {
+                            print("[StoryVitalsTracker] 😶 Still no face after retry \(attempt) — trying again")
+                            self.faceRetryScheduled = true
+                            self.restartSDKAfterFaceLoss(attempt: attempt + 1)
+                        }
+                    }
+                } else {
+                    print("[StoryVitalsTracker] ⚠️ Face not detected after 2 retries — continuing without face detection")
+                    self.statusHint = "Face detection unavailable"
+                }
+            }
+        }
     }
 
     /// Computes Eye Aspect Ratio from a flat array of Point2dFloat landmarks.
