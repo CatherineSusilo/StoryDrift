@@ -170,11 +170,12 @@ class APIService: ObservableObject {
         let generatedImages  = genJson["generatedImages"]  as? [String] ?? []
         let audioUrls        = genJson["audioUrls"]        as? [String] ?? []
         let imageJobId       = genJson["imageJobId"]       as? String   ?? ""
-        print("✅ Story generated (\(storyText.count) chars, \(audioUrls.count) audio clips, imageJobId: \(imageJobId))")
+        let storyTitle       = genJson["storyTitle"]       as? String   ?? "Bedtime Story"
+        print("✅ Story generated (\(storyText.count) chars, \(audioUrls.count) audio clips, title: \"\(storyTitle)\", imageJobId: \(imageJobId))")
 
         let saveBody: [String: Any] = [
             "childId":          config.childId,
-            "storyTitle":       "Bedtime Story",
+            "storyTitle":       storyTitle,
             "storyContent":     storyText,
             "parentPrompt":     config.parentPrompt,
             "storytellingTone": config.storytellingTone,
