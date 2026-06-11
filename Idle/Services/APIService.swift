@@ -194,6 +194,19 @@ class APIService: ObservableObject {
         return story
     }
 
+    /// Rename a story.
+    func renameStory(storyId: String, title: String, token: String) async throws -> Story {
+        struct RenameBody: Encodable { let storyTitle: String }
+        return try await request(endpoint: "/api/stories/\(storyId)", method: "PATCH",
+                                 body: RenameBody(storyTitle: title), token: token)
+    }
+
+    /// Delete a story permanently.
+    func deleteStory(storyId: String, token: String) async throws {
+        struct DeleteMsg: Codable { let message: String }
+        let _: DeleteMsg = try await request(endpoint: "/api/stories/\(storyId)", method: "DELETE", token: token)
+    }
+
     /// Mark a story as completed and persist drift/duration data.
     func updateStory(storyId: String, completed: Bool, duration: Int,
                      finalDriftScore: Int, driftScoreHistory: [Int], token: String) async throws {
