@@ -201,7 +201,8 @@ struct StoryArchiveCard: View {
         }
         .sheet(isPresented: $showingRenameSheet) {
             RenameStorySheet(currentTitle: story.title) { newTitle in
-                Task { await performRename(newTitle) }
+                onRename(newTitle)
+                Task { await persistRename(newTitle) }
             }
         }
     }
@@ -309,13 +310,12 @@ struct StoryArchiveCard: View {
         }
     }
 
-    private func performRename(_ newTitle: String) async {
+    private func persistRename(_ newTitle: String) async {
         let token = authManager.accessToken ?? UserDefaults.standard.string(forKey: "accessToken") ?? ""
         do {
-            let updated = try await APIService.shared.renameStory(storyId: story.id, title: newTitle, token: token)
-            await MainActor.run { onRename(updated.storyTitle) }
+            _ = try await APIService.shared.renameStory(storyId: story.id, title: newTitle, token: token)
         } catch {
-            print("❌ Rename story failed: \(error)")
+            print("❌ Rename story persist failed: \(error)")
         }
     }
 }
