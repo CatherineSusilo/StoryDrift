@@ -25,7 +25,6 @@ struct BedtimeStorySessionView: View {
     @State private var currentImageUrl: String? = nil
     @State private var driftScore: Int = 0
     @State private var driftTrajectory = "flat"
-    @State private var arcPosition = "opening"
 
     // Setup form
     @State private var favoriteAnimal = ""
