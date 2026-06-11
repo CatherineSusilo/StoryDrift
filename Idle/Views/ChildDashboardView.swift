@@ -5,9 +5,16 @@ struct ChildDashboardView: View {
     var refreshID: UUID = UUID()
     @EnvironmentObject var vitalsManager: VitalsManager
     @EnvironmentObject var authManager: AuthManager
-    @State private var recentStories: [Story] = []
-    @State private var statistics: ChildStatistics?
+    @State private var allBedtimeStories: [Story] = []
     let onStartStory: () -> Void
+
+    private var totalStories: Int { allBedtimeStories.count }
+    private var completedStories: Int { allBedtimeStories.filter(\.completed).count }
+    private var avgSleepSeconds: Int {
+        let withDuration = allBedtimeStories.filter { $0.completed && ($0.duration ?? 0) > 0 }
+        guard !withDuration.isEmpty else { return 0 }
+        return withDuration.reduce(0) { $0 + ($1.duration ?? 0) } / withDuration.count
+    }
 
     var body: some View {
         ZStack {
@@ -45,8 +52,12 @@ struct ChildDashboardView: View {
                     }
 
                     // ── Quick stats ──
-                    if let stats = statistics {
-                        QuickStatsCard(stats: stats)
+                    if !allBedtimeStories.isEmpty {
+                        QuickStatsCard(
+                            total: totalStories,
+                            avgSleepSeconds: avgSleepSeconds,
+                            completed: completedStories
+                        )
                     }
 
                     // ── Recent Stories ──
@@ -55,13 +66,13 @@ struct ChildDashboardView: View {
                             .font(Theme.titleFont(size: 22))
                             .foregroundColor(Theme.ink)
 
-                        if recentStories.isEmpty {
+                        if allBedtimeStories.isEmpty {
                             EmptyStateView(
                                 icon: "book",
                                 message: "no stories yet.\nstart your first bedtime adventure!"
                             )
                         } else {
-                            ForEach(recentStories.prefix(3)) { story in
+                            ForEach(allBedtimeStories.prefix(3)) { story in
                                 StoryCardView(story: story)
                             }
                         }
@@ -86,20 +97,14 @@ struct ChildDashboardView: View {
             print("❌ Dashboard: No auth token available")
             return
         }
-        
         print("📊 Dashboard: Loading data for child \(child.id)")
-        
         do {
-            async let storiesTask = APIService.shared.getStories(childId: child.id, token: token)
-            async let statsTask   = APIService.shared.getStatistics(childId: child.id, token: token)
-            
-            let stories = try await storiesTask
-            let stats = try await statsTask
-            
+            let stories = try await APIService.shared.getStories(childId: child.id, token: token)
             await MainActor.run {
-                recentStories = stories.filter { $0.storytellingTone != "educational" }
-                statistics = stats
-                print("✅ Dashboard: Loaded \(stories.count) stories, stats: \(stats.summary.totalSessions) sessions")
+                allBedtimeStories = stories
+                    .filter { $0.storytellingTone != "educational" }
+                    .sorted { $0.startTime > $1.startTime }
+                print("✅ Dashboard: Loaded \(allBedtimeStories.count) bedtime stories")
             }
         } catch {
             print("❌ Dashboard error: \(error)")
@@ -112,18 +117,20 @@ struct ChildDashboardView: View {
 
 // MARK: - QuickStatsCard
 struct QuickStatsCard: View {
-    let stats: ChildStatistics
+    let total: Int
+    let avgSleepSeconds: Int
+    let completed: Int
 
     var body: some View {
         HStack(spacing: 0) {
-            StatItem(value: "\(stats.summary.totalSessions)",
-                     label: "stories",       icon: "book.fill")
+            StatItem(value: "\(total)",
+                     label: "stories",   icon: "book.fill")
             divider
-            StatItem(value: formatDuration(TimeInterval(stats.summary.avgDuration)),
-                     label: "avg sleep",     icon: "moon.zzz.fill")
+            StatItem(value: avgSleepSeconds > 0 ? "\(avgSleepSeconds / 60)m" : "—",
+                     label: "avg sleep", icon: "moon.zzz.fill")
             divider
-            StatItem(value: "\(stats.summary.completedSessions)/\(stats.summary.totalSessions)",
-                     label: "completed",     icon: "checkmark.circle.fill")
+            StatItem(value: "\(completed)/\(total)",
+                     label: "completed", icon: "checkmark.circle.fill")
         }
         .parchmentCard(cornerRadius: Theme.radiusMD)
     }
@@ -133,10 +140,6 @@ struct QuickStatsCard: View {
             .fill(Theme.border)
             .frame(width: 1.5)
             .padding(.vertical, 12)
-    }
-
-    private func formatDuration(_ seconds: TimeInterval) -> String {
-        "\(Int(seconds / 60))m"
     }
 }
 
