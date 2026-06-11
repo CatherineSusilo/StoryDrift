@@ -52,7 +52,7 @@ struct MainTabView: View {
     @State private var collectionsExpanded = false
 
     // Parental gate
-    @StateObject private var gateManager = ParentalGateManager.shared
+    @ObservedObject private var gateManager = ParentalGateManager.shared
     @State private var showPasscodeGate = false   // passcode prompt before settings
     @State private var pendingSettingsDest: NavDestination? = nil
 

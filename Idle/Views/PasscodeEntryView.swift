@@ -24,7 +24,7 @@ struct PasscodeEntryView: View {
     var onCancel: () -> Void
 
     @EnvironmentObject var authManager: AuthManager
-    @StateObject private var gate = ParentalGateManager.shared
+    @ObservedObject private var gate = ParentalGateManager.shared
     @State private var entered: String = ""
     @State private var firstEntry: String = ""
     @State private var phase: Phase = .enter
