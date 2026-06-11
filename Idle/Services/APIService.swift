@@ -120,7 +120,7 @@ class APIService: ObservableObject {
 
     func generateStory(config: StoryConfig, token: String) async throws -> Story {
         // Step 1: Generate story text + first image via fal.ai (backend blocks until first image ready)
-        let generateBody: [String: Any] = ["profile": [
+        var profileDict: [String: Any] = [
             "childId": config.childId,
             "name": config.name,
             "age": config.age,
@@ -128,7 +128,14 @@ class APIService: ObservableObject {
             "parentPrompt": config.parentPrompt,
             "initialState": config.initialState,
             "targetDuration": config.targetDuration ?? 15
-        ]]
+        ]
+        if let characters = config.characters, !characters.isEmpty {
+            profileDict["characters"] = characters
+        }
+        if let drawings = config.drawingPrompts, !drawings.isEmpty {
+            profileDict["drawingPrompts"] = drawings
+        }
+        let generateBody: [String: Any] = ["profile": profileDict]
 
         guard let url = URL(string: "\(Self.baseURL)/api/generate/story") else { throw APIError.invalidURL }
         var req = URLRequest(url: url)
@@ -155,11 +162,12 @@ class APIService: ObservableObject {
         let generatedImages  = genJson["generatedImages"]  as? [String] ?? []
         let audioUrls        = genJson["audioUrls"]        as? [String] ?? []
         let imageJobId       = genJson["imageJobId"]       as? String   ?? ""
-        print("✅ Story generated (\(storyText.count) chars, \(audioUrls.count) audio clips, imageJobId: \(imageJobId))")
+        let storyTitle       = genJson["storyTitle"]       as? String   ?? "Bedtime Story"
+        print("✅ Story generated (\(storyText.count) chars, \(audioUrls.count) audio clips, title: \"\(storyTitle)\", imageJobId: \(imageJobId))")
 
         let saveBody: [String: Any] = [
             "childId":          config.childId,
-            "storyTitle":       "Bedtime Story",
+            "storyTitle":       storyTitle,
             "storyContent":     storyText,
             "parentPrompt":     config.parentPrompt,
             "storytellingTone": config.storytellingTone,
@@ -176,6 +184,19 @@ class APIService: ObservableObject {
 
         let story: Story = try await request(endpoint: "/api/stories", method: "POST", body: AnyCodable(saveBody), token: token)
         return story
+    }
+
+    /// Rename a story.
+    func renameStory(storyId: String, title: String, token: String) async throws -> Story {
+        struct RenameBody: Encodable { let storyTitle: String }
+        return try await request(endpoint: "/api/stories/\(storyId)", method: "PATCH",
+                                 body: RenameBody(storyTitle: title), token: token)
+    }
+
+    /// Delete a story permanently.
+    func deleteStory(storyId: String, token: String) async throws {
+        struct DeleteMsg: Codable { let message: String }
+        let _: DeleteMsg = try await request(endpoint: "/api/stories/\(storyId)", method: "DELETE", token: token)
     }
 
     /// Mark a story as completed and persist drift/duration data.
