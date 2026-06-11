@@ -128,7 +128,7 @@ class APIService: ObservableObject {
 
     func generateStory(config: StoryConfig, token: String) async throws -> Story {
         // Step 1: Generate story text + first image via fal.ai (backend blocks until first image ready)
-        let generateBody: [String: Any] = ["profile": [
+        var profileDict: [String: Any] = [
             "childId": config.childId,
             "name": config.name,
             "age": config.age,
@@ -136,7 +136,14 @@ class APIService: ObservableObject {
             "parentPrompt": config.parentPrompt,
             "initialState": config.initialState,
             "targetDuration": config.targetDuration ?? 15
-        ]]
+        ]
+        if let characters = config.characters, !characters.isEmpty {
+            profileDict["characters"] = characters
+        }
+        if let drawings = config.drawingPrompts, !drawings.isEmpty {
+            profileDict["drawingPrompts"] = drawings
+        }
+        let generateBody: [String: Any] = ["profile": profileDict]
 
         guard let url = URL(string: "\(Self.baseURL)/api/generate/story") else { throw APIError.invalidURL }
         var req = URLRequest(url: url)
