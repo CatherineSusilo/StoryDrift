@@ -106,14 +106,6 @@ class APIService: ObservableObject {
         return try await request(endpoint: "/api/children", method: "POST", body: body, token: token)
     }
 
-    func updateChild(childId: String, body: UpdateChildRequest, token: String) async throws -> Child {
-        return try await request(endpoint: "/api/children/\(childId)", method: "PATCH", body: body, token: token)
-    }
-
-    func deleteChild(childId: String, token: String) async throws {
-        let _: DeleteResponse = try await request(endpoint: "/api/children/\(childId)", method: "DELETE", token: token)
-    }
-
     // MARK: - Stories
     func getStories(childId: String, token: String? = nil) async throws -> [Story] {
         let tok = token ?? UserDefaults.standard.string(forKey: "accessToken")
@@ -260,11 +252,6 @@ class APIService: ObservableObject {
         }
     }
     
-    /// Upload a single drawing to MongoDB
-    func uploadDrawing(drawing: DrawingUploadRequest, token: String) async throws -> DrawingResponse {
-        return try await request(endpoint: "/api/drawings", method: "POST", body: drawing, token: token)
-    }
-    
     /// Batch upload multiple drawings (for syncing local storage to backend)
     func uploadDrawingsBatch(childId: String, drawings: [DrawingUploadRequest], token: String) async throws -> DrawingBatchResponse {
         struct BatchRequest: Encodable {
@@ -407,26 +394,11 @@ extension APIService {
         return try await request(endpoint: "/api/curriculum/section/\(sectionId)", token: token)
     }
     
-    /// Get detailed lesson information
-    func getCurriculumLesson(lessonId: String, token: String) async throws -> CurriculumLesson {
-        return try await request(endpoint: "/api/curriculum/lesson/\(lessonId)", token: token)
-    }
-    
     /// Get child's progress across all curriculum lessons
     func getChildCurriculumProgress(childId: String, token: String) async throws -> ChildProgressResponse {
         return try await request(endpoint: "/api/curriculum/progress/\(childId)", token: token)
     }
-    
-    /// Start a curriculum lesson (marks it as attempted)
-    func startCurriculumLesson(childId: String, lessonId: String, token: String) async throws {
-        struct EmptyResponse: Codable {}
-        let _: EmptyResponse = try await request(
-            endpoint: "/api/curriculum/progress/\(childId)/\(lessonId)/start",
-            method: "POST",
-            token: token
-        )
-    }
-    
+
     /// Complete a curriculum lesson (updates stars and best score)
     func completeCurriculumLesson(childId: String, lessonId: String, score: Int, token: String) async throws {
         struct EmptyResponse: Codable {}
