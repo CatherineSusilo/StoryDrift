@@ -186,11 +186,13 @@ class APIService: ObservableObject {
         return story
     }
 
-    /// Rename a story.
-    func renameStory(storyId: String, title: String, token: String) async throws -> Story {
+    /// Rename a story. Decodes only `id` from the response to avoid failures
+    /// caused by nullable fields (finalDriftScore, dates, etc.) in the full Story struct.
+    func renameStory(storyId: String, title: String, token: String) async throws {
         struct RenameBody: Encodable { let storyTitle: String }
-        return try await request(endpoint: "/api/stories/\(storyId)", method: "PATCH",
-                                 body: RenameBody(storyTitle: title), token: token)
+        struct Confirmed: Decodable { let id: String }
+        let _: Confirmed = try await request(endpoint: "/api/stories/\(storyId)", method: "PATCH",
+                                             body: RenameBody(storyTitle: title), token: token)
     }
 
     /// Delete a story permanently.
