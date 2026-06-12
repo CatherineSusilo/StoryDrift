@@ -201,7 +201,8 @@ struct StoryArchiveCard: View {
         }
         .sheet(isPresented: $showingRenameSheet) {
             RenameStorySheet(currentTitle: story.title) { newTitle in
-                Task { await performRename(newTitle) }
+                await persistRename(newTitle)
+                onRename(newTitle)
             }
         }
     }
@@ -309,13 +310,12 @@ struct StoryArchiveCard: View {
         }
     }
 
-    private func performRename(_ newTitle: String) async {
+    private func persistRename(_ newTitle: String) async {
         let token = authManager.accessToken ?? UserDefaults.standard.string(forKey: "accessToken") ?? ""
         do {
-            let updated = try await APIService.shared.renameStory(storyId: story.id, title: newTitle, token: token)
-            await MainActor.run { onRename(updated.storyTitle) }
+            _ = try await APIService.shared.renameStory(storyId: story.id, title: newTitle, token: token)
         } catch {
-            print("❌ Rename story failed: \(error)")
+            print("❌ Rename story persist failed: \(error)")
         }
     }
 }
@@ -324,12 +324,13 @@ struct StoryArchiveCard: View {
 
 struct RenameStorySheet: View {
     let currentTitle: String
-    let onSave: (String) -> Void
+    let onSave: (String) async -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
+    @State private var isSaving = false
 
-    init(currentTitle: String, onSave: @escaping (String) -> Void) {
+    init(currentTitle: String, onSave: @escaping (String) async -> Void) {
         self.currentTitle = currentTitle
         self.onSave = onSave
         _title = State(initialValue: currentTitle)
@@ -355,7 +356,7 @@ struct RenameStorySheet: View {
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border, lineWidth: 1.5))
                 .padding(.horizontal, 20)
                 .submitLabel(.done)
-                .onSubmit { save() }
+                .onSubmit { Task { await save() } }
 
             HStack(spacing: 12) {
                 Button("cancel") { dismiss() }
@@ -366,8 +367,9 @@ struct RenameStorySheet: View {
                     .background(Theme.card)
                     .cornerRadius(8)
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border, lineWidth: 1.5))
+                    .disabled(isSaving)
 
-                Button("done") { save() }
+                Button("done") { Task { await save() } }
                     .font(Theme.bodyFont(size: 16))
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
@@ -386,12 +388,15 @@ struct RenameStorySheet: View {
         .background(Theme.background.ignoresSafeArea())
     }
 
-    private var isSaveDisabled: Bool { title.trimmingCharacters(in: .whitespaces).isEmpty }
+    private var isSaveDisabled: Bool {
+        title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving
+    }
 
-    private func save() {
+    private func save() async {
         let trimmed = title.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        onSave(trimmed)
+        isSaving = true
+        await onSave(trimmed)
         dismiss()
     }
 }
