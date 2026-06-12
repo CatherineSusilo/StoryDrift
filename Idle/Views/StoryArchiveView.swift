@@ -326,12 +326,13 @@ struct StoryArchiveCard: View {
 
 struct RenameStorySheet: View {
     let currentTitle: String
-    let onSave: (String) -> Void
+    let onSave: (String) async -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
+    @State private var isSaving = false
 
-    init(currentTitle: String, onSave: @escaping (String) -> Void) {
+    init(currentTitle: String, onSave: @escaping (String) async -> Void) {
         self.currentTitle = currentTitle
         self.onSave = onSave
         _title = State(initialValue: currentTitle)
@@ -357,7 +358,7 @@ struct RenameStorySheet: View {
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border, lineWidth: 1.5))
                 .padding(.horizontal, 20)
                 .submitLabel(.done)
-                .onSubmit { save() }
+                .onSubmit { Task { await save() } }
 
             HStack(spacing: 12) {
                 Button("cancel") { dismiss() }
@@ -368,8 +369,9 @@ struct RenameStorySheet: View {
                     .background(Theme.card)
                     .cornerRadius(8)
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border, lineWidth: 1.5))
+                    .disabled(isSaving)
 
-                Button("done") { save() }
+                Button("done") { Task { await save() } }
                     .font(Theme.bodyFont(size: 16))
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
@@ -388,12 +390,15 @@ struct RenameStorySheet: View {
         .background(Theme.background.ignoresSafeArea())
     }
 
-    private var isSaveDisabled: Bool { title.trimmingCharacters(in: .whitespaces).isEmpty }
+    private var isSaveDisabled: Bool {
+        title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving
+    }
 
-    private func save() {
+    private func save() async {
         let trimmed = title.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        onSave(trimmed)
+        isSaving = true
+        await onSave(trimmed)
         dismiss()
     }
 }
