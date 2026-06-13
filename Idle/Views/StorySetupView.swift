@@ -30,7 +30,6 @@ struct StorySetupView: View {
     // Custom drawings uploaded directly in this screen (not saved to library)
     @State private var customDrawings: [CustomUpload] = []
     @State private var pickerItems: [PhotosPickerItem] = []
-    @State private var showPhotoPicker = false
 
     // MARK: - Parchment palette
     private let bg        = Color(red: 0.894, green: 0.835, blue: 0.718)

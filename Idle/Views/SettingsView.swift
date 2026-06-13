@@ -6,7 +6,7 @@ struct SettingsView: View {
     @Binding var children: [ChildProfile]
     @Binding var selectedChild: ChildProfile?
 
-    @StateObject private var gateManager = ParentalGateManager.shared
+    @ObservedObject private var gateManager = ParentalGateManager.shared
 
     @State private var showingAddChild = false
     @State private var showAISettings = false

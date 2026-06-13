@@ -1,0 +1,29 @@
+{
+  "configurations" : [
+    {
+      "id" : "264DDA6F-E2AD-4A21-A515-865168773E18",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Idle.xcodeproj",
+      "identifier" : "AA0000282F6CD78F001DBFE5",
+      "name" : "Idle"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:Idle.xcodeproj",
+        "identifier" : "CF3021572FDD3ACB00356D55",
+        "name" : "IdleTests"
+      }
+    }
+  ],
+  "version" : 1
+}

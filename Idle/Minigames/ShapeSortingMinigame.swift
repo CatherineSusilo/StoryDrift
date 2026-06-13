@@ -11,8 +11,6 @@ struct ShapeSortingMinigame: View {
     // Maps shapeId → its current slotId (nil = still in tray)
     @State private var placements: [String: String] = [:]
     @State private var dragging: String? = nil
-    @State private var dragOffset: CGSize = .zero
-    @State private var dragPosition: CGPoint = .zero
     @State private var celebrating = false
 
     private var allPlaced: Bool {

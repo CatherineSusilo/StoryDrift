@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>APIBaseURL</key>
+	<string>$(API_BASE_URL)</string>
+	<key>AUTH0Audience</key>
+	<string>$(AUTH0_AUDIENCE)</string>
+	<key>AUTH0ClientId</key>
+	<string>$(AUTH0_CLIENT_ID)</string>
+	<key>AUTH0Domain</key>
+	<string>$(AUTH0_DOMAIN)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Story Drift</string>
 	<key>CFBundleExecutable</key>
@@ -16,10 +24,68 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>storydrift</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>ElevenLabsAPIKey</key>
+	<string>$(ELEVENLABS_API_KEY)</string>
+	<key>FalAPIKey</key>
+	<string>$(FAL_API_KEY)</string>
+	<key>GeminiAPIKey</key>
+	<string>$(GEMINI_API_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>192.168.0.119</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+			</dict>
+			<key>r2.dev</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<false/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+				<key>NSThirdPartyExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+				<key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
+				<false/>
+			</dict>
+		</dict>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Story Drift uses your camera to monitor vital signs contactlessly during bedtime stories.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>StoryDrift uses the microphone for voice minigames during bedtime stories.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>StoryDrift uses speech recognition so your child can answer voice prompts during story minigames.</string>
+	<key>SmartSpectraAPIKey</key>
+	<string>$(SMARTSPECTRA_API_KEY)</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>IndieFlower-Regular.ttf</string>
+		<string>PatrickHand-Regular.ttf</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -35,81 +101,8 @@
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
-		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>AUTH0Domain</key>
-	<string>$(AUTH0_DOMAIN)</string>
-	<key>AUTH0ClientId</key>
-	<string>$(AUTH0_CLIENT_ID)</string>
-	<key>APIBaseURL</key>
-	<string>$(API_BASE_URL)</string>
-	<key>AUTH0Audience</key>
-	<string>$(AUTH0_AUDIENCE)</string>
-	<key>GeminiAPIKey</key>
-	<string>$(GEMINI_API_KEY)</string>
-	<key>FalAPIKey</key>
-	<string>$(FAL_API_KEY)</string>
-	<key>ElevenLabsAPIKey</key>
-	<string>$(ELEVENLABS_API_KEY)</string>
-	<key>SmartSpectraAPIKey</key>
-	<string>$(SMARTSPECTRA_API_KEY)</string>
-	<key>UIAppFonts</key>
-	<array>
-		<string>IndieFlower-Regular.ttf</string>
-		<string>PatrickHand-Regular.ttf</string>
-	</array>
-	<key>NSCameraUsageDescription</key>
-	<string>Story Drift uses your camera to monitor vital signs contactlessly during bedtime stories.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>StoryDrift uses the microphone for voice minigames during bedtime stories.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>StoryDrift uses speech recognition so your child can answer voice prompts during story minigames.</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>storydrift</string>
-			</array>
-		</dict>
-	</array>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>192.168.0.119</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<false/>
-			</dict>
-			<key>r2.dev</key>
-			<dict>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<false/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.0</string>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
-				<key>NSThirdPartyExceptionMinimumTLSVersion</key>
-				<string>TLSv1.0</string>
-				<key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-				<false/>
-			</dict>
-		</dict>
-	</dict>
 </dict>
 </plist>

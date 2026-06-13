@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -58,6 +58,16 @@
 		SRPL0000022F6CD78F001DBF5 /* StoryReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRPL0000012F6CD78F001DBF5 /* StoryReplayView.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		CF30215C2FDD3ACB00356D55 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA00002C2F6CD78F001DBFE5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA0000282F6CD78F001DBFE5;
+			remoteInfo = Idle;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		AA0000012F6CD78F001DBFE6 /* Idle.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Idle.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000022F6CD78F001DBFE5 /* IdleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleApp.swift; sourceTree = "<group>"; };
@@ -92,6 +102,8 @@
 		CC0A0001 /* ParentalGateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentalGateManager.swift; sourceTree = "<group>"; };
 		CC0A0003 /* PasscodeEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasscodeEntryView.swift; sourceTree = "<group>"; };
 		CF0000022F900000001STIMG /* StoryImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryImageView.swift; sourceTree = "<group>"; };
+		CF3021582FDD3ACB00356D55 /* IdleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = IdleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CF30216A2FDD42D400356D55 /* Idle.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Idle.xctestplan; sourceTree = "<group>"; };
 		CFEAB02B2F764EB10017E426 /* BedtimeStorySessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedtimeStorySessionView.swift; sourceTree = "<group>"; };
 		CFEAB02D2F764F040017E426 /* EducationalStorySessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EducationalStorySessionView.swift; sourceTree = "<group>"; };
 		CFEAB02E2F764F040017E426 /* LessonRoadmapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonRoadmapView.swift; sourceTree = "<group>"; };
@@ -113,6 +125,10 @@
 		SRPL0000012F6CD78F001DBF5 /* StoryReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryReplayView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		CF3021592FDD3ACB00356D55 /* IdleTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = IdleTests; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
 		AA0000202F6CD78F001DBFE5 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
@@ -122,13 +138,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CF3021552FDD3ACB00356D55 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		AA0000212F6CD78F001DBFE5 = {
 			isa = PBXGroup;
 			children = (
+				CF30216A2FDD42D400356D55 /* Idle.xctestplan */,
 				AA0000222F6CD78F001DBFE5 /* Idle */,
+				CF3021592FDD3ACB00356D55 /* IdleTests */,
 				AA0000232F6CD78F001DBFE5 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -153,6 +178,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000012F6CD78F001DBFE6 /* Idle.app */,
+				CF3021582FDD3ACB00356D55 /* IdleTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -275,6 +301,29 @@
 			productReference = AA0000012F6CD78F001DBFE6 /* Idle.app */;
 			productType = "com.apple.product-type.application";
 		};
+		CF3021572FDD3ACB00356D55 /* IdleTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CF3021602FDD3ACB00356D55 /* Build configuration list for PBXNativeTarget "IdleTests" */;
+			buildPhases = (
+				CF3021542FDD3ACB00356D55 /* Sources */,
+				CF3021552FDD3ACB00356D55 /* Frameworks */,
+				CF3021562FDD3ACB00356D55 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CF30215D2FDD3ACB00356D55 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CF3021592FDD3ACB00356D55 /* IdleTests */,
+			);
+			name = IdleTests;
+			packageProductDependencies = (
+			);
+			productName = IdleTests;
+			productReference = CF3021582FDD3ACB00356D55 /* IdleTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -282,11 +331,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1520;
+				LastSwiftUpdateCheck = 1620;
 				LastUpgradeCheck = 1520;
 				TargetAttributes = {
 					AA0000282F6CD78F001DBFE5 = {
 						CreatedOnToolsVersion = 15.2;
+					};
+					CF3021572FDD3ACB00356D55 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = AA0000282F6CD78F001DBFE5;
 					};
 				};
 			};
@@ -307,6 +360,7 @@
 			projectRoot = "";
 			targets = (
 				AA0000282F6CD78F001DBFE5 /* Idle */,
+				CF3021572FDD3ACB00356D55 /* IdleTests */,
 			);
 		};
 /* End PBXProject section */
@@ -319,6 +373,13 @@
 				FA0000012F6CD78F001DBFE5 /* IndieFlower-Regular.ttf in Resources */,
 				FA0000032F6CD78F001DBFE5 /* PatrickHand-Regular.ttf in Resources */,
 				FA0000052F6CD78F001DBFE5 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CF3021562FDD3ACB00356D55 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -377,7 +438,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CF3021542FDD3ACB00356D55 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CF30215D2FDD3ACB00356D55 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA0000282F6CD78F001DBFE5 /* Idle */;
+			targetProxy = CF30215C2FDD3ACB00356D55 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AA00002F2F6CD78F001DBFE5 /* Debug */ = {
@@ -513,6 +589,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Idle/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Story Drift";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Idle uses your camera to monitor vital signs contactlessly during bedtime stories.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -544,6 +621,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Idle/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Story Drift";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Idle uses your camera to monitor vital signs contactlessly during bedtime stories.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -560,6 +638,44 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		CF30215E2FDD3ACB00356D55 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RKNK886G9S;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Test.IdleTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Idle.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Idle";
+			};
+			name = Debug;
+		};
+		CF30215F2FDD3ACB00356D55 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RKNK886G9S;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Test.IdleTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Idle.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Idle";
 			};
 			name = Release;
 		};
@@ -580,6 +696,15 @@
 			buildConfigurations = (
 				AA00002F2F6CD78F001DBFE5 /* Debug */,
 				AA0000302F6CD78F001DBFE5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CF3021602FDD3ACB00356D55 /* Build configuration list for PBXNativeTarget "IdleTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CF30215E2FDD3ACB00356D55 /* Debug */,
+				CF30215F2FDD3ACB00356D55 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

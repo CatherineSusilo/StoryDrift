@@ -59,11 +59,6 @@ enum Theme {
 // MARK: - View modifiers for convenience
 
 extension View {
-    /// Full-screen parchment background matching the web app
-    func parchmentBackground() -> some View {
-        self.background(Theme.background.ignoresSafeArea())
-    }
-
     /// Standard card appearance: cream fill, subtle border, soft shadow
     func parchmentCard(cornerRadius: CGFloat = Theme.radiusMD) -> some View {
         self

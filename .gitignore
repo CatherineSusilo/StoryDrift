@@ -82,6 +82,11 @@ iOSInjectionProject/
 
 # macOS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+**/.DS_Store
 
 # IDEs
 .vscode/
@@ -98,7 +103,28 @@ iOSInjectionProject/
 
 # Secret API keys - never commit
 Idle/Resources/Config.xcconfig
+Idle/Services/Secrets.swift
 backend/vertex-ai-key.json
 
 # Story images uploads - never commit
 backend/uploads/story-images/
+Idle/StoryDrift-backend/uploads/
+
+# Node / backend
+Idle/StoryDrift-backend/node_modules/
+Idle/StoryDrift-backend/dist/
+Idle/StoryDrift-backend/.env
+Idle/StoryDrift-backend/.env.local
+
+# Test / coverage artifacts
+coverage/
+*.lcov
+junit.xml
+
+# Logs
+*.log
+npm-debug.log*
+
+# Windows noise
+Thumbs.db
+Desktop.ini

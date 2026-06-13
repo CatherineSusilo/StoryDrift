@@ -99,8 +99,7 @@ struct DrawingView: View {
     let onComplete: (String) -> Void
     
     @State private var canvasView = PKCanvasView()
-    @State private var isDrawing = false
-    
+
     var body: some View {
         VStack(spacing: 24) {
             // Prompt

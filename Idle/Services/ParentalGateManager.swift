@@ -1,6 +1,9 @@
 import Foundation
 import Combine
 import CommonCrypto
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Manages parent/child mode and the 6-digit parental passcode.
 /// @MainActor ensures all @Published mutations happen on the main thread.
@@ -24,6 +27,24 @@ final class ParentalGateManager: ObservableObject {
             UserDefaults.standard.set(sha256("000000"), forKey: kPasscodeHash)
         }
         isParentMode = UserDefaults.standard.bool(forKey: kIsParentMode)
+        observeAppLifecycle()
+    }
+
+    /// Auto-lock parent mode when the app is backgrounded so a child handed the
+    /// phone after a parent action can't keep using parent controls.
+    private func observeAppLifecycle() {
+        #if canImport(UIKit)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDidEnterBackground),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        #endif
+    }
+
+    @objc private func handleDidEnterBackground() {
+        Task { @MainActor in self.enterChildMode() }
     }
 
     // MARK: - Public API
