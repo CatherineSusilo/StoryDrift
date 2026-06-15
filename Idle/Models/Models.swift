@@ -122,7 +122,7 @@ struct Story: Codable, Identifiable {
     var imageJobId: String?
     /// Minigame frequency selected at story setup.
     var minigameFrequency: String?
-    /// Whether Presage face detection camera was enabled for this story.
+    /// Whether the eye-tracking camera was enabled for this story.
     var cameraEnabled: Bool?
     /// Set for educational stories generated from the curriculum roadmap.
     var curriculumLessonId: String?
@@ -204,46 +204,7 @@ struct StoryMetadata: Codable {
     var targetDuration: Int
     var initialDriftScore: Double
     var finalDriftScore: Double?
-    var avgHeartRate: Double?
-    var avgBreathingRate: Double?
     var completionReason: String?
-}
-
-// MARK: - Drift Score
-struct DriftScore: Codable, Identifiable {
-    let timestamp: Date
-    let score: Double
-    let heartRate: Double?
-    let breathingRate: Double?
-
-    var id: String { timestamp.ISO8601Format() }
-}
-
-// MARK: - Vitals
-struct Vitals: Codable {
-    let childId: String
-    let timestamp: Date
-    let heartRate: Double
-    let breathingRate: Double
-    let signalQuality: Int
-}
-
-struct VitalsData: Codable, Identifiable {
-    let id: String
-    let childId: String
-    var heartRate: Double
-    var breathingRate: Double
-    var signalQuality: Double
-    var driftScore: Double
-    let timestamp: Date
-}
-
-struct VitalsSnapshot: Codable, Identifiable {
-    let date: Date
-    let avgHeartRate: Double
-    let avgBreathingRate: Double
-
-    var id: String { date.ISO8601Format() }
 }
 
 // MARK: - Statistics
@@ -307,8 +268,6 @@ struct SleepTrendPoint: Codable {
 struct SleepStatistics: Codable {
     var totalStoriesCompleted: Int
     var avgTimeToSleep: Double
-    var avgHeartRate: Double
-    var avgBreathingRate: Double
     var avgDriftScore: Double
     var sleepTrends: [TrendData]
 }
@@ -379,13 +338,6 @@ struct GenerateStoryRequest: Codable {
     var theme: String
     var parentPrompt: String?
     var targetDuration: Int
-}
-
-struct PostVitalsRequest: Codable {
-    var childId: String
-    var heartRate: Double
-    var breathingRate: Double
-    var signalQuality: Double
 }
 
 struct DeleteResponse: Codable {

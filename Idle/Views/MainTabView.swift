@@ -42,7 +42,7 @@ struct MainTabView: View {
     @Binding var selectedChild: Child?
     var dashboardRefreshID: UUID = UUID()
     @EnvironmentObject var authManager: AuthManager
-    @EnvironmentObject var vitalsManager: VitalsManager
+    @EnvironmentObject var eyeTracking: EyeTrackingManager
     @Environment(\.horizontalSizeClass) private var hSizeClass
 
     @State private var children: [ChildProfile] = []
@@ -165,7 +165,7 @@ struct MainTabView: View {
                     showBedtimeSession = false
                 }
                 .environmentObject(authManager)
-                .environmentObject(vitalsManager)
+                .environmentObject(eyeTracking)
             }
         }
         .fullScreenCover(item: $selectedLesson) { lesson in
@@ -205,7 +205,7 @@ struct MainTabView: View {
                     }
                 }
                 .environmentObject(authManager)
-                .environmentObject(vitalsManager)
+                .environmentObject(eyeTracking)
             }
         }
     }
@@ -626,5 +626,5 @@ extension LessonDefinition: Hashable {
 #Preview {
     MainTabView(currentView: .constant(.dashboard), selectedChild: .constant(nil))
         .environmentObject(AuthManager())
-        .environmentObject(VitalsManager())
+        .environmentObject(EyeTrackingManager.shared)
 }

@@ -219,11 +219,6 @@ class APIService: ObservableObject {
         let _: Story = try await request(endpoint: "/api/stories/\(storyId)", method: "PATCH", body: body, token: token)
     }
 
-    // MARK: - Vitals
-    func postVitals(vitals: Vitals, token: String) async throws {
-        let _: EmptyResponse = try await request(endpoint: "/api/vitals/child/\(vitals.childId)", method: "POST", body: vitals, token: token)
-    }
-
     func getStatistics(childId: String, token: String) async throws -> ChildStatistics {
         return try await request(endpoint: "/api/statistics/stories/\(childId)", token: token)
     }
@@ -344,7 +339,7 @@ struct StoryConfig: Codable {
     var minigameFrequency: String?
     /// Target story duration in minutes (10 = short, 15 = medium, 20 = long).
     var targetDuration: Int?
-    /// Whether Presage face detection camera is enabled for drift score tracking.
+    /// Whether the eye-tracking camera is enabled for drift score tracking.
     var cameraEnabled: Bool?
 }
 

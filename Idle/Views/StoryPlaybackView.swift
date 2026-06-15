@@ -19,7 +19,7 @@ final class TTSFinishDelegate: NSObject, AVSpeechSynthesizerDelegate {
 }
 
 struct StoryPlaybackView: View {
-    @EnvironmentObject var vitalsManager: VitalsManager
+    @EnvironmentObject var eyeTracking: EyeTrackingManager
     @EnvironmentObject var authManager: AuthManager
     let story: Story
     let onComplete: ([Double], TimeInterval) -> Void
@@ -37,7 +37,6 @@ struct StoryPlaybackView: View {
     @State private var paragraphImages: [String] = []
     @State private var imagePollingTimer: Timer? = nil
 
-    @StateObject private var vitalsTracker = StoryVitalsTracker()
     @State private var audioDelegate = AudioFinishDelegate()
     @State private var ttsDelegate = TTSFinishDelegate()
     private let synthesizer = AVSpeechSynthesizer()
@@ -264,7 +263,7 @@ struct StoryPlaybackView: View {
                                 .frame(width: 36, height: 4)
                                 .padding(.top, 12)
 
-                            DriftMeterView(driftScore: vitalsManager.driftScore, isCompact: true)
+                            DriftMeterView(driftScore: eyeTracking.driftScore, isCompact: true)
                                 .padding(.horizontal, 20)
 
                             VStack(spacing: 8) {
@@ -276,7 +275,7 @@ struct StoryPlaybackView: View {
                                         .font(.system(size: 13))
                                         .foregroundColor(.white.opacity(0.7))
                                     Spacer()
-                                    Text(vitalsManager.getDriftStatus())
+                                    Text(eyeTracking.getDriftStatus())
                                         .font(.system(size: 13, weight: .semibold))
                                         .foregroundColor(.cyan)
                                 }
@@ -345,14 +344,8 @@ struct StoryPlaybackView: View {
         // Initialize minigame counter so first minigame can fire on first eligible paragraph
         paragraphsSinceLastMinigame = minigameGap
 
-        // Start vitals monitoring — use isCameraEnabled from VitalsManager (user's current setting)
-        // story.cameraEnabled is the value at story creation time; isCameraEnabled is live setting
-        let useSynthetic = !vitalsManager.isCameraEnabled
         let targetDuration = TimeInterval((story.targetDuration ?? 15) * 60)
-        vitalsManager.startMonitoring(childId: story.childId, useSynthetic: useSynthetic, targetDuration: targetDuration)
-        vitalsTracker.startTracking(storyId: story.id, childId: story.childId,
-                                    vitalsManager: vitalsManager,
-                                    cameraEnabled: vitalsManager.isCameraEnabled)
+        eyeTracking.startTracking(targetDuration: targetDuration)
 
         if let jobId = story.imageJobId, !jobId.isEmpty {
             startImagePolling(jobId: jobId)
@@ -362,8 +355,8 @@ struct StoryPlaybackView: View {
             guard self.isPlaying && !self.showMinigame else { return }
             self.elapsedTime += 1
             self.paragraphElapsed += 1
-            self.driftHistory.append(self.vitalsManager.driftScore)
-            if self.vitalsManager.driftScore >= 90 { self.completeStory(); return }
+            self.driftHistory.append(self.eyeTracking.driftScore)
+            if self.eyeTracking.driftScore >= 90 { self.completeStory(); return }
         }
 
         playCurrentParagraph()
@@ -374,8 +367,7 @@ struct StoryPlaybackView: View {
         stopImagePolling()
         audioPlayer?.stop()
         synthesizer.stopSpeaking(at: .immediate)
-        vitalsManager.stopMonitoring()
-        vitalsTracker.stopTracking()
+        eyeTracking.stopTracking()
         if !minigameDrawings.isEmpty { saveMinigameDrawings() }
     }
 
@@ -654,6 +646,6 @@ struct StoryPlaybackView: View {
     decoder.dateDecodingStrategy = .iso8601
     let story = try! decoder.decode(Story.self, from: json)
     return StoryPlaybackView(story: story, onComplete: { _, _ in })
-        .environmentObject(VitalsManager())
+        .environmentObject(EyeTrackingManager.shared)
         .environmentObject(AuthManager())
 }

@@ -4,13 +4,13 @@ import SwiftUI
 struct IdleApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var authManager = AuthManager()
-    @StateObject private var vitalsManager = VitalsManager()
+    @StateObject private var eyeTracking = EyeTrackingManager.shared
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(authManager)
-                .environmentObject(vitalsManager)
+                .environmentObject(eyeTracking)
                 .preferredColorScheme(.dark)
         }
     }
