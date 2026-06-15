@@ -32,7 +32,7 @@ struct EducationalStorySessionView: View {
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var authManager: AuthManager
-    @EnvironmentObject var vitalsManager: VitalsManager
+    @EnvironmentObject var eyeTracking: EyeTrackingManager
 
     // Session state
     @State private var sessionId: String? = nil
@@ -308,8 +308,7 @@ struct EducationalStorySessionView: View {
             )
             let resp = try JSONDecoder().decode(SessionStartResponse.self, from: data)
             sessionId = resp.sessionId
-            let useSynthetic = !vitalsManager.isCameraEnabled
-            vitalsManager.startMonitoring(childId: child.id, useSynthetic: useSynthetic)
+            eyeTracking.startTracking()
             phase = .story
             startTickTimer()
         } catch {
@@ -332,12 +331,10 @@ struct EducationalStorySessionView: View {
     private func runTick() async {
         guard let sid = sessionId, let token = authManager.accessToken else { return }
 
-        let cameraEnabled = vitalsManager.isCameraEnabled && vitalsManager.signalQuality > 20
+        let cameraEnabled = eyeTracking.isCameraEnabled && eyeTracking.trackingMode != .unavailable
         let biometrics: [String: Any] = cameraEnabled ? [
-            "pulse_rate":     vitalsManager.heartRate > 0 ? vitalsManager.heartRate : NSNull(),
-            "breathing_rate": vitalsManager.breathingRate > 0 ? vitalsManager.breathingRate : NSNull(),
+            "drift_score":    eyeTracking.driftScore,
             "movement_level": 0.3,
-            "signal_quality": vitalsManager.signalQuality,
         ] : [:]
 
         do {
@@ -376,7 +373,7 @@ struct EducationalStorySessionView: View {
         // Session complete
         if resp.sessionComplete {
             tickTimer?.invalidate()
-            vitalsManager.stopMonitoring()
+            eyeTracking.stopTracking()
             
             // Save any collected drawings to the drawings collection
             saveMinigameDrawings()
@@ -593,7 +590,7 @@ struct EducationalStorySessionView: View {
     private func tearDown() {
         tickTimer?.invalidate()
         audioPlayer?.stop()
-        vitalsManager.stopMonitoring()
+        eyeTracking.stopTracking()
 
         // Save any collected drawings even if story wasn't completed
         if !minigameDrawings.isEmpty {

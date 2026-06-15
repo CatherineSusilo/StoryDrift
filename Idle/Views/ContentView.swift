@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var authManager: AuthManager
-    @EnvironmentObject var vitalsManager: VitalsManager
+    @EnvironmentObject var eyeTracking: EyeTrackingManager
 
     @State private var currentView: AppView = .dashboard
     @State private var storyConfig: StoryConfig?
@@ -132,5 +132,5 @@ enum AppView: Equatable {
 #Preview {
     ContentView()
         .environmentObject(AuthManager())
-        .environmentObject(VitalsManager())
+        .environmentObject(EyeTrackingManager.shared)
 }

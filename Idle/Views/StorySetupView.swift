@@ -3,7 +3,7 @@ import PhotosUI
 
 struct StorySetupView: View {
     @EnvironmentObject var authManager: AuthManager
-    @EnvironmentObject var vitalsManager: VitalsManager
+    @EnvironmentObject var eyeTracking: EyeTrackingManager
     @Binding var child: ChildProfile
     let onStartStory: (StoryConfig) -> Void
     let onBack: () -> Void
@@ -211,26 +211,26 @@ struct StorySetupView: View {
                         }
                     }
 
-                    // ── Face Detection (Presage Camera) ──────────────────
-                    sectionCard(title: "face detection") {
+                    // ── Eye tracking ──────────────────
+                    sectionCard(title: "eye tracking") {
                         VStack(spacing: 12) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(vitalsManager.isCameraEnabled ? "Camera On" : "Camera Off")
+                                    Text(eyeTracking.isCameraEnabled ? "Eye Tracking On" : "Eye Tracking Off")
                                         .font(.custom("Georgia", size: 16))
                                         .fontWeight(.semibold)
                                         .foregroundColor(ink)
-                                    Text(vitalsManager.isCameraEnabled ? "Tracks drift score via face detection" : "Uses synthetic drift score")
+                                    Text(eyeTracking.isCameraEnabled ? "Detects drowsiness from eye closure" : "Uses synthetic drift score")
                                         .font(.custom("Georgia", size: 13))
                                         .foregroundColor(ink.opacity(0.7))
                                 }
                                 Spacer()
-                                Toggle("", isOn: $vitalsManager.isCameraEnabled)
+                                Toggle("", isOn: $eyeTracking.isCameraEnabled)
                                     .labelsHidden()
                                     .tint(Color(red: 0.824, green: 0.706, blue: 0.549))
                             }
-                            
-                            if !vitalsManager.isCameraEnabled {
+
+                            if !eyeTracking.isCameraEnabled {
                                 HStack(spacing: 6) {
                                     Image(systemName: "info.circle.fill")
                                         .font(.system(size: 12))
@@ -732,7 +732,7 @@ struct StorySetupView: View {
         if !chars.isEmpty { config.characters = chars }
         if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
         config.targetDuration = storyLength.duration
-        config.cameraEnabled = vitalsManager.isCameraEnabled
+        config.cameraEnabled = eyeTracking.isCameraEnabled
 
         isGenerating = false
         onStartStory(config)
@@ -761,7 +761,7 @@ struct StorySetupView: View {
         if !chars.isEmpty { config.characters = chars }
         if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
         config.targetDuration = 2          // 2-minute test run
-        config.cameraEnabled = vitalsManager.isCameraEnabled
+        config.cameraEnabled = eyeTracking.isCameraEnabled
         isGenerating = false
         onStartStory(config)
     }

@@ -14,7 +14,7 @@ struct BedtimeStorySessionView: View {
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var authManager: AuthManager
-    @EnvironmentObject var vitalsManager: VitalsManager
+    @EnvironmentObject var eyeTracking: EyeTrackingManager
 
     // Session
     @State private var sessionId: String? = nil
@@ -317,8 +317,7 @@ struct BedtimeStorySessionView: View {
                 path: "/api/story-session/start", body: body, token: token)
             let resp = try JSONDecoder().decode(SessionStartResponse.self, from: data)
             sessionId = resp.sessionId
-            let useSynthetic = !vitalsManager.isCameraEnabled
-            vitalsManager.startMonitoring(childId: child.id, useSynthetic: useSynthetic)
+            eyeTracking.startTracking()
             phase = .playing
             startTickTimer()
         } catch {
@@ -330,7 +329,7 @@ struct BedtimeStorySessionView: View {
         Task { await runTick() }
         tickTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             elapsedSeconds += 1
-            driftHistory.append(vitalsManager.driftScore)
+            driftHistory.append(eyeTracking.driftScore)
 
             // Tick every 60 seconds
             if elapsedSeconds % 60 == 0 {
@@ -342,12 +341,10 @@ struct BedtimeStorySessionView: View {
     private func runTick() async {
         guard let sid = sessionId, let token = authManager.accessToken else { return }
 
-        let cameraEnabled = vitalsManager.isCameraEnabled && vitalsManager.signalQuality > 20
+        let cameraEnabled = eyeTracking.isCameraEnabled && eyeTracking.trackingMode != .unavailable
         let biometrics: [String: Any] = cameraEnabled ? [
-            "pulse_rate":     vitalsManager.heartRate > 0 ? vitalsManager.heartRate : NSNull(),
-            "breathing_rate": vitalsManager.breathingRate > 0 ? vitalsManager.breathingRate : NSNull(),
+            "drift_score":    eyeTracking.driftScore,
             "movement_level": 0.2,
-            "signal_quality": vitalsManager.signalQuality,
         ] : [:]
 
         do {
@@ -395,7 +392,7 @@ struct BedtimeStorySessionView: View {
     private func tearDown() {
         tickTimer?.invalidate()
         audioPlayer?.stop()
-        vitalsManager.stopMonitoring()
+        eyeTracking.stopTracking()
         if let sid = sessionId, let token = authManager.accessToken {
             Task { _ = try? await APIService.shared.post(
                 path: "/api/story-session/\(sid)/end", body: [:], token: token) }
