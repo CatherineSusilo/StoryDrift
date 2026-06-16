@@ -12,7 +12,7 @@
 		AA0000032F6CD78F001DBFE5 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000042F6CD78F001DBFE5 /* Models.swift */; };
 		AA0000052F6CD78F001DBFE5 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000062F6CD78F001DBFE5 /* AuthManager.swift */; };
 		AA0000072F6CD78F001DBFE5 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000082F6CD78F001DBFE5 /* APIService.swift */; };
-		AA0000092F6CD78F001DBFE5 /* VitalsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000A2F6CD78F001DBFE5 /* VitalsManager.swift */; };
+		AA0000092F6CD78F001DBFE5 /* EyeTrackingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000A2F6CD78F001DBFE5 /* EyeTrackingManager.swift */; };
 		AA00000B2F6CD78F001DBFE5 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000C2F6CD78F001DBFE5 /* ContentView.swift */; };
 		AA00000D2F6CD78F001DBFE5 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000E2F6CD78F001DBFE5 /* LoginView.swift */; };
 		AA00000F2F6CD78F001DBFE5 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000102F6CD78F001DBFE5 /* LoadingView.swift */; };
@@ -29,14 +29,10 @@
 		BB00000D2F6CD78F001DBFE5 /* StoryPlaybackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000E2F6CD78F001DBFE5 /* StoryPlaybackView.swift */; };
 		BB00000F2F6CD78F001DBFE5 /* DriftMeterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000102F6CD78F001DBFE5 /* DriftMeterView.swift */; };
 		BB0000112F6CD78F001DBFE5 /* InteractiveElementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000122F6CD78F001DBFE5 /* InteractiveElementsView.swift */; };
-		BB0000132F6CD78F001DBFE5 /* VitalsMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000142F6CD78F001DBFE5 /* VitalsMonitorView.swift */; };
 		BB1000002A2B3C4D001EEFF0 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000001A2B3C4D001EEFF0 /* Secrets.swift */; };
-		CC0000022F6CD78F001DBFE5 /* StoryVitalsTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000032F6CD78F001DBFE5 /* StoryVitalsTracker.swift */; };
-		CC0000042F6CD78F001DBFE5 /* VitalsOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000052F6CD78F001DBFE5 /* VitalsOverlayView.swift */; };
 		CC0A0002 /* ParentalGateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0A0001 /* ParentalGateManager.swift */; };
 		CC0A0004 /* PasscodeEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0A0003 /* PasscodeEntryView.swift */; };
 		CF0000012F900000001STIMG /* StoryImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0000022F900000001STIMG /* StoryImageView.swift */; };
-		CF8857BC2F747891005678AE /* SmartSpectraSwiftSDK in Frameworks */ = {isa = PBXBuildFile; productRef = CF8857BB2F747891005678AE /* SmartSpectraSwiftSDK */; };
 		CFEAB02C2F764EB10017E426 /* BedtimeStorySessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFEAB02B2F764EB10017E426 /* BedtimeStorySessionView.swift */; };
 		CFEAB02F2F764F040017E426 /* EducationalStorySessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFEAB02D2F764F040017E426 /* EducationalStorySessionView.swift */; };
 		CFEAB0302F764F040017E426 /* LessonRoadmapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFEAB02E2F764F040017E426 /* LessonRoadmapView.swift */; };
@@ -74,7 +70,7 @@
 		AA0000042F6CD78F001DBFE5 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		AA0000062F6CD78F001DBFE5 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		AA0000082F6CD78F001DBFE5 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
-		AA00000A2F6CD78F001DBFE5 /* VitalsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VitalsManager.swift; sourceTree = "<group>"; };
+		AA00000A2F6CD78F001DBFE5 /* EyeTrackingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EyeTrackingManager.swift; sourceTree = "<group>"; };
 		AA00000C2F6CD78F001DBFE5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		AA00000E2F6CD78F001DBFE5 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		AA0000102F6CD78F001DBFE5 /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
@@ -92,13 +88,10 @@
 		BB00000E2F6CD78F001DBFE5 /* StoryPlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryPlaybackView.swift; sourceTree = "<group>"; };
 		BB0000102F6CD78F001DBFE5 /* DriftMeterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriftMeterView.swift; sourceTree = "<group>"; };
 		BB0000122F6CD78F001DBFE5 /* InteractiveElementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractiveElementsView.swift; sourceTree = "<group>"; };
-		BB0000142F6CD78F001DBFE5 /* VitalsMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VitalsMonitorView.swift; sourceTree = "<group>"; };
 		BB1000001A2B3C4D001EEFF0 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
 		BD99A50AA20B23CB6260D44A /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		BKND0000012F6CD78F001DBF5 /* StoryDrift-backend */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "StoryDrift-backend"; path = "/Users/catherinesusilo/StoryDrift/Idle/StoryDrift-backend"; sourceTree = "<absolute>"; };
 		CC0000012F6CD78F001DBFE5 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
-		CC0000032F6CD78F001DBFE5 /* StoryVitalsTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryVitalsTracker.swift; sourceTree = "<group>"; };
-		CC0000052F6CD78F001DBFE5 /* VitalsOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VitalsOverlayView.swift; sourceTree = "<group>"; };
 		CC0A0001 /* ParentalGateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentalGateManager.swift; sourceTree = "<group>"; };
 		CC0A0003 /* PasscodeEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasscodeEntryView.swift; sourceTree = "<group>"; };
 		CF0000022F900000001STIMG /* StoryImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryImageView.swift; sourceTree = "<group>"; };
@@ -134,7 +127,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CF8857BC2F747891005678AE /* SmartSpectraSwiftSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -197,10 +189,9 @@
 				AA0000062F6CD78F001DBFE5 /* AuthManager.swift */,
 				CC0A0001 /* ParentalGateManager.swift */,
 				AA0000082F6CD78F001DBFE5 /* APIService.swift */,
-				AA00000A2F6CD78F001DBFE5 /* VitalsManager.swift */,
+				AA00000A2F6CD78F001DBFE5 /* EyeTrackingManager.swift */,
 				BB0000022F6CD78F001DBFE5 /* AudioService.swift */,
 				BB1000001A2B3C4D001EEFF0 /* Secrets.swift */,
-				CC0000032F6CD78F001DBFE5 /* StoryVitalsTracker.swift */,
 				FF0000022F6CD78F001DBFE5 /* ThemeStore.swift */,
 				FC0000022F6CD78F001DBFE5 /* CharacterStore.swift */,
 			);
@@ -232,7 +223,6 @@
 				DD0000022F6CD78F001DBFE5 /* AISettingsView.swift */,
 				DD0000042F6CD78F001DBFE5 /* DrawingsManagerView.swift */,
 				DD0000062F6CD78F001DBFE5 /* StoryRoadmapView.swift */,
-				CC0000052F6CD78F001DBFE5 /* VitalsOverlayView.swift */,
 				FC0000042F6CD78F001DBFE5 /* CharactersView.swift */,
 			);
 			path = Views;
@@ -255,7 +245,6 @@
 			children = (
 				BB0000102F6CD78F001DBFE5 /* DriftMeterView.swift */,
 				BB0000122F6CD78F001DBFE5 /* InteractiveElementsView.swift */,
-				BB0000142F6CD78F001DBFE5 /* VitalsMonitorView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -353,7 +342,6 @@
 			);
 			mainGroup = AA0000212F6CD78F001DBFE5;
 			packageReferences = (
-				CF8857BA2F747891005678AE /* XCRemoteSwiftPackageReference "SmartSpectra" */,
 			);
 			productRefGroup = AA0000232F6CD78F001DBFE5 /* Products */;
 			projectDirPath = "";
@@ -394,7 +382,7 @@
 				AA0000032F6CD78F001DBFE5 /* Models.swift in Sources */,
 				AA0000052F6CD78F001DBFE5 /* AuthManager.swift in Sources */,
 				AA0000072F6CD78F001DBFE5 /* APIService.swift in Sources */,
-				AA0000092F6CD78F001DBFE5 /* VitalsManager.swift in Sources */,
+				AA0000092F6CD78F001DBFE5 /* EyeTrackingManager.swift in Sources */,
 				AA00000B2F6CD78F001DBFE5 /* ContentView.swift in Sources */,
 				AA00000D2F6CD78F001DBFE5 /* LoginView.swift in Sources */,
 				AA00000F2F6CD78F001DBFE5 /* LoadingView.swift in Sources */,
@@ -418,14 +406,11 @@
 				BB0000112F6CD78F001DBFE5 /* InteractiveElementsView.swift in Sources */,
 				CF0000012F900000001STIMG /* StoryImageView.swift in Sources */,
 				CFEAB02C2F764EB10017E426 /* BedtimeStorySessionView.swift in Sources */,
-				BB0000132F6CD78F001DBFE5 /* VitalsMonitorView.swift in Sources */,
 				BB1000002A2B3C4D001EEFF0 /* Secrets.swift in Sources */,
 				DD0000012F6CD78F001DBFE5 /* AISettingsView.swift in Sources */,
 				DD0000032F6CD78F001DBFE5 /* DrawingsManagerView.swift in Sources */,
 				DD0000052F6CD78F001DBFE5 /* StoryRoadmapView.swift in Sources */,
 				EE0000012F6CD78F001DBFE5 /* Theme.swift in Sources */,
-				CC0000022F6CD78F001DBFE5 /* StoryVitalsTracker.swift in Sources */,
-				CC0000042F6CD78F001DBFE5 /* VitalsOverlayView.swift in Sources */,
 				FF0000012F6CD78F001DBFE5 /* ThemeStore.swift in Sources */,
 				FC0000012F6CD78F001DBFE5 /* CharacterStore.swift in Sources */,
 				FC0000032F6CD78F001DBFE5 /* CharactersView.swift in Sources */,
@@ -710,25 +695,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		CF8857BA2F747891005678AE /* XCRemoteSwiftPackageReference "SmartSpectra" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Presage-Security/SmartSpectra";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		CF8857BB2F747891005678AE /* SmartSpectraSwiftSDK */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CF8857BA2F747891005678AE /* XCRemoteSwiftPackageReference "SmartSpectra" */;
-			productName = SmartSpectraSwiftSDK;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AA00002C2F6CD78F001DBFE5 /* Project object */;
 }

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var authManager: AuthManager
-    @EnvironmentObject var vitalsManager: VitalsManager
+    @EnvironmentObject var eyeTracking: EyeTrackingManager
     @Binding var children: [ChildProfile]
     @Binding var selectedChild: ChildProfile?
 
@@ -311,5 +311,5 @@ struct DebugInfoRow: View {
         selectedChild: .constant(nil)
     )
     .environmentObject(AuthManager())
-    .environmentObject(VitalsManager())
+    .environmentObject(EyeTrackingManager.shared)
 }

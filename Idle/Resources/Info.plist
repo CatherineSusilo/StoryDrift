@@ -74,13 +74,13 @@
 		</dict>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Story Drift uses your camera to monitor vital signs contactlessly during bedtime stories.</string>
+	<string>StoryDrift uses the front camera to detect when your child is falling asleep during bedtime stories.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>StoryDrift uses Face ID depth sensing to track eye movement during bedtime stories.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>StoryDrift uses the microphone for voice minigames during bedtime stories.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>StoryDrift uses speech recognition so your child can answer voice prompts during story minigames.</string>
-	<key>SmartSpectraAPIKey</key>
-	<string>$(SMARTSPECTRA_API_KEY)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>IndieFlower-Regular.ttf</string>

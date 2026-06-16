@@ -3,7 +3,6 @@ import SwiftUI
 struct ChildDashboardView: View {
     @Binding var child: ChildProfile
     var refreshID: UUID = UUID()
-    @EnvironmentObject var vitalsManager: VitalsManager
     @EnvironmentObject var authManager: AuthManager
     @State private var allBedtimeStories: [Story] = []
     let onStartStory: () -> Void
@@ -78,10 +77,6 @@ struct ChildDashboardView: View {
                         }
                     }
 
-                    // ── Drift meter preview ──
-                    if vitalsManager.isMonitoring {
-                        DriftMeterPreview()
-                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 32)
@@ -210,35 +205,6 @@ struct StoryCardView: View {
     }
 }
 
-// MARK: - DriftMeterPreview
-struct DriftMeterPreview: View {
-    @EnvironmentObject var vitalsManager: VitalsManager
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("drift score")
-                    .font(Theme.bodyFont(size: 17))
-                    .fontWeight(.semibold)
-                    .foregroundColor(Theme.ink)
-                Spacer()
-                Text("\(vitalsManager.getDriftPercentage())%")
-                    .font(Theme.titleFont(size: 28))
-                    .foregroundColor(Theme.ink)
-            }
-            ProgressView(value: (vitalsManager.driftScore.isFinite ? min(max(vitalsManager.driftScore, 0), 100) : 0) / 100)
-                .tint(Theme.ink)
-                .scaleEffect(y: 1.6)
-                .padding(.vertical, 4)
-            Text(vitalsManager.getDriftStatus())
-                .font(Theme.bodyFont(size: 13))
-                .foregroundColor(Theme.inkMuted)
-        }
-        .padding(16)
-        .parchmentCard(cornerRadius: Theme.radiusMD)
-    }
-}
-
 // MARK: - EmptyStateView
 struct EmptyStateView: View {
     let icon: String
@@ -268,7 +234,6 @@ struct EmptyStateView: View {
         )),
         onStartStory: {}
     )
-    .environmentObject(VitalsManager())
     .environmentObject(AuthManager())
 }
 

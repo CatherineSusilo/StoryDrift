@@ -26,6 +26,7 @@ iOS bedtime story app (SwiftUI) + Node.js backend (Express + MongoDB).
 | File | Purpose |
 |------|---------|
 | `Idle/Services/APIService.swift` | All API calls (generate, save, rename, delete story) |
+| `Idle/Services/EyeTrackingManager.swift` | Singleton; ARKit (Face ID) + Vision fallback eye tracking; PERCLOS → `driftScore` (0–100) |
 | `Idle/Models/Models.swift` | `Story`, `Child`, `ChildProfile`, `AuthUser`, etc. |
 | `Idle/Managers/ParentalGateManager.swift` | Singleton; `isParentMode: Bool` gates parent-only UI |
 | `Idle/Views/StoryArchiveView.swift` | Archive list, swipe-delete, rename sheet |
