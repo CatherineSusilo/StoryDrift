@@ -18,11 +18,22 @@ final class TTSFinishDelegate: NSObject, AVSpeechSynthesizerDelegate {
     }
 }
 
+enum StoryPlaybackMode { case bedtime, educational }
+
 struct StoryPlaybackView: View {
     @EnvironmentObject var eyeTracking: EyeTrackingManager
     @EnvironmentObject var authManager: AuthManager
     let story: Story
-    let onComplete: ([Double], TimeInterval) -> Void
+    /// Optional pre-baked minigames keyed by paragraphIndex (educational mode).
+    /// When provided, on-demand /api/generate/minigame calls are skipped and the
+    /// minigame fires only when the current paragraph index matches a baked slot.
+    var bakedMinigames: [BakedMinigame]? = nil
+    /// Playback mode. Bedtime uses drift-based fade/auto-end + dark overlay scaling
+    /// with drift score. Educational uses constant brightness and ignores drift.
+    var mode: StoryPlaybackMode = .bedtime
+    /// Callback: drift history, elapsed seconds, progress percent (0–100).
+    /// Progress is `(currentParagraphIndex + 1) / totalParagraphs * 100` at end.
+    let onComplete: ([Double], TimeInterval, Int) -> Void
 
     @State private var currentParagraphIndex = 0
     @State private var isPlaying = true
@@ -104,7 +115,14 @@ struct StoryPlaybackView: View {
 
             ZStack {
                 // ── Full-screen background ───────────────────────────────────
-                StoryImageView.bedtime(imageUrl: currentImage, driftScore: Int(progress * 100))
+                Group {
+                    if mode == .bedtime {
+                        StoryImageView.bedtime(imageUrl: currentImage,
+                                               driftScore: Int(eyeTracking.driftScore))
+                    } else {
+                        StoryImageView.educational(imageUrl: currentImage, engagementScore: 50)
+                    }
+                }
                     .frame(width: geo.size.width + safeLeft + safeRight,
                            height: geo.size.height + safeTop + safeBottom)
                     .offset(x: -safeLeft, y: -safeTop)
@@ -263,8 +281,10 @@ struct StoryPlaybackView: View {
                                 .frame(width: 36, height: 4)
                                 .padding(.top, 12)
 
-                            DriftMeterView(driftScore: eyeTracking.driftScore, isCompact: true)
-                                .padding(.horizontal, 20)
+                            if mode == .bedtime {
+                                DriftMeterView(driftScore: eyeTracking.driftScore, isCompact: true)
+                                    .padding(.horizontal, 20)
+                            }
 
                             VStack(spacing: 8) {
                                 ProgressView(value: progress)
@@ -275,9 +295,11 @@ struct StoryPlaybackView: View {
                                         .font(.system(size: 13))
                                         .foregroundColor(.white.opacity(0.7))
                                     Spacer()
-                                    Text(eyeTracking.getDriftStatus())
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.cyan)
+                                    if mode == .bedtime {
+                                        Text(eyeTracking.getDriftStatus())
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundColor(.cyan)
+                                    }
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -345,7 +367,11 @@ struct StoryPlaybackView: View {
         paragraphsSinceLastMinigame = minigameGap
 
         let targetDuration = TimeInterval((story.targetDuration ?? 15) * 60)
-        eyeTracking.startTracking(targetDuration: targetDuration)
+        // Eye tracking is only meaningful for bedtime (drift → sleep detection).
+        // Educational sessions assume an awake child and skip tracking entirely.
+        if mode == .bedtime {
+            eyeTracking.startTracking(targetDuration: targetDuration)
+        }
 
         if let jobId = story.imageJobId, !jobId.isEmpty {
             startImagePolling(jobId: jobId)
@@ -356,7 +382,11 @@ struct StoryPlaybackView: View {
             self.elapsedTime += 1
             self.paragraphElapsed += 1
             self.driftHistory.append(self.eyeTracking.driftScore)
-            if self.eyeTracking.driftScore >= 90 { self.completeStory(); return }
+            // Drift-based auto-end only applies to bedtime. Educational sessions
+            // assume an awake, engaged child and never fade or auto-terminate.
+            if self.mode == .bedtime && self.eyeTracking.driftScore >= 90 {
+                self.completeStory(); return
+            }
         }
 
         playCurrentParagraph()
@@ -367,7 +397,7 @@ struct StoryPlaybackView: View {
         stopImagePolling()
         audioPlayer?.stop()
         synthesizer.stopSpeaking(at: .immediate)
-        eyeTracking.stopTracking()
+        if mode == .bedtime { eyeTracking.stopTracking() }
         if !minigameDrawings.isEmpty { saveMinigameDrawings() }
     }
 
@@ -415,7 +445,10 @@ struct StoryPlaybackView: View {
     private func completeStory() {
         saveMinigameDrawings()
         stopStory()
-        onComplete(driftHistory, elapsedTime)
+        let total = max(1, story.paragraphs.count)
+        let reached = min(total, currentParagraphIndex + 1)
+        let progress = Int(Double(reached) / Double(total) * 100)
+        onComplete(driftHistory, elapsedTime, progress)
     }
 
     private func formatTime(_ seconds: TimeInterval) -> String {
@@ -517,6 +550,11 @@ struct StoryPlaybackView: View {
     // MARK: - Minigame
 
     private func shouldTriggerMinigame() -> Bool {
+        if let baked = bakedMinigames {
+            return !showMinigame
+                && !isGeneratingMinigame
+                && baked.contains(where: { $0.paragraphIndex == currentParagraphIndex })
+        }
         return !showMinigame
             && !isGeneratingMinigame
             && minigameGap < Int.max
@@ -524,6 +562,17 @@ struct StoryPlaybackView: View {
     }
 
     private func triggerMinigame() {
+        // Baked path (educational): use pre-generated trigger at this slot
+        if let baked = bakedMinigames,
+           let match = baked.first(where: { $0.paragraphIndex == currentParagraphIndex }) {
+            let trigger = match.trigger.withFallbackShapes()
+            activeTrigger = trigger
+            showMinigame = true
+            paragraphsSinceLastMinigame = 0
+            audioPlayer?.pause()
+            return
+        }
+
         guard let paragraph = currentParagraph,
               let token = authManager.accessToken else { return }
         isGeneratingMinigame = true
@@ -645,7 +694,7 @@ struct StoryPlaybackView: View {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
     let story = try! decoder.decode(Story.self, from: json)
-    return StoryPlaybackView(story: story, onComplete: { _, _ in })
+    return StoryPlaybackView(story: story, onComplete: { _, _, _ in })
         .environmentObject(EyeTrackingManager.shared)
         .environmentObject(AuthManager())
 }

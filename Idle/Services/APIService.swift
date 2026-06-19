@@ -119,6 +119,13 @@ class APIService: ObservableObject {
     }
 
     func generateStory(config: StoryConfig, token: String) async throws -> Story {
+        let (story, _) = try await generateStoryAndMinigames(config: config, token: token)
+        return story
+    }
+
+    /// Generate a story and return both the saved `Story` and any pre-baked educational minigames.
+    /// Educational sessions need the minigames; bedtime sessions can ignore them.
+    func generateStoryAndMinigames(config: StoryConfig, token: String) async throws -> (Story, [BakedMinigame]) {
         // Step 1: Generate story text + first image via fal.ai (backend blocks until first image ready)
         var profileDict: [String: Any] = [
             "childId": config.childId,
@@ -135,6 +142,11 @@ class APIService: ObservableObject {
         if let drawings = config.drawingPrompts, !drawings.isEmpty {
             profileDict["drawingPrompts"] = drawings
         }
+        if let mode = config.mode { profileDict["mode"] = mode }
+        if let l = config.lessonName, !l.isEmpty { profileDict["lessonName"] = l }
+        if let l = config.lessonDescription, !l.isEmpty { profileDict["lessonDescription"] = l }
+        if let f = config.minigameFrequency { profileDict["minigameFrequency"] = f }
+        if let c = config.curriculumLessonId, !c.isEmpty { profileDict["curriculumLessonId"] = c }
         let generateBody: [String: Any] = ["profile": profileDict]
 
         guard let url = URL(string: "\(Self.baseURL)/api/generate/story") else { throw APIError.invalidURL }
@@ -183,7 +195,19 @@ class APIService: ObservableObject {
         ]
 
         let story: Story = try await request(endpoint: "/api/stories", method: "POST", body: AnyCodable(saveBody), token: token)
-        return story
+
+        // Decode minigames from raw JSON response (if educational mode returned any)
+        var minigames: [BakedMinigame] = []
+        if let raw = genJson["minigames"] as? [[String: Any]], !raw.isEmpty {
+            do {
+                let data = try JSONSerialization.data(withJSONObject: raw)
+                minigames = try JSONDecoder().decode([BakedMinigame].self, from: data)
+                print("✅ Decoded \(minigames.count) baked minigames")
+            } catch {
+                print("⚠️ Failed to decode minigames: \(error)")
+            }
+        }
+        return (story, minigames)
     }
 
     /// Rename a story. Decodes only `id` from the response to avoid failures
@@ -341,6 +365,14 @@ struct StoryConfig: Codable {
     var targetDuration: Int?
     /// Whether the eye-tracking camera is enabled for drift score tracking.
     var cameraEnabled: Bool?
+    /// "bedtime" (default) or "educational" — controls prompt + minigame baking.
+    var mode: String?
+    /// Educational only: lesson name shown to Claude.
+    var lessonName: String?
+    /// Educational only: longer description of the lesson concept.
+    var lessonDescription: String?
+    /// Curriculum lesson ID for roadmap-launched lessons.
+    var curriculumLessonId: String?
 }
 
 // MARK: - API Errors
