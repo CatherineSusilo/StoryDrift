@@ -4,6 +4,23 @@ iOS bedtime story app (SwiftUI) + Node.js backend (Express + MongoDB).
 
 ---
 
+## Pending: R2 custom-domain migration
+
+`R2_PUBLIC_URL` currently `https://pub-aff6b46117274911897b0d0b32ca2d60.r2.dev` — DNS-blocked by some ISPs (confirmed XL Axiata, Indonesia → hijacked to block page). Backend uploads still work (S3 API hostname differs); only client-side GETs fail → AVAudioPlayer falls back to native TTS, images render black.
+
+**Verified on iPad via VPN** — story audio + images load fine, so APIs and pipeline are healthy.
+
+**Migration (do when ready, before global launch):**
+1. Cloudflare → R2 → bucket `storydrift` → Settings → Custom Domains → connect `cdn.storydrift.app`.
+2. Wait for SSL active. Verify with `curl -I https://cdn.storydrift.app/<key>.mp3`.
+3. Set `R2_PUBLIC_URL=https://cdn.storydrift.app` in backend `.env`.
+4. Run `OLD_R2_PUBLIC_URL=https://pub-aff6b46117274911897b0d0b32ca2d60.r2.dev npx tsx scripts/migrate-r2-urls.ts --dry-run` then re-run without `--dry-run`.
+5. Restart backend. New uploads auto-use new domain (uploadToR2 reads env).
+
+Migration script covers `StorySession.audioUrls` + `generatedImages` only. Extend to `Character.imageUrl`, `Character.inspirationUrl`, and any other R2-URL fields before running if those collections have legacy data.
+
+---
+
 ## Repos
 
 | Repo | Path |
