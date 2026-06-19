@@ -47,7 +47,7 @@ struct ContentView: View {
                     if let story = activeStory {
                         StoryPlaybackView(
                             story: story,
-                            onComplete: { history, duration in
+                            onComplete: { history, duration, _ in
                                 driftHistory = history
                                 storyDuration = duration
                                 currentView = .summary

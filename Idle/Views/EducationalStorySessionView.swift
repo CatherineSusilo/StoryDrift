@@ -33,8 +33,10 @@ struct EducationalStorySessionView: View {
                 LoadingView()
             case .playing:
                 if let story = story {
-                    StoryPlaybackView(story: story, bakedMinigames: minigames) { drift, duration in
-                        Task { await finalize(story: story, drift: drift, duration: duration) }
+                    StoryPlaybackView(story: story,
+                                      bakedMinigames: minigames,
+                                      mode: .educational) { _, duration, progress in
+                        Task { await finalize(story: story, duration: duration, progress: progress) }
                     }
                     .environmentObject(authManager)
                     .environmentObject(eyeTracking)
@@ -117,25 +119,23 @@ struct EducationalStorySessionView: View {
 
     // MARK: - Finalize
 
-    private func finalize(story: Story, drift: [Double], duration: TimeInterval) async {
-        let targetSeconds = TimeInterval((story.targetDuration ?? 15) * 60)
-        let lessonProgress = min(100, Int((duration / max(1, targetSeconds)) * 100))
-        let engagementHistory = drift.map { max(0, 100 - Int($0)) } // invert: low drift → high engagement
-
+    private func finalize(story: Story, duration: TimeInterval, progress: Int) async {
+        // Educational sessions don't track drift. Progress comes from how many
+        // paragraphs the child reached. Mark the story complete server-side so it
+        // appears in the archive with the correct duration.
         if let token = authManager.accessToken {
-            let finalDrift = Int(drift.last ?? 0)
             try? await APIService.shared.updateStory(
-                storyId: story.id, completed: true,
-                duration: Int(duration), finalDriftScore: finalDrift,
-                driftScoreHistory: drift.map { Int($0) }, token: token
+                storyId: story.id, completed: progress >= 100,
+                duration: Int(duration), finalDriftScore: 0,
+                driftScoreHistory: [], token: token
             )
         }
 
         let summary = EducationalSummary(
             lessonName: lesson.name,
             lessonEmoji: lesson.emoji,
-            lessonProgress: lessonProgress,
-            engagementHistory: engagementHistory,
+            lessonProgress: progress,
+            engagementHistory: [],
             sessionDurationSeconds: Int(duration)
         )
         await MainActor.run {

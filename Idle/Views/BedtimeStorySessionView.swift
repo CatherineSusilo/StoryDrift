@@ -47,7 +47,7 @@ struct BedtimeStorySessionView: View {
             case .loading:                              loadingView
             case .playing:
                 if let story = generatedStory {
-                    StoryPlaybackView(story: story) { drift, duration in
+                    StoryPlaybackView(story: story, mode: .bedtime) { drift, duration, _ in
                         Task { await finalize(story: story, drift: drift, duration: duration) }
                     }
                     .environmentObject(authManager)
