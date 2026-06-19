@@ -38,12 +38,6 @@ struct SettingsView: View {
                         }
                     }
 
-                    // ── Vitals Monitoring ──
-                    settingsSection(title: "vitals monitoring") {
-                        SettingsRow(icon: "heart.fill",    title: "auto-monitor",    subtitle: "start monitoring during stories",          toggle: .constant(true))
-                        SettingsRow(icon: "moon.zzz.fill", title: "auto-end stories", subtitle: "stop when child is asleep (90% drift)", toggle: .constant(true))
-                    }
-
                     // ── Audio ──
                     settingsSection(title: "audio") {
                         VStack(alignment: .leading, spacing: 6) {

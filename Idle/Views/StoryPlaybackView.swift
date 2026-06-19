@@ -22,6 +22,10 @@ struct StoryPlaybackView: View {
     @EnvironmentObject var eyeTracking: EyeTrackingManager
     @EnvironmentObject var authManager: AuthManager
     let story: Story
+    /// Optional pre-baked minigames keyed by paragraphIndex (educational mode).
+    /// When provided, on-demand /api/generate/minigame calls are skipped and the
+    /// minigame fires only when the current paragraph index matches a baked slot.
+    var bakedMinigames: [BakedMinigame]? = nil
     let onComplete: ([Double], TimeInterval) -> Void
 
     @State private var currentParagraphIndex = 0
@@ -517,6 +521,11 @@ struct StoryPlaybackView: View {
     // MARK: - Minigame
 
     private func shouldTriggerMinigame() -> Bool {
+        if let baked = bakedMinigames {
+            return !showMinigame
+                && !isGeneratingMinigame
+                && baked.contains(where: { $0.paragraphIndex == currentParagraphIndex })
+        }
         return !showMinigame
             && !isGeneratingMinigame
             && minigameGap < Int.max
@@ -524,6 +533,17 @@ struct StoryPlaybackView: View {
     }
 
     private func triggerMinigame() {
+        // Baked path (educational): use pre-generated trigger at this slot
+        if let baked = bakedMinigames,
+           let match = baked.first(where: { $0.paragraphIndex == currentParagraphIndex }) {
+            let trigger = match.trigger.withFallbackShapes()
+            activeTrigger = trigger
+            showMinigame = true
+            paragraphsSinceLastMinigame = 0
+            audioPlayer?.pause()
+            return
+        }
+
         guard let paragraph = currentParagraph,
               let token = authManager.accessToken else { return }
         isGeneratingMinigame = true
