@@ -1,12 +1,11 @@
 import SwiftUI
-import AVFoundation
 
 // MARK: - BedtimeStorySessionView
 //
-// Clean, distraction-free bedtime story experience.
-// No interactive elements, no minigames, no choices.
-// Just story text, a fading scene image, ambient audio,
-// and the drift meter — all gently guiding toward sleep.
+// Bedtime story setup + playback wrapper.
+// Setup form → pregenerate story via /api/generate/story → hand off to StoryPlaybackView.
+// Drift tracking, audio chaining, image polling, and fade-to-black are handled by
+// StoryPlaybackView itself (which already supports the pregen flow).
 
 struct BedtimeStorySessionView: View {
     let child: ChildProfile
@@ -16,33 +15,21 @@ struct BedtimeStorySessionView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var eyeTracking: EyeTrackingManager
 
-    // Session
-    @State private var sessionId: String? = nil
     @State private var phase: BedtimePhase = .setup
-
-    // Story display
-    @State private var currentSegment = ""
-    @State private var currentImageUrl: String? = nil
-    @State private var driftScore: Int = 0
-    @State private var driftTrajectory = "flat"
 
     // Setup form
     @State private var favoriteAnimal = ""
     @State private var favoritePlace  = ""
     @State private var selectedMood: TonightsMood = .normal
 
-    // Playback
-    @State private var audioPlayer: AVAudioPlayer?
-    @State private var tickTimer: Timer?
-    @State private var elapsedSeconds: Int = 0
-    @State private var driftHistory: [Double] = []
-    @State private var isFadingToBlack = false
+    @State private var generatedStory: Story? = nil
+    @State private var errorMessage: String? = nil
 
-    enum BedtimePhase { case setup, loading, playing, complete }
+    enum BedtimePhase { case setup, loading, playing }
     enum TonightsMood: String, CaseIterable {
-        case wound_up = "wound_up"
-        case normal   = "normal"
-        case almost_there = "almost_there"
+        case wound_up     = "wound-up"
+        case normal       = "normal"
+        case almost_there = "almost-there"
 
         var label: String {
             switch self {
@@ -56,22 +43,19 @@ struct BedtimeStorySessionView: View {
     var body: some View {
         ZStack {
             switch phase {
-            case .setup:    setupView
-            case .loading:  loadingView
-            case .playing:  storyView
-            case .complete: Color.black.ignoresSafeArea()
-            }
-
-            // Fade-to-black overlay when sleep is detected
-            if isFadingToBlack {
-                Color.black
-                    .ignoresSafeArea()
-                    .transition(.opacity)
+            case .setup:                                setupView
+            case .loading:                              loadingView
+            case .playing:
+                if let story = generatedStory {
+                    StoryPlaybackView(story: story, mode: .bedtime) { drift, duration, _ in
+                        Task { await finalize(story: story, drift: drift, duration: duration) }
+                    }
+                    .environmentObject(authManager)
+                    .environmentObject(eyeTracking)
+                }
             }
         }
-        .animation(.easeInOut(duration: 1.5), value: isFadingToBlack)
-        .animation(.easeInOut(duration: 0.5), value: phase)
-        .onDisappear { tearDown() }
+        .animation(.easeInOut(duration: 0.4), value: phase)
     }
 
     // MARK: - Setup view
@@ -82,7 +66,6 @@ struct BedtimeStorySessionView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    // Header
                     VStack(alignment: .leading, spacing: 6) {
                         Text("🌙 Bedtime Story")
                             .font(Theme.titleFont(size: 28))
@@ -93,28 +76,15 @@ struct BedtimeStorySessionView: View {
                     }
                     .padding(.top, 20)
 
-                    // Favourite animal
-                    formField(
-                        icon: "pawprint.fill",
-                        label: "Favourite animal",
-                        placeholder: "e.g. fox, rabbit, elephant",
-                        text: $favoriteAnimal
-                    )
+                    formField(icon: "pawprint.fill", label: "Favourite animal",
+                              placeholder: "e.g. fox, rabbit, elephant", text: $favoriteAnimal)
+                    formField(icon: "map.fill",       label: "Favourite place",
+                              placeholder: "e.g. enchanted forest, moon, cosy cottage", text: $favoritePlace)
 
-                    // Favourite place
-                    formField(
-                        icon: "map.fill",
-                        label: "Favourite place",
-                        placeholder: "e.g. enchanted forest, moon, cosy cottage",
-                        text: $favoritePlace
-                    )
-
-                    // Tonight's mood
                     VStack(alignment: .leading, spacing: 10) {
                         Label("How are they feeling tonight?", systemImage: "moon.stars.fill")
                             .font(Theme.bodyFont(size: 15))
                             .foregroundColor(Theme.inkMuted)
-
                         HStack(spacing: 10) {
                             ForEach(TonightsMood.allCases, id: \.self) { mood in
                                 moodButton(mood)
@@ -122,16 +92,20 @@ struct BedtimeStorySessionView: View {
                         }
                     }
 
+                    if let err = errorMessage {
+                        Text(err)
+                            .font(Theme.bodyFont(size: 13))
+                            .foregroundColor(.red)
+                    }
+
                     Spacer(minLength: 16)
 
-                    // Begin button
                     Button {
-                        Task { await startSession() }
+                        Task { await startGeneration() }
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: "moon.zzz.fill")
-                            Text("Begin Story")
-                                .fontWeight(.semibold)
+                            Text("Begin Story").fontWeight(.semibold)
                         }
                         .font(.system(size: 18))
                         .foregroundColor(.white)
@@ -196,11 +170,8 @@ struct BedtimeStorySessionView: View {
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
             VStack(spacing: 20) {
-                Text("🌙")
-                    .font(.system(size: 60))
-                ProgressView()
-                    .tint(.white)
-                    .scaleEffect(1.4)
+                Text("🌙").font(.system(size: 60))
+                ProgressView().tint(.white).scaleEffect(1.4)
                 Text("Setting the scene…")
                     .font(.custom("Georgia", size: 18))
                     .foregroundColor(.white.opacity(0.8))
@@ -208,207 +179,69 @@ struct BedtimeStorySessionView: View {
         }
     }
 
-    // MARK: - Story view (clean, no interactive elements)
+    // MARK: - Story generation
 
-    private var storyView: some View {
-        ZStack {
-            // Scene background — smooth crossfade on each new image
-            StoryImageView.bedtime(imageUrl: currentImageUrl, driftScore: driftScore)
-
-            VStack(spacing: 0) {
-                Spacer()
-
-                // Story text — centred, soft, cinematic
-                if !currentSegment.isEmpty {
-                    Text(currentSegment)
-                        .font(.custom("Georgia", size: 22))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(8)
-                        .padding(.horizontal, 32)
-                        .shadow(color: .black.opacity(0.6), radius: 6, x: 0, y: 3)
-                        .transition(.opacity)
-                        .id(currentSegment)
-                        .animation(.easeInOut(duration: 1.2), value: currentSegment)
-                }
-
-                Spacer()
-
-                // Bottom: drift meter only — no controls, no buttons
-                driftBar
-            }
-
-            // Close button — top left, fades with drift
-            VStack {
-                HStack {
-                    Button {
-                        tearDown()
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.white.opacity(0.6))
-                            .padding(10)
-                            .background(Circle().fill(Color.black.opacity(0.25)))
-                    }
-                    .padding(.leading, 20)
-                    .padding(.top, 56)
-                    .opacity(max(0.05, 1.0 - Double(driftScore) / 80))
-                    .animation(.easeInOut(duration: 3), value: driftScore)
-                    Spacer()
-                }
-                Spacer()
-            }
+    private func startGeneration() async {
+        guard let token = authManager.accessToken else {
+            errorMessage = "Not signed in"
+            return
         }
-    }
-
-    private var driftBar: some View {
-        VStack(spacing: 8) {
-            // Drift score label fades at high score
-            HStack {
-                Text("Drifting…")
-                    .font(Theme.bodyFont(size: 13))
-                    .foregroundColor(.white.opacity(max(0.1, 0.6 - Double(driftScore) / 100 * 0.5)))
-                Spacer()
-                Text("\(driftScore)%")
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white.opacity(max(0.1, 0.5 - Double(driftScore) / 100 * 0.4)))
-            }
-            .padding(.horizontal, 28)
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.08)).frame(height: 4)
-                    Capsule()
-                        .fill(LinearGradient(colors: [Color.indigo.opacity(0.8), Color.purple.opacity(0.5)],
-                                             startPoint: .leading, endPoint: .trailing))
-                        .frame(width: geo.size.width * CGFloat(driftScore) / 100, height: 4)
-                        .animation(.easeInOut(duration: 3), value: driftScore)
-                }
-            }
-            .frame(height: 4)
-            .padding(.horizontal, 28)
-        }
-        .padding(.bottom, 44)
-        .opacity(driftScore > 90 ? 0 : 1)
-        .animation(.easeInOut(duration: 4), value: driftScore)
-    }
-
-    // MARK: - Session logic
-
-    private func startSession() async {
-        guard let token = authManager.accessToken else { return }
+        errorMessage = nil
         phase = .loading
 
-        let body: [String: Any] = [
-            "mode": "bedtime",
-            "childProfile": [
-                "childId": child.id,
-                "name": child.name,
-                "age": child.age,
-                "favoriteAnimal": favoriteAnimal.isEmpty ? "rabbit" : favoriteAnimal,
-                "favoritePlace":  favoritePlace.isEmpty  ? "enchanted forest" : favoritePlace,
-                "tonightsMood":   selectedMood.rawValue,
-            ],
-        ]
+        let animal = favoriteAnimal.trimmingCharacters(in: .whitespaces).isEmpty
+            ? "rabbit" : favoriteAnimal
+        let place  = favoritePlace.trimmingCharacters(in: .whitespaces).isEmpty
+            ? "enchanted forest" : favoritePlace
+        let parentPrompt = "A gentle bedtime story about a \(animal) in a \(place)."
+
+        let config = StoryConfig(
+            childId: child.id,
+            name: child.name,
+            age: child.age,
+            storytellingTone: "calming",
+            parentPrompt: parentPrompt,
+            initialState: selectedMood.rawValue,
+            drawingPrompts: nil,
+            characters: nil,
+            minigameFrequency: "none",
+            targetDuration: 15,
+            cameraEnabled: eyeTracking.isCameraEnabled,
+            mode: "bedtime",
+            lessonName: nil,
+            lessonDescription: nil,
+            curriculumLessonId: nil
+        )
 
         do {
-            let data = try await APIService.shared.post(
-                path: "/api/story-session/start", body: body, token: token)
-            let resp = try JSONDecoder().decode(SessionStartResponse.self, from: data)
-            sessionId = resp.sessionId
-            eyeTracking.startTracking()
-            phase = .playing
-            startTickTimer()
+            let story = try await APIService.shared.generateStory(config: config, token: token)
+            await MainActor.run {
+                generatedStory = story
+                phase = .playing
+            }
         } catch {
-            phase = .setup
-        }
-    }
-
-    private func startTickTimer() {
-        Task { await runTick() }
-        tickTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            elapsedSeconds += 1
-            driftHistory.append(eyeTracking.driftScore)
-
-            // Tick every 60 seconds
-            if elapsedSeconds % 60 == 0 {
-                Task { await runTick() }
+            await MainActor.run {
+                errorMessage = "Could not start story: \(error.localizedDescription)"
+                phase = .setup
             }
         }
     }
 
-    private func runTick() async {
-        guard let sid = sessionId, let token = authManager.accessToken else { return }
+    // MARK: - Finalize
 
-        let cameraEnabled = eyeTracking.isCameraEnabled && eyeTracking.trackingMode != .unavailable
-        let biometrics: [String: Any] = cameraEnabled ? [
-            "drift_score":    eyeTracking.driftScore,
-            "movement_level": 0.2,
-        ] : [:]
-
-        do {
-            let data = try await APIService.shared.post(
-                path: "/api/story-session/\(sid)/tick?includeAudio=1",
-                body: ["biometrics": biometrics, "cameraEnabled": cameraEnabled], token: token)
-            let resp = try JSONDecoder().decode(TickResponse.self, from: data)
-            await MainActor.run { applyTick(resp) }
-        } catch {
-            print("Bedtime tick error: \(error)")
+    private func finalize(story: Story, drift: [Double], duration: TimeInterval) async {
+        let finalDrift = Int(drift.last ?? 0)
+        let history   = drift.map { Int($0) }
+        if let token = authManager.accessToken {
+            try? await APIService.shared.updateStory(
+                storyId: story.id, completed: true,
+                duration: Int(duration), finalDriftScore: finalDrift,
+                driftScoreHistory: history, token: token
+            )
         }
-    }
-
-    @MainActor
-    private func applyTick(_ resp: TickResponse) {
-        withAnimation {
-            currentSegment  = resp.segment
-            currentImageUrl = resp.imageUrl
-            driftScore      = resp.score
-            driftTrajectory = resp.trajectory
-        }
-
-        if let audioUrl = resp.audioUrl,
-           let base64   = audioUrl.components(separatedBy: ",").last,
-           let audioData = Data(base64Encoded: base64) {
-            playAudio(data: audioData)
-        }
-
-        if resp.sessionComplete {
-            endSession()
-        }
-    }
-
-    private func endSession() {
-        // Fade to black silently
-        withAnimation(.easeIn(duration: 3.0)) {
-            isFadingToBlack = true
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
-            tearDown()
-            onComplete(driftHistory.map { $0 }, TimeInterval(elapsedSeconds))
-        }
-    }
-
-    private func tearDown() {
-        tickTimer?.invalidate()
-        audioPlayer?.stop()
-        eyeTracking.stopTracking()
-        if let sid = sessionId, let token = authManager.accessToken {
-            Task { _ = try? await APIService.shared.post(
-                path: "/api/story-session/\(sid)/end", body: [:], token: token) }
-        }
-    }
-
-    private func playAudio(data: Data) {
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [])
-            try session.setActive(true)
-            audioPlayer = try AVAudioPlayer(data: data)
-            audioPlayer?.prepareToPlay()
-            audioPlayer?.play()
-        } catch {
-            print("Audio error: \(error)")
+        await MainActor.run {
+            onComplete(drift, duration)
+            dismiss()
         }
     }
 }

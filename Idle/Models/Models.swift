@@ -508,6 +508,12 @@ struct MinigameTriggerResponse: Codable {
     let trigger: MinigameTrigger
 }
 
+/// A minigame pre-baked into the story-generation response, keyed by paragraph index.
+struct BakedMinigame: Codable {
+    let paragraphIndex: Int
+    let trigger: MinigameTrigger
+}
+
 struct MinigameTrigger: Codable {
     let type: MinigameType
     let narratorPrompt: String
