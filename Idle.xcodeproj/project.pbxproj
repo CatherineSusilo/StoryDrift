@@ -22,6 +22,8 @@
 		AA0000172F6CD78F001DBFE5 /* BehavioralStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000182F6CD78F001DBFE5 /* BehavioralStatsView.swift */; };
 		BB0000012F6CD78F001DBFE5 /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000022F6CD78F001DBFE5 /* AudioService.swift */; };
 		BB0000032F6CD78F001DBFE5 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000042F6CD78F001DBFE5 /* SettingsView.swift */; };
+		PRVC0000022F6CD78F001DBF5 /* PrivacyConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRVC0000012F6CD78F001DBF5 /* PrivacyConsentView.swift */; };
+		PRVI0000022F6CD78F001DBF5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = PRVI0000012F6CD78F001DBF5 /* PrivacyInfo.xcprivacy */; };
 		BB0000052F6CD78F001DBFE5 /* StorySetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000062F6CD78F001DBFE5 /* StorySetupView.swift */; };
 		BB0000072F6CD78F001DBFE5 /* StorySummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000082F6CD78F001DBFE5 /* StorySummaryView.swift */; };
 		BB0000092F6CD78F001DBFE5 /* StoryThemesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB00000A2F6CD78F001DBFE5 /* StoryThemesView.swift */; };
@@ -81,6 +83,8 @@
 		AA00001B2F6CD78F001DBFE5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BB0000022F6CD78F001DBFE5 /* AudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService.swift; sourceTree = "<group>"; };
 		BB0000042F6CD78F001DBFE5 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		PRVC0000012F6CD78F001DBF5 /* PrivacyConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyConsentView.swift; sourceTree = "<group>"; };
+		PRVI0000012F6CD78F001DBF5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BB0000062F6CD78F001DBFE5 /* StorySetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorySetupView.swift; sourceTree = "<group>"; };
 		BB0000082F6CD78F001DBFE5 /* StorySummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorySummaryView.swift; sourceTree = "<group>"; };
 		BB00000A2F6CD78F001DBFE5 /* StoryThemesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryThemesView.swift; sourceTree = "<group>"; };
@@ -154,6 +158,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000022F6CD78F001DBFE5 /* IdleApp.swift */,
+				PRVI0000012F6CD78F001DBF5 /* PrivacyInfo.xcprivacy */,
 				AA0000242F6CD78F001DBFE5 /* Models */,
 				AA0000252F6CD78F001DBFE5 /* Services */,
 				AA0000262F6CD78F001DBFE5 /* Views */,
@@ -211,6 +216,7 @@
 				AA0000162F6CD78F001DBFE5 /* ChildOnboardingView.swift */,
 				AA0000182F6CD78F001DBFE5 /* BehavioralStatsView.swift */,
 				BB0000042F6CD78F001DBFE5 /* SettingsView.swift */,
+				PRVC0000012F6CD78F001DBF5 /* PrivacyConsentView.swift */,
 				BB0000062F6CD78F001DBFE5 /* StorySetupView.swift */,
 				BB0000082F6CD78F001DBFE5 /* StorySummaryView.swift */,
 				BB00000A2F6CD78F001DBFE5 /* StoryThemesView.swift */,
@@ -361,6 +367,7 @@
 				FA0000012F6CD78F001DBFE5 /* IndieFlower-Regular.ttf in Resources */,
 				FA0000032F6CD78F001DBFE5 /* PatrickHand-Regular.ttf in Resources */,
 				FA0000052F6CD78F001DBFE5 /* Assets.xcassets in Resources */,
+				PRVI0000022F6CD78F001DBF5 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -392,6 +399,7 @@
 				AA0000172F6CD78F001DBFE5 /* BehavioralStatsView.swift in Sources */,
 				BB0000012F6CD78F001DBFE5 /* AudioService.swift in Sources */,
 				BB0000032F6CD78F001DBFE5 /* SettingsView.swift in Sources */,
+				PRVC0000022F6CD78F001DBF5 /* PrivacyConsentView.swift in Sources */,
 				CFEAB02F2F764F040017E426 /* EducationalStorySessionView.swift in Sources */,
 				CFEAB0302F764F040017E426 /* LessonRoadmapView.swift in Sources */,
 				BB0000052F6CD78F001DBFE5 /* StorySetupView.swift in Sources */,

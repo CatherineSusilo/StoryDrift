@@ -104,6 +104,16 @@ final class ParentalGateManager: ObservableObject {
         UserDefaults.standard.set(false, forKey: kIsParentMode)
     }
 
+    /// Wipe all local parental-gate state (passcode hash + parent mode). Used on
+    /// account deletion so a new account on this device never inherits the old
+    /// passcode. The default "000000" passcode is re-seeded on next app launch.
+    func clear() {
+        UserDefaults.standard.removeObject(forKey: kPasscodeHash)
+        UserDefaults.standard.removeObject(forKey: kIsParentMode)
+        hasPasscode = false
+        isParentMode = false
+    }
+
     func resetPasscode(newPin: String, token: String? = nil) {
         setPasscode(newPin, token: token)
     }

@@ -68,6 +68,9 @@ struct MainTabView: View {
     // Bedtime session sheet
     @State private var showBedtimeSession = false
 
+    // First-launch privacy consent gate (PIPEDA / Quebec Law 25)
+    @State private var showConsentSheet = false
+
     /// True when running on iPhone (compact horizontal size class)
     private var isCompact: Bool { hSizeClass == .compact }
 
@@ -139,6 +142,14 @@ struct MainTabView: View {
             if NavDestination.collectionItems.contains(selectedDest) {
                 collectionsExpanded = true
             }
+        }
+        .onAppear { evaluateConsent() }
+        .onChange(of: authManager.user?.id) { _ in evaluateConsent() }
+        .sheet(isPresented: $showConsentSheet) {
+            PrivacyConsentView(userId: authManager.user?.id ?? "") {
+                showConsentSheet = false
+            }
+            .interactiveDismissDisabled(true)
         }
         .fullScreenCover(isPresented: $showPasscodeGate) {
             PasscodeEntryView(
@@ -598,6 +609,16 @@ struct MainTabView: View {
             CharactersView()
         case .settings:
             SettingsView(children: $children, selectedChild: $selectedChild)
+        }
+    }
+
+    // MARK: - Consent gate (PIPEDA / Quebec Law 25)
+    /// Consent is tracked per-account so a new account on a device that a prior
+    /// account already consented on still sees the gate before creating a child.
+    private func evaluateConsent() {
+        guard let uid = authManager.user?.id, !uid.isEmpty else { return }
+        if !UserDefaults.standard.bool(forKey: "consentGranted_\(uid)") {
+            showConsentSheet = true
         }
     }
 

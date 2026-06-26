@@ -12,6 +12,16 @@ struct SettingsView: View {
     @State private var showAISettings = false
     @State private var showResetPasscode = false   // reset passcode sheet
 
+    // Account deletion (PIPEDA / Quebec Law 25)
+    @State private var isDeletingAccount = false
+    @State private var showDeleteAccountConfirm = false
+    @State private var showDeleteAccountError = false
+
+    // Single-child deletion (PIPEDA / Quebec Law 25)
+    @State private var childToDelete: ChildProfile?
+    @State private var isDeletingChild = false
+    @State private var showDeleteChildError = false
+
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
@@ -27,11 +37,28 @@ struct SettingsView: View {
                     // ── Children ──
                     settingsSection(title: "children") {
                         ForEach(children) { child in
-                            ChildSelectionCard(
-                                child: child,
-                                isSelected: selectedChild?.id == child.id,
-                                onSelect: { selectedChild = child }
-                            )
+                            HStack(spacing: 10) {
+                                ChildSelectionCard(
+                                    child: child,
+                                    isSelected: selectedChild?.id == child.id,
+                                    onSelect: { selectedChild = child }
+                                )
+                                // Delete is parent-only
+                                if gateManager.isParentMode {
+                                    Button {
+                                        childToDelete = child
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 18))
+                                            .foregroundColor(Theme.destructive)
+                                            .frame(width: 48, height: 48)
+                                            .background(Theme.background)
+                                            .cornerRadius(Theme.radiusSM)
+                                            .overlay(RoundedRectangle(cornerRadius: Theme.radiusSM).stroke(Theme.border, lineWidth: 1))
+                                    }
+                                    .disabled(isDeletingChild)
+                                }
+                            }
                         }
                         parchmentButton(icon: "plus.circle.fill", label: "add another child") {
                             showingAddChild = true
@@ -116,6 +143,36 @@ struct SettingsView: View {
                         }
                     }
 
+                    // ── Data & privacy ──
+                    settingsSection(title: "data & privacy") {
+                        Button {
+                            showDeleteAccountConfirm = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(Theme.destructive)
+                                    .frame(width: 28)
+                                Text("Delete my account")
+                                    .font(Theme.bodyFont(size: 16))
+                                    .foregroundColor(Theme.destructive)
+                                Spacer()
+                                if isDeletingAccount {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(Theme.inkMuted)
+                                }
+                            }
+                            .padding(14)
+                            .background(Theme.background)
+                            .cornerRadius(Theme.radiusSM)
+                            .overlay(RoundedRectangle(cornerRadius: Theme.radiusSM).stroke(Theme.border, lineWidth: 1))
+                        }
+                        .disabled(isDeletingAccount)
+                    }
+
                     // ── About ──
                     VStack(spacing: 10) {
                         Image("StoryDriftLogo")
@@ -136,7 +193,8 @@ struct SettingsView: View {
             }
         }
         .sheet(isPresented: $showingAddChild) {
-            ChildOnboardingView { child in
+            // Parent already has an account/passcode here, so allow reusing it.
+            ChildOnboardingView(allowUseExisting: true) { child in
                 children.append(child)
                 showingAddChild = false
             }
@@ -154,6 +212,76 @@ struct SettingsView: View {
             }
             .environmentObject(authManager)
         }
+        .confirmationDialog("Delete account?", isPresented: $showDeleteAccountConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                Task { await deleteAccount() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently deletes your account, all child profiles, all stories, and all audio and images. This cannot be undone.")
+        }
+        .alert("Something went wrong", isPresented: $showDeleteAccountError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Please try again or contact support@storydrift.app.")
+        }
+        .confirmationDialog("Delete child?", isPresented: Binding(
+            get: { childToDelete != nil },
+            set: { if !$0 { childToDelete = nil } }
+        ), titleVisibility: .visible, presenting: childToDelete) { child in
+            Button("Delete", role: .destructive) {
+                Task { await deleteChild(child) }
+            }
+            Button("Cancel", role: .cancel) { childToDelete = nil }
+        } message: { child in
+            Text("This permanently deletes \(child.name)'s profile, all their stories, and all audio and images. This cannot be undone.")
+        }
+        .alert("Something went wrong", isPresented: $showDeleteChildError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Please try again or contact support@storydrift.app.")
+        }
+    }
+
+    // MARK: - Child deletion
+    private func deleteChild(_ child: ChildProfile) async {
+        isDeletingChild = true
+        let token = authManager.accessToken
+            ?? UserDefaults.standard.string(forKey: "accessToken") ?? ""
+        do {
+            try await APIService.shared.deleteChild(childId: child.id, token: token)
+            children.removeAll { $0.id == child.id }
+            if selectedChild?.id == child.id {
+                selectedChild = children.first
+            }
+            childToDelete = nil
+        } catch {
+            print("❌ Child deletion failed: \(error)")
+            showDeleteChildError = true
+        }
+        isDeletingChild = false
+    }
+
+    // MARK: - Account deletion
+    private func deleteAccount() async {
+        isDeletingAccount = true
+        let token = authManager.accessToken
+            ?? UserDefaults.standard.string(forKey: "accessToken") ?? ""
+        do {
+            try await APIService.shared.deleteAccount(token: token)
+            // Wipe local state so the next launch starts fully clean: clear the
+            // per-account PIPEDA consent flags (re-prompts consent) and sign out.
+            if let uid = authManager.user?.id {
+                UserDefaults.standard.removeObject(forKey: "consentGranted_\(uid)")
+                UserDefaults.standard.removeObject(forKey: "consentVersion_\(uid)")
+            }
+            await ParentalGateManager.shared.clear()
+            authManager.logout()
+        } catch {
+            print("❌ Account deletion failed: \(error)")
+            showDeleteAccountError = true
+        }
+        isDeletingAccount = false
     }
 
     // MARK: - Helpers
