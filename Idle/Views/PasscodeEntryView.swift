@@ -52,12 +52,9 @@ struct PasscodeEntryView: View {
 
     var body: some View {
         ZStack {
-            // Dark dreamy background
-            LinearGradient(
-                colors: [Color(red:0.04,green:0.04,blue:0.14), Color(red:0.12,green:0.04,blue:0.22)],
-                startPoint: .top, endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            // Warm parchment background to match the app theme
+            Theme.backgroundGradient
+                .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // ── Header ──────────────────────────────────────────────────
@@ -69,7 +66,7 @@ struct PasscodeEntryView: View {
                             Text("cancel")
                                 .font(Theme.bodyFont(size: 15))
                         }
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundColor(Theme.inkMuted)
                         .padding(12)
                     }
                     Spacer()
@@ -81,27 +78,27 @@ struct PasscodeEntryView: View {
                 // ── Lock icon ────────────────────────────────────────────────
                 Image(systemName: mode == .unlock ? "lock.fill" : "lock.open.fill")
                     .font(.system(size: 44))
-                    .foregroundColor(.white.opacity(0.85))
+                    .foregroundColor(Theme.accent)
                     .padding(.bottom, 16)
 
                 // ── Prompt ───────────────────────────────────────────────────
                 Text(prompt)
                     .font(Theme.titleFont(size: 24))
-                    .foregroundColor(.white)
+                    .foregroundColor(Theme.ink)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
 
                 if !subtitle.isEmpty && phase == .enter && mode == .unlock {
                     Text(subtitle)
                         .font(Theme.bodyFont(size: 14))
-                        .foregroundColor(.white.opacity(0.55))
+                        .foregroundColor(Theme.inkMuted)
                         .padding(.top, 4)
                 }
 
                 // ── Error ────────────────────────────────────────────────────
                 Text(errorMessage)
                     .font(Theme.bodyFont(size: 14))
-                    .foregroundColor(Color(red:1,green:0.4,blue:0.4))
+                    .foregroundColor(Theme.destructive)
                     .padding(.top, 6)
                     .frame(height: 20)
                     .opacity(errorMessage.isEmpty ? 0 : 1)
@@ -109,7 +106,7 @@ struct PasscodeEntryView: View {
                 // ── Dots ─────────────────────────────────────────────────────
                 if isVerifying {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .progressViewStyle(CircularProgressViewStyle(tint: Theme.ink))
                         .scaleEffect(1.2)
                         .padding(.top, 28)
                         .padding(.bottom, 40)
@@ -117,7 +114,7 @@ struct PasscodeEntryView: View {
                 HStack(spacing: 16) {
                     ForEach(0..<6, id: \.self) { i in
                         Circle()
-                            .fill(i < entered.count ? Color.white : Color.white.opacity(0.2))
+                            .fill(i < entered.count ? Theme.ink : Theme.border)
                             .frame(width: 14, height: 14)
                             .scaleEffect(i < entered.count ? 1.1 : 1.0)
                             .animation(.spring(response: 0.2), value: entered.count)
@@ -145,7 +142,7 @@ struct PasscodeEntryView: View {
                         Button(action: backspace) {
                             Image(systemName: "delete.left.fill")
                                 .font(.system(size: 22))
-                                .foregroundColor(.white.opacity(0.75))
+                                .foregroundColor(Theme.inkMuted)
                                 .frame(width: 72, height: 72)
                         }
                     }
@@ -156,18 +153,18 @@ struct PasscodeEntryView: View {
                     if resetSuccess {
                         Text("✅ passcode reset to 000000")
                             .font(Theme.bodyFont(size: 14))
-                            .foregroundColor(.green.opacity(0.9))
+                            .foregroundColor(Theme.success)
                             .padding(.top, 20)
                     } else if isResetting {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white.opacity(0.6)))
+                            .progressViewStyle(CircularProgressViewStyle(tint: Theme.inkMuted))
                             .padding(.top, 20)
                     } else {
                         Button("forgot passcode?") {
                             showForgotAlert = true
                         }
                         .font(Theme.bodyFont(size: 14))
-                        .foregroundColor(.white.opacity(0.45))
+                        .foregroundColor(Theme.inkMuted)
                         .padding(.top, 20)
                     }
                 }
@@ -193,10 +190,11 @@ struct PasscodeEntryView: View {
         Button(action: { append(label) }) {
             Text(label)
                 .font(.system(size: 26, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(Theme.ink)
                 .frame(width: 72, height: 72)
-                .background(Circle().fill(Color.white.opacity(0.12)))
-                .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
+                .background(Circle().fill(Theme.card))
+                .overlay(Circle().stroke(Theme.border, lineWidth: 1))
+                .contentShape(Circle())
         }
     }
 

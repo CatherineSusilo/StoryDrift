@@ -243,6 +243,30 @@ class APIService: ObservableObject {
         let _: Story = try await request(endpoint: "/api/stories/\(storyId)", method: "PATCH", body: body, token: token)
     }
 
+    // MARK: - Privacy & Account (PIPEDA / Quebec Law 25)
+
+    /// Record the parent's explicit consent to the current privacy policy.
+    /// Fire-and-forget from the UI — the UserDefaults flag is the source of truth.
+    func recordConsent(version: String) async throws {
+        struct ConsentBody: Encodable { let privacyPolicyVersion: String }
+        struct ConsentResp: Decodable { let ok: Bool }
+        let token = UserDefaults.standard.string(forKey: "accessToken")
+        let _: ConsentResp = try await request(endpoint: "/api/users/consent", method: "POST",
+                                               body: ConsentBody(privacyPolicyVersion: version), token: token)
+    }
+
+    /// Permanently delete the authenticated user's account and all associated data.
+    func deleteAccount(token: String) async throws {
+        struct DeleteResp: Decodable { let ok: Bool }
+        let _: DeleteResp = try await request(endpoint: "/api/users/account", method: "DELETE", token: token)
+    }
+
+    /// Permanently delete a single child profile and all of its stories/assets.
+    func deleteChild(childId: String, token: String) async throws {
+        struct DeleteResp: Decodable { let ok: Bool }
+        let _: DeleteResp = try await request(endpoint: "/api/children/\(childId)", method: "DELETE", token: token)
+    }
+
     func getStatistics(childId: String, token: String) async throws -> ChildStatistics {
         return try await request(endpoint: "/api/statistics/stories/\(childId)", token: token)
     }

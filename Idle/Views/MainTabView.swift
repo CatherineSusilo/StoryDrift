@@ -68,6 +68,9 @@ struct MainTabView: View {
     // Bedtime session sheet
     @State private var showBedtimeSession = false
 
+    // First-launch privacy consent gate (PIPEDA / Quebec Law 25)
+    @State private var showConsentSheet = false
+
     /// True when running on iPhone (compact horizontal size class)
     private var isCompact: Bool { hSizeClass == .compact }
 
@@ -139,6 +142,17 @@ struct MainTabView: View {
             if NavDestination.collectionItems.contains(selectedDest) {
                 collectionsExpanded = true
             }
+        }
+        .onAppear {
+            if !UserDefaults.standard.bool(forKey: "consentGranted") {
+                showConsentSheet = true
+            }
+        }
+        .sheet(isPresented: $showConsentSheet) {
+            PrivacyConsentView {
+                showConsentSheet = false
+            }
+            .interactiveDismissDisabled(true)
         }
         .fullScreenCover(isPresented: $showPasscodeGate) {
             PasscodeEntryView(
