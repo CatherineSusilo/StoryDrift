@@ -270,9 +270,11 @@ struct SettingsView: View {
         do {
             try await APIService.shared.deleteAccount(token: token)
             // Wipe local state so the next launch starts fully clean: clear the
-            // PIPEDA consent flags (re-prompts consent) and sign out.
-            UserDefaults.standard.removeObject(forKey: "consentGranted")
-            UserDefaults.standard.removeObject(forKey: "consentVersion")
+            // per-account PIPEDA consent flags (re-prompts consent) and sign out.
+            if let uid = authManager.user?.id {
+                UserDefaults.standard.removeObject(forKey: "consentGranted_\(uid)")
+                UserDefaults.standard.removeObject(forKey: "consentVersion_\(uid)")
+            }
             await ParentalGateManager.shared.clear()
             authManager.logout()
         } catch {

@@ -3,6 +3,8 @@ import SwiftUI
 /// Full-screen consent sheet shown to the parent on first launch, before any
 /// other app content is accessible. PIPEDA / Quebec Law 25 compliance.
 struct PrivacyConsentView: View {
+    /// Authenticated account id — consent is recorded per-account, not per-device.
+    var userId: String = ""
     let onConsented: () -> Void
 
     @Environment(\.openURL) private var openURL
@@ -106,8 +108,8 @@ struct PrivacyConsentView: View {
         // Fire-and-forget — never block the UI on the network. The UserDefaults
         // flag below is the source of truth even if the network is unavailable.
         Task { try? await APIService.shared.recordConsent(version: "1.0") }
-        UserDefaults.standard.set(true, forKey: "consentGranted")
-        UserDefaults.standard.set("1.0", forKey: "consentVersion")
+        UserDefaults.standard.set(true, forKey: "consentGranted_\(userId)")
+        UserDefaults.standard.set("1.0", forKey: "consentVersion_\(userId)")
         onConsented()
     }
 }

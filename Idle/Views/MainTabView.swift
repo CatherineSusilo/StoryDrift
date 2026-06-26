@@ -143,13 +143,10 @@ struct MainTabView: View {
                 collectionsExpanded = true
             }
         }
-        .onAppear {
-            if !UserDefaults.standard.bool(forKey: "consentGranted") {
-                showConsentSheet = true
-            }
-        }
+        .onAppear { evaluateConsent() }
+        .onChange(of: authManager.user?.id) { _ in evaluateConsent() }
         .sheet(isPresented: $showConsentSheet) {
-            PrivacyConsentView {
+            PrivacyConsentView(userId: authManager.user?.id ?? "") {
                 showConsentSheet = false
             }
             .interactiveDismissDisabled(true)
@@ -612,6 +609,16 @@ struct MainTabView: View {
             CharactersView()
         case .settings:
             SettingsView(children: $children, selectedChild: $selectedChild)
+        }
+    }
+
+    // MARK: - Consent gate (PIPEDA / Quebec Law 25)
+    /// Consent is tracked per-account so a new account on a device that a prior
+    /// account already consented on still sees the gate before creating a child.
+    private func evaluateConsent() {
+        guard let uid = authManager.user?.id, !uid.isEmpty else { return }
+        if !UserDefaults.standard.bool(forKey: "consentGranted_\(uid)") {
+            showConsentSheet = true
         }
     }
 
