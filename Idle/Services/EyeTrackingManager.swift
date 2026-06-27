@@ -401,7 +401,9 @@ final class EyeTrackingManager: NSObject, ObservableObject {
         let elapsed = Date().timeIntervalSince(startTime)
         let progress = min(elapsed / targetDuration, 1.0)
         let jitter = Double.random(in: -2...2)
-        driftScore = min(max(progress * 100 + jitter, 0), 100)
+        // Cap synthetic drift at 90 — without eye tracking it otherwise hits
+        // 100 before the story ends. Reserve 100 for real PERCLOS detection.
+        driftScore = min(max(progress * 100 + jitter, 0), 90)
     }
 
     // MARK: - PERCLOS
