@@ -606,7 +606,7 @@ struct MainTabView: View {
         case .themes:
             StoryThemesView()
         case .characters:
-            CharactersView()
+            CharactersView(child: child)
         case .settings:
             SettingsView(children: $children, selectedChild: $selectedChild)
         }

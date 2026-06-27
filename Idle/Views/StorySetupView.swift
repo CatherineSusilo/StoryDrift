@@ -351,7 +351,7 @@ struct StorySetupView: View {
         .onAppear { loadDrawings() }
         .onChange(of: selectedTheme) { _, theme in
             if let theme, parentPrompt.isEmpty {
-                parentPrompt = theme.name
+                parentPrompt = theme.promptText
             }
         }
     }
@@ -381,15 +381,15 @@ struct StorySetupView: View {
         Button {
             withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                 if isActive {
-                    // Deselect — clear prompt if it still holds this theme's name
+                    // Deselect — clear prompt if it still holds this theme's text
                     selectedTheme = nil
-                    if parentPrompt == theme.name { parentPrompt = "" }
+                    if parentPrompt == theme.promptText { parentPrompt = "" }
                 } else {
-                    // Select — replace prompt if it's empty or held the previous theme's name
-                    let previousThemeName = selectedTheme?.name
+                    // Select — replace prompt if it's empty or held the previous theme's text
+                    let previousThemeText = selectedTheme?.promptText
                     selectedTheme = theme
-                    if parentPrompt.isEmpty || parentPrompt == previousThemeName {
-                        parentPrompt = theme.name
+                    if parentPrompt.isEmpty || parentPrompt == previousThemeText {
+                        parentPrompt = theme.promptText
                     }
                 }
             }
@@ -500,12 +500,22 @@ struct StorySetupView: View {
             }
         } label: {
             HStack(spacing: 12) {
-                Text(character.emoji)
-                    .font(.system(size: 24))
-                    .frame(width: 36, height: 36)
-                    .background(isActive ? activeCardBg : bg.opacity(0.5))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(isActive ? activeBorder : borderClr, lineWidth: isActive ? 1.5 : 1))
+                Group {
+                    if let data = character.imageData, let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 36, height: 36)
+                            .clipShape(Circle())
+                    } else {
+                        Text(character.emoji)
+                            .font(.system(size: 24))
+                            .frame(width: 36, height: 36)
+                            .background(isActive ? activeCardBg : bg.opacity(0.5))
+                            .clipShape(Circle())
+                    }
+                }
+                .overlay(Circle().stroke(isActive ? activeBorder : borderClr, lineWidth: isActive ? 1.5 : 1))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(character.name)
@@ -715,7 +725,7 @@ struct StorySetupView: View {
     private func handleStartStory() {
         isGenerating = true
         let prompt = parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty
-            ? (selectedTheme?.name ?? "a magical bedtime adventure")
+            ? (selectedTheme?.promptText ?? "a magical bedtime adventure")
             : parentPrompt
 
         var config = StoryConfig(
@@ -733,6 +743,7 @@ struct StorySetupView: View {
         if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
         config.targetDuration = storyLength.duration
         config.cameraEnabled = eyeTracking.isCameraEnabled
+        if let style = UserDefaults.standard.string(forKey: "ai_image_style") { config.imageStyle = style }
 
         isGenerating = false
         onStartStory(config)
@@ -743,7 +754,7 @@ struct StorySetupView: View {
     private func handleStartStoryDebug() {
         isGenerating = true
         let prompt = parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty
-            ? (selectedTheme?.name ?? "a magical bedtime adventure")
+            ? (selectedTheme?.promptText ?? "a magical bedtime adventure")
             : parentPrompt
 
         // Identical to handleStartStory but targetDuration = 2 (→ 4 paragraphs, ~2 min)
@@ -762,6 +773,7 @@ struct StorySetupView: View {
         if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
         config.targetDuration = 2          // 2-minute test run
         config.cameraEnabled = eyeTracking.isCameraEnabled
+        if let style = UserDefaults.standard.string(forKey: "ai_image_style") { config.imageStyle = style }
         isGenerating = false
         onStartStory(config)
     }

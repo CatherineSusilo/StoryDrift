@@ -17,6 +17,9 @@ struct DrawingsManagerView: View {
     @State private var drawingToDelete: ChildDrawing?
     @State private var showDeleteAlert = false
     @State private var selectedDrawingForPreview: ChildDrawing? = nil
+    @State private var drawingToRename: ChildDrawing?
+    @State private var renameText = ""
+    @State private var showRenameAlert = false
 
     // MARK: - Parchment palette
     private let bg        = Color(red: 0.894, green: 0.835, blue: 0.718)
@@ -133,6 +136,11 @@ struct DrawingsManagerView: View {
         }
         .alert("Delete this drawing?", isPresented: $showDeleteAlert, presenting: drawingToDelete) { drawing in
             Button("Delete", role: .destructive) { performDelete(drawing) }
+            Button("Cancel", role: .cancel) {}
+        }
+        .alert("Rename drawing", isPresented: $showRenameAlert, presenting: drawingToRename) { drawing in
+            TextField("Name", text: $renameText)
+            Button("Save") { performRename(drawing, to: renameText) }
             Button("Cancel", role: .cancel) {}
         }
     }
@@ -376,17 +384,32 @@ struct DrawingsManagerView: View {
             }  // end Button label
             .buttonStyle(.plain)
 
-            // Delete button
-            Button {
-                drawingToDelete = drawing
-                showDeleteAlert = true
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(7)
-                    .background(Color(red: 0.7, green: 0.31, blue: 0.31).opacity(0.85))
-                    .cornerRadius(4)
+            // Rename + Delete buttons
+            HStack(spacing: 6) {
+                Button {
+                    drawingToRename = drawing
+                    renameText = drawing.name
+                    showRenameAlert = true
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(7)
+                        .background(Color(red: 0.45, green: 0.4, blue: 0.3).opacity(0.85))
+                        .cornerRadius(4)
+                }
+
+                Button {
+                    drawingToDelete = drawing
+                    showDeleteAlert = true
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(7)
+                        .background(Color(red: 0.7, green: 0.31, blue: 0.31).opacity(0.85))
+                        .cornerRadius(4)
+                }
             }
             .padding(6)
         }
@@ -469,8 +492,28 @@ struct DrawingsManagerView: View {
         }
     }
     
+    private func performRename(_ drawing: ChildDrawing, to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, let idx = drawings.firstIndex(where: { $0.id == drawing.id }) else { return }
+        drawings[idx].name = trimmed
+        if let cid = selectedChild?.id { saveDrawings(childId: cid) }
+
+        // Persist to backend (only meaningful for cloud-synced drawings).
+        if drawing.imageUrl != nil {
+            Task {
+                guard let token = authManager.accessToken else { return }
+                do {
+                    try await APIService.shared.renameDrawing(drawingId: drawing.id, name: trimmed, token: token)
+                    print("✅ Drawing renamed on backend: \(drawing.id)")
+                } catch {
+                    print("⚠️ Failed to rename drawing on backend: \(error)")
+                }
+            }
+        }
+    }
+
     // MARK: - Backend Sync
-    
+
     /// Fetch drawings from MongoDB backend (including minigame drawings)
     @MainActor
     private func fetchDrawingsFromBackend(childId: String) async {

@@ -92,7 +92,7 @@ struct StoryThemesView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 // Emoji / icon field
-                TextField("emoji", text: $newIcon)
+                TextField("🌲", text: $newIcon)
                     .font(.custom("PatrickHand-Regular", size: 22))
                     .foregroundColor(ink)
                     .multilineTextAlignment(.center)
@@ -107,7 +107,7 @@ struct StoryThemesView: View {
 
                 VStack(spacing: 8) {
                     // Theme name
-                    TextField("theme name", text: $newName)
+                    TextField("e.g. enchanted forest", text: $newName)
                         .font(.custom("PatrickHand-Regular", size: 17))
                         .foregroundColor(ink)
                         .padding(.horizontal, 12)
@@ -120,7 +120,7 @@ struct StoryThemesView: View {
                         .cornerRadius(6)
 
                     // Short description
-                    TextField("short description", text: $newDescription)
+                    TextField("e.g. magical creatures and hidden paths", text: $newDescription)
                         .font(.custom("PatrickHand-Regular", size: 17))
                         .foregroundColor(ink)
                         .padding(.horizontal, 12)
@@ -166,29 +166,44 @@ struct StoryThemesView: View {
     // MARK: - Theme Card
     @ViewBuilder
     private func themeCard(_ theme: StoryThemeItem) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(theme.icon)
-                .font(.system(size: 38))
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(theme.icon)
+                    .font(.system(size: 38))
 
-            Text(theme.name)
-                .font(.custom("IndieFlower-Regular", size: 20))
-                .fontWeight(.bold)
-                .foregroundColor(ink)
+                Text(theme.name)
+                    .font(.custom("IndieFlower-Regular", size: 20))
+                    .fontWeight(.bold)
+                    .foregroundColor(ink)
 
-            Text(theme.description)
-                .font(.custom("PatrickHand-Regular", size: 14))
-                .foregroundColor(ink.opacity(0.65))
-                .lineLimit(2)
+                Text(theme.description)
+                    .font(.custom("PatrickHand-Regular", size: 14))
+                    .foregroundColor(ink.opacity(0.65))
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(cardBg.opacity(0.85))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(borderClr, lineWidth: 2)
+            )
+            .cornerRadius(8)
+            .shadow(color: .black.opacity(0.07), radius: 3, x: 0, y: 2)
+
+            // Delete theme
+            Button {
+                withAnimation { store.delete(theme) }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(6)
+                    .background(Color(red: 0.7, green: 0.31, blue: 0.31).opacity(0.85))
+                    .cornerRadius(4)
+            }
+            .padding(6)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(cardBg.opacity(0.85))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(borderClr, lineWidth: 2)
-        )
-        .cornerRadius(8)
-        .shadow(color: .black.opacity(0.07), radius: 3, x: 0, y: 2)
     }
 
     // MARK: - Actions

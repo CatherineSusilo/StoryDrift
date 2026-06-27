@@ -147,6 +147,8 @@ class APIService: ObservableObject {
         if let l = config.lessonDescription, !l.isEmpty { profileDict["lessonDescription"] = l }
         if let f = config.minigameFrequency { profileDict["minigameFrequency"] = f }
         if let c = config.curriculumLessonId, !c.isEmpty { profileDict["curriculumLessonId"] = c }
+        if let s = config.imageStyle, !s.trimmingCharacters(in: .whitespaces).isEmpty { profileDict["imageStyle"] = s }
+        if let q = config.imageQuality, !q.isEmpty { profileDict["imageQuality"] = q }
         let generateBody: [String: Any] = ["profile": profileDict]
 
         guard let url = URL(string: "\(Self.baseURL)/api/generate/story") else { throw APIError.invalidURL }
@@ -217,6 +219,30 @@ class APIService: ObservableObject {
         struct Confirmed: Decodable { let id: String }
         let _: Confirmed = try await request(endpoint: "/api/stories/\(storyId)", method: "PATCH",
                                              body: RenameBody(storyTitle: title), token: token)
+    }
+
+    /// Rename a drawing in the collection. Backend updates the `name` field.
+    func renameDrawing(drawingId: String, name: String, token: String) async throws {
+        struct RenameBody: Encodable { let name: String }
+        struct Confirmed: Decodable { let id: String }
+        let _: Confirmed = try await request(endpoint: "/api/drawings/\(drawingId)", method: "PATCH",
+                                             body: RenameBody(name: name), token: token)
+    }
+
+    /// Analyze a character portrait into one short, hidden visual sentence.
+    /// Returns nil on failure (analysis is best-effort, hidden from the user).
+    func analyzeCharacterImage(imageData: Data, name: String?, token: String) async -> String? {
+        struct AnalyzeBody: Encodable { let imageData: String; let name: String? }
+        struct AnalyzeResp: Decodable { let description: String }
+        do {
+            let body = AnalyzeBody(imageData: imageData.base64EncodedString(), name: name)
+            let resp: AnalyzeResp = try await request(endpoint: "/api/characters/analyze-image",
+                                                      method: "POST", body: body, token: token)
+            return resp.description
+        } catch {
+            print("⚠️ analyzeCharacterImage failed: \(error)")
+            return nil
+        }
     }
 
     /// Delete a story permanently.
@@ -397,6 +423,10 @@ struct StoryConfig: Codable {
     var lessonDescription: String?
     /// Curriculum lesson ID for roadmap-launched lessons.
     var curriculumLessonId: String?
+    /// Parent-chosen art style (AI Customization → image generation style).
+    var imageStyle: String?
+    /// Image quality tier: "standard" (Flux Schnell) or "premium" (Flux Dev).
+    var imageQuality: String?
 }
 
 // MARK: - API Errors

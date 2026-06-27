@@ -48,10 +48,17 @@ Check `ParentalGateManager.shared.isParentMode` before rendering parent controls
 - **Runtime**: Node.js + TypeScript
 - **Framework**: Express
 - **DB**: MongoDB via Mongoose (`StorySession`, `Child`, `User` models)
-- **AI**: Anthropic Claude API (`claude-sonnet-4-5` for story, `claude-haiku-4-5-20251001` for title/minigame/drawing description)
-- **Images**: fal.ai — Flux Schnell (para 1 text-to-image), Flux Dev (para 2+ image-to-image)
-- **Audio**: ElevenLabs TTS
+- **AI**: Claude via **Backboard.io relay** — all Claude calls go through `claudeChat()` in `src/lib/backboard.ts` (never `new Anthropic()` directly elsewhere). Backboard runs `claude-haiku-4-5-20251001` for everything (story, title, minigame, character profile). See **Backboard relay** below.
+- **Images**: fal.ai — every paragraph is independent text-to-image. Flux Schnell (standard) / Flux Dev (premium tier). No img2img.
+- **Audio**: ElevenLabs TTS (direct, not relayed)
 - **Storage**: Cloudflare R2 via `uploadToR2`
+
+### Backboard relay (Claude)
+Direct Anthropic credit is exhausted; Backboard wraps Claude. All Claude/text calls route through `claudeChat(params)` (`src/lib/backboard.ts`), a drop-in for `claude.messages.create`.
+- Endpoint `POST {BACKBOARD_BASE_URL}/threads/messages`, header `X-API-Key`, body `{content, llm_provider:'anthropic', model_name:'claude-haiku-4-5-20251001'}`. Base URL `https://app.backboard.io/api`.
+- Backboard returns upstream LLM failures as **HTTP 200 + `"LLM Error: …"`** content — `claudeChat` detects and throws.
+- `content` is **text only** — Backboard can't do vision. When relaying, image-analysis calls (`analyseImageWithClaude`, `analyseImageShort`, `describeDrawings`) are skipped and return `""`.
+- Flag `DISABLE_BACKBOARD`: `true` → direct Anthropic API (needs credit, restores vision); `false` → Backboard. Env: `BACKBOARD_API_KEY`, `BACKBOARD_BASE_URL`.
 
 ### Key routes
 
@@ -65,11 +72,11 @@ Check `ParentalGateManager.shared.isParentMode` before rendering parent controls
 | `DELETE /api/stories/:storyId` | `routes/stories.ts` | Hard delete, ownership-verified |
 
 ### Image generation pipeline
-1. Para 1: Flux Schnell text-to-image → sets `firstFalUrl` (style anchor)
-2. Para 2: Flux Dev img2img with `firstFalUrl` (strength 0.80)
-3. Para 3+: Flux Dev img2img with `prevFalUrl` + strength scales with drift (0.75–0.88)
-
-`FAL_STYLE_SUFFIX` includes child-safety guardrails — never remove them.
+Every paragraph is an **independent text-to-image** render (no img2img — feeding the
+previous image back made each image echo the last one). `generateParagraphImage`:
+- `quality: 'standard'` → `fal-ai/flux/schnell` (4 steps); `'premium'` → `fal-ai/flux/dev` (28 steps, future subscription tier).
+- Style consistency comes from a shared art-style string: the parent's `imageStyle` (AI Customization → image generation style) is the primary directive (~60%), selected character appearance is secondary (~40%).
+- `FAL_SAFETY_SUFFIX` (child-safety + format guardrails) is **always appended — never remove it**. `DEFAULT_ART_STYLE` is used when no `imageStyle` is provided.
 
 ### Story generation request shape
 ```json
@@ -82,12 +89,14 @@ Check `ParentalGateManager.shared.isParentMode` before rendering parent controls
     "parentPrompt": "...",
     "initialState": "normal",
     "targetDuration": 15,
-    "characters": ["Luna the fox", "Pip the rabbit"],
-    "drawingPrompts": ["<base64 png>"]
+    "characters": ["Luna the fox (a gentle fox; curious; small orange fox)"],
+    "drawingPrompts": ["<base64 png>"],
+    "imageStyle": "soft watercolor",
+    "imageQuality": "standard"
   }
 }
 ```
-Response includes `storyTitle` (Claude Haiku-generated, 3–5 words).
+`characters` are prompt fragments from the iOS local `CharacterStore` (`promptFragment` = name + description + traits + optional hidden 1-sentence image analysis). Response includes `storyTitle` (Claude Haiku-generated, 3–5 words).
 
 ---
 

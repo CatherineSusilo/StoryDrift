@@ -15,6 +15,13 @@ struct StoryThemeItem: Codable, Identifiable, Equatable {
         self.name = name
         self.description = description
     }
+
+    /// Full injection text for story generation — the theme title AND its
+    /// supporting description, so the generator gets both (not just the title).
+    var promptText: String {
+        let trimmedDesc = description.trimmingCharacters(in: .whitespaces)
+        return trimmedDesc.isEmpty ? name : "\(name) — \(trimmedDesc)"
+    }
 }
 
 // MARK: - ThemeStore
