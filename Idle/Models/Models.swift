@@ -554,7 +554,7 @@ struct MinigameResult {
 /// Used by DrawingsManagerView and saved from minigames.
 struct ChildDrawing: Codable, Identifiable {
     let id: String
-    let name: String
+    var name: String
     var imageUrl: String?        // R2 cloud storage URL (preferred)
     var imageData: Data?         // Legacy: base64 data (fallback)
     let uploadedAt: Date

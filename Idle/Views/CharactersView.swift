@@ -1,8 +1,13 @@
 import SwiftUI
+import PhotosUI
 
 // MARK: - CharactersView
 struct CharactersView: View {
 
+    /// Active child — character portraits are also stored in this child's drawings collection.
+    let child: ChildProfile
+
+    @EnvironmentObject var authManager: AuthManager
     @StateObject private var store = CharacterStore.shared
 
     // form state
@@ -11,6 +16,11 @@ struct CharactersView: View {
     @State private var newName = ""
     @State private var newDescription = ""
     @State private var newPersonality = ""
+
+    // image upload state
+    @State private var pickerItem: PhotosPickerItem?
+    @State private var newImage: UIImage?
+    @State private var newImageData: Data?
 
     // expanded character card ids
     @State private var expandedIds: Set<String> = []
@@ -86,27 +96,70 @@ struct CharactersView: View {
         }
     }
 
+    // MARK: - Portrait picker (preferred over emoji)
+    @ViewBuilder
+    private var portraitPicker: some View {
+        PhotosPicker(selection: $pickerItem, matching: .images) {
+            portraitPickerLabel
+        }
+        .onChange(of: pickerItem) { _, item in
+            Task { await loadPickedImage(item) }
+        }
+    }
+
+    @ViewBuilder
+    private var portraitPickerLabel: some View {
+        Group {
+            if let img = newImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 80, height: 80)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else {
+                VStack(spacing: 4) {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 20))
+                    Text("add image")
+                        .font(.custom("PatrickHand-Regular", size: 11))
+                }
+                .foregroundColor(ink.opacity(0.55))
+                .frame(width: 80, height: 80)
+                .background(cardBg)
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(borderClr, lineWidth: 1.5)
+        )
+        .cornerRadius(6)
+    }
+
     // MARK: - Create form card
     private var createFormCard: some View {
         VStack(alignment: .leading, spacing: 12) {
 
-            // Emoji + Name row
+            // Image upload + Name row
             HStack(spacing: 12) {
-                // Emoji field
-                TextField("👾", text: $newEmoji)
-                    .font(.system(size: 28))
-                    .multilineTextAlignment(.center)
-                    .frame(width: 80)
-                    .padding(.vertical, 12)
-                    .background(cardBg)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(borderClr, lineWidth: 1.5)
-                    )
-                    .cornerRadius(6)
-
+                portraitPicker
                 // Name field
                 parchmentField("character name", text: $newName)
+            }
+
+            // Remove picked image
+            if newImage != nil {
+                Button {
+                    newImage = nil
+                    newImageData = nil
+                    pickerItem = nil
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "xmark.circle")
+                        Text("remove image")
+                    }
+                    .font(.custom("PatrickHand-Regular", size: 13))
+                    .foregroundColor(ink.opacity(0.6))
+                }
             }
 
             // Description field
@@ -123,16 +176,7 @@ struct CharactersView: View {
 
             // Create button
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    store.add(
-                        emoji: newEmoji.trimmingCharacters(in: .whitespaces).isEmpty ? "👾" : newEmoji,
-                        name: newName,
-                        description: newDescription,
-                        personality: newPersonality
-                    )
-                    clearForm()
-                    showForm = false
-                }
+                createCharacter()
             } label: {
                 Text("create character")
                     .font(.custom("PatrickHand-Regular", size: 16))
@@ -168,13 +212,22 @@ struct CharactersView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Main row
             HStack(spacing: 14) {
-                // Emoji avatar circle
-                Text(character.emoji)
-                    .font(.system(size: 30))
-                    .frame(width: 48, height: 48)
-                    .background(bg.opacity(0.6))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(borderClr, lineWidth: 1))
+                // Avatar — uploaded image (small) or emoji fallback
+                if let data = character.imageData, let uiImage = UIImage(data: data) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 48, height: 48)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(borderClr, lineWidth: 1))
+                } else {
+                    Text(character.emoji)
+                        .font(.system(size: 30))
+                        .frame(width: 48, height: 48)
+                        .background(bg.opacity(0.6))
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(borderClr, lineWidth: 1))
+                }
 
                 // Name + description
                 VStack(alignment: .leading, spacing: 3) {
@@ -191,18 +244,17 @@ struct CharactersView: View {
 
                 Spacer()
 
-                // Story count badge
-                Text("0 stories")
-                    .font(.custom("PatrickHand-Regular", size: 12))
-                    .foregroundColor(ink.opacity(0.55))
-                    .padding(.vertical, 5)
-                    .padding(.horizontal, 10)
-                    .background(bg.opacity(0.6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(borderClr, lineWidth: 1)
-                    )
-                    .cornerRadius(4)
+                // Delete character (visible — swipeActions don't work outside a List)
+                Button {
+                    withAnimation { store.delete(character) }
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color(red: 0.7, green: 0.31, blue: 0.31).opacity(0.85))
+                        .cornerRadius(6)
+                }
 
                 // Expand chevron
                 if !character.personality.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -235,6 +287,20 @@ struct CharactersView: View {
                         .font(.custom("PatrickHand-Regular", size: 14))
                         .foregroundColor(ink.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+                    // Remove just the portrait
+                    if character.imageData != nil {
+                        Button {
+                            withAnimation { store.removeImage(id: character.id) }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "photo.badge.minus")
+                                Text("remove image")
+                            }
+                            .font(.custom("PatrickHand-Regular", size: 12))
+                            .foregroundColor(ink.opacity(0.6))
+                        }
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -247,13 +313,6 @@ struct CharactersView: View {
         )
         .cornerRadius(10)
         .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 2)
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive) {
-                withAnimation { store.delete(character) }
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
     }
 
     // MARK: - Empty state
@@ -332,15 +391,78 @@ struct CharactersView: View {
         .cornerRadius(6)
     }
 
-    // MARK: - Helpers
+    // MARK: - Actions
+
+    /// Load a picked photo into the form (kept as JPEG data for storage/analysis).
+    private func loadPickedImage(_ item: PhotosPickerItem?) async {
+        guard let item,
+              let data = try? await item.loadTransferable(type: Data.self),
+              let img = UIImage(data: data) else { return }
+        // Re-encode to JPEG to keep size reasonable.
+        let jpeg = img.jpegData(compressionQuality: 0.85) ?? data
+        await MainActor.run {
+            newImage = img
+            newImageData = jpeg
+        }
+    }
+
+    private func createCharacter() {
+        let imageData = newImageData
+        guard let character = store.add(
+            emoji: newEmoji.trimmingCharacters(in: .whitespaces).isEmpty ? "👾" : newEmoji,
+            name: newName,
+            description: newDescription,
+            personality: newPersonality,
+            imageData: imageData
+        ) else { return }
+
+        // Only when an image was added: store it in the drawings collection and
+        // run the hidden one-sentence analysis in the background.
+        if let imageData {
+            addPortraitToDrawings(name: character.name, imageData: imageData)
+            analyzeInBackground(characterId: character.id, name: character.name, imageData: imageData)
+        }
+
+        clearForm()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { showForm = false }
+    }
+
+    /// Fire-and-forget: fetch the hidden visual sentence and attach it to the character.
+    private func analyzeInBackground(characterId: String, name: String, imageData: Data) {
+        guard let token = authManager.accessToken else { return }
+        Task {
+            if let description = await APIService.shared.analyzeCharacterImage(
+                imageData: imageData, name: name, token: token
+            ) {
+                await MainActor.run {
+                    store.setImageDescription(id: characterId, description)
+                }
+            }
+        }
+    }
+
+    /// Append the portrait into this child's drawings collection (UserDefaults,
+    /// same key DrawingsManagerView uses — it syncs to the backend on next open).
+    private func addPortraitToDrawings(name: String, imageData: Data) {
+        let key = "drawings_\(child.id)"
+        var drawings: [ChildDrawing] = []
+        if let data = UserDefaults.standard.data(forKey: key),
+           let decoded = try? JSONDecoder().decode([ChildDrawing].self, from: data) {
+            drawings = decoded
+        }
+        drawings.insert(ChildDrawing(name: name, imageData: imageData, uploadedAt: Date()), at: 0)
+        if let encoded = try? JSONEncoder().encode(drawings) {
+            UserDefaults.standard.set(encoded, forKey: key)
+        }
+    }
+
     private func clearForm() {
         newEmoji = "👾"
         newName = ""
         newDescription = ""
         newPersonality = ""
+        newImage = nil
+        newImageData = nil
+        pickerItem = nil
     }
-}
-
-#Preview {
-    CharactersView()
 }

@@ -500,12 +500,22 @@ struct StorySetupView: View {
             }
         } label: {
             HStack(spacing: 12) {
-                Text(character.emoji)
-                    .font(.system(size: 24))
-                    .frame(width: 36, height: 36)
-                    .background(isActive ? activeCardBg : bg.opacity(0.5))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(isActive ? activeBorder : borderClr, lineWidth: isActive ? 1.5 : 1))
+                Group {
+                    if let data = character.imageData, let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 36, height: 36)
+                            .clipShape(Circle())
+                    } else {
+                        Text(character.emoji)
+                            .font(.system(size: 24))
+                            .frame(width: 36, height: 36)
+                            .background(isActive ? activeCardBg : bg.opacity(0.5))
+                            .clipShape(Circle())
+                    }
+                }
+                .overlay(Circle().stroke(isActive ? activeBorder : borderClr, lineWidth: isActive ? 1.5 : 1))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(character.name)
@@ -733,6 +743,7 @@ struct StorySetupView: View {
         if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
         config.targetDuration = storyLength.duration
         config.cameraEnabled = eyeTracking.isCameraEnabled
+        if let style = UserDefaults.standard.string(forKey: "ai_image_style") { config.imageStyle = style }
 
         isGenerating = false
         onStartStory(config)
@@ -762,6 +773,7 @@ struct StorySetupView: View {
         if minigameFrequency != .none { config.minigameFrequency = minigameFrequency.rawValue }
         config.targetDuration = 2          // 2-minute test run
         config.cameraEnabled = eyeTracking.isCameraEnabled
+        if let style = UserDefaults.standard.string(forKey: "ai_image_style") { config.imageStyle = style }
         isGenerating = false
         onStartStory(config)
     }
