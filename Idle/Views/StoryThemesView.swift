@@ -92,7 +92,7 @@ struct StoryThemesView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 // Emoji / icon field
-                TextField("emoji", text: $newIcon)
+                TextField("🌲", text: $newIcon)
                     .font(.custom("PatrickHand-Regular", size: 22))
                     .foregroundColor(ink)
                     .multilineTextAlignment(.center)
@@ -107,7 +107,7 @@ struct StoryThemesView: View {
 
                 VStack(spacing: 8) {
                     // Theme name
-                    TextField("theme name", text: $newName)
+                    TextField("e.g. enchanted forest", text: $newName)
                         .font(.custom("PatrickHand-Regular", size: 17))
                         .foregroundColor(ink)
                         .padding(.horizontal, 12)
@@ -120,7 +120,7 @@ struct StoryThemesView: View {
                         .cornerRadius(6)
 
                     // Short description
-                    TextField("short description", text: $newDescription)
+                    TextField("e.g. magical creatures and hidden paths", text: $newDescription)
                         .font(.custom("PatrickHand-Regular", size: 17))
                         .foregroundColor(ink)
                         .padding(.horizontal, 12)

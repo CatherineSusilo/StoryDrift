@@ -351,7 +351,7 @@ struct StorySetupView: View {
         .onAppear { loadDrawings() }
         .onChange(of: selectedTheme) { _, theme in
             if let theme, parentPrompt.isEmpty {
-                parentPrompt = theme.name
+                parentPrompt = theme.promptText
             }
         }
     }
@@ -381,15 +381,15 @@ struct StorySetupView: View {
         Button {
             withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
                 if isActive {
-                    // Deselect — clear prompt if it still holds this theme's name
+                    // Deselect — clear prompt if it still holds this theme's text
                     selectedTheme = nil
-                    if parentPrompt == theme.name { parentPrompt = "" }
+                    if parentPrompt == theme.promptText { parentPrompt = "" }
                 } else {
-                    // Select — replace prompt if it's empty or held the previous theme's name
-                    let previousThemeName = selectedTheme?.name
+                    // Select — replace prompt if it's empty or held the previous theme's text
+                    let previousThemeText = selectedTheme?.promptText
                     selectedTheme = theme
-                    if parentPrompt.isEmpty || parentPrompt == previousThemeName {
-                        parentPrompt = theme.name
+                    if parentPrompt.isEmpty || parentPrompt == previousThemeText {
+                        parentPrompt = theme.promptText
                     }
                 }
             }
@@ -725,7 +725,7 @@ struct StorySetupView: View {
     private func handleStartStory() {
         isGenerating = true
         let prompt = parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty
-            ? (selectedTheme?.name ?? "a magical bedtime adventure")
+            ? (selectedTheme?.promptText ?? "a magical bedtime adventure")
             : parentPrompt
 
         var config = StoryConfig(
@@ -754,7 +754,7 @@ struct StorySetupView: View {
     private func handleStartStoryDebug() {
         isGenerating = true
         let prompt = parentPrompt.trimmingCharacters(in: .whitespaces).isEmpty
-            ? (selectedTheme?.name ?? "a magical bedtime adventure")
+            ? (selectedTheme?.promptText ?? "a magical bedtime adventure")
             : parentPrompt
 
         // Identical to handleStartStory but targetDuration = 2 (→ 4 paragraphs, ~2 min)
